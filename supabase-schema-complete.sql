@@ -46,8 +46,9 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS order_line_items (
   id BIGSERIAL PRIMARY KEY,
   shopify_order_id VARCHAR(255) NOT NULL,
+  store_id VARCHAR(255) NOT NULL,
   financial_status VARCHAR(255) NOT NULL,
-  line_item_id VARCHAR(255) NOT NULL,
+  line_item_id VARCHAR(255) UNIQUE NOT NULL,
   product_id VARCHAR(255) NOT NULL,
   product_title VARCHAR(255),
   variant_id VARCHAR(255),
@@ -57,8 +58,10 @@ CREATE TABLE IF NOT EXISTS order_line_items (
   price DECIMAL(10,2) NOT NULL,
   total_price DECIMAL(10,2) NOT NULL,
   created_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(shopify_order_id, line_item_id)
+  UNIQUE(line_item_id)
 );
+
+ALTER TABLE order_line_items ADD CONSTRAINT unique_shopify_order_line_item UNIQUE (line_item_id);
 
 -- Create cost_of_goods table (for profit calculations)
 CREATE TABLE IF NOT EXISTS cost_of_goods (
@@ -341,3 +344,25 @@ COMMENT ON TABLE ad_spend_detailed IS 'Detailed advertising spend data with perf
 -- Grant necessary permissions
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated; 
+-- Add first_order_date column to customers table
+-- This column will track when a customer placed their first order
+
+-- Add the column
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS first_order_date TIMESTAMP WITH TIME ZONE;
+
+-- Add index for better performance when querying by first_order_date
+CREATE INDEX IF NOT EXISTS idx_customers_first_order_date ON customers(first_order_date);
+
+-- Update existing customers with their first order date
+-- This query finds the earliest order for each customer and updates their first_order_date
+UPDATE customers 
+SET first_order_date = (
+    SELECT MIN(o.created_at) 
+    FROM orders o 
+    WHERE o.customer_id = customers.customer_id 
+    AND o.store_id = customers.store_id
+)
+WHERE first_order_date IS NULL;
+
+-- Add comment to document the column
+COMMENT ON COLUMN customers.first_order_date IS 'Date of the customer''s first order';

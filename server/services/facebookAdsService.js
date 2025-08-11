@@ -8,7 +8,7 @@ class FacebookAdsService {
 		this.adAccountId = process.env.FACEBOOK_AD_ACCOUNT_ID;
 	}
 
-	async fetchCampaigns(socket = null) {
+	async fetchCampaigns(socket = null, storeId = null) {
 		try {
 			console.log('📘 Fetching Facebook Ads campaigns...');
 
@@ -34,7 +34,7 @@ class FacebookAdsService {
 			console.log(`✅ Fetched ${campaigns.length} Facebook campaigns`);
 
 			// Save campaigns to database
-			await this.saveCampaigns(campaigns, socket);
+			await this.saveCampaigns(campaigns, socket, storeId);
 
 			return campaigns;
 		} catch (error) {
@@ -47,7 +47,7 @@ class FacebookAdsService {
 		}
 	}
 
-	async saveCampaigns(campaigns, socket = null) {
+	async saveCampaigns(campaigns, socket = null, storeId = null) {
 		try {
 			console.log(`💾 Saving ${campaigns.length} Facebook campaigns to database...`);
 
@@ -56,6 +56,7 @@ class FacebookAdsService {
 				campaign_name: campaign.name,
 				platform: 'facebook',
 				account_id: this.adAccountId,
+				store_id: storeId,
 				status: campaign.status,
 				created_at: new Date(campaign.created_time).toISOString(),
 				updated_at: new Date(campaign.updated_time).toISOString()
@@ -90,7 +91,7 @@ class FacebookAdsService {
 		}
 	}
 
-	async fetchAdSpend(startDate, endDate, socket = null) {
+	async fetchAdSpend(startDate, endDate, socket = null, storeId = null) {
 		try {
 			console.log(`📊 Fetching Facebook ad spend from ${startDate} to ${endDate}...`);
 
@@ -121,7 +122,7 @@ class FacebookAdsService {
 			console.log(`✅ Fetched ${insights.length} Facebook ad spend records`);
 
 			// Save ad spend data
-			await this.saveAdSpend(insights, socket);
+			await this.saveAdSpend(insights, socket, storeId);
 
 			return insights;
 		} catch (error) {
@@ -134,7 +135,7 @@ class FacebookAdsService {
 		}
 	}
 
-	async saveAdSpend(insights, socket = null) {
+	async saveAdSpend(insights, socket = null, storeId = null) {
 		try {
 			console.log(`💾 Saving ${insights.length} Facebook ad spend records...`);
 
@@ -166,7 +167,7 @@ class FacebookAdsService {
 				}
 
 				// Map campaign to store/product based on campaign name
-				const { storeId, productId } = this.mapCampaignToStoreProduct(insight.campaign_name);
+				const { storeId: mappedStoreId, productId } = this.mapCampaignToStoreProduct(insight.campaign_name);
 
 				adSpendData.push({
 					date: insight.date_start,
@@ -177,7 +178,7 @@ class FacebookAdsService {
 					clicks: parseInt(insight.clicks) || 0,
 					conversions: conversions,
 					conversion_value: conversionValue,
-					store_id: storeId,
+					store_id: storeId || mappedStoreId,
 					product_id: productId
 				});
 			}
@@ -248,24 +249,24 @@ class FacebookAdsService {
 		return { storeId, productId };
 	}
 
-	async syncFacebookAds(startDate, endDate, socket = null) {
+	async syncFacebookAds(startDate, endDate, socket = null, storeId = null) {
 		try {
-			console.log('🔄 Starting Facebook Ads sync...');
+			console.log(`🔄 Starting Facebook Ads sync for store: ${storeId || 'all stores'}...`);
 
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'starting_facebook',
-					message: '🔄 Starting Facebook Ads sync...',
+					message: `🔄 Starting Facebook Ads sync for ${storeId || 'all stores'}...`,
 					progress: 0,
 					total: 'unlimited'
 				});
 			}
 
 			// Fetch and save campaigns
-			await this.fetchCampaigns(socket);
+			await this.fetchCampaigns(socket, storeId);
 
 			// Fetch and save ad spend data
-			await this.fetchAdSpend(startDate, endDate, socket);
+			await this.fetchAdSpend(startDate, endDate, socket, storeId);
 
 			if (socket) {
 				socket.emit('syncProgress', {

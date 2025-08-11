@@ -3,12 +3,59 @@ const { supabase, insert, update, select } = require('../config/database-supabas
 const analyticsService = require('./analyticsService');
 
 class ShopifyService {
-	constructor() {
-		this.baseURL = `https://${process.env.SHOPIFY_SHOP_URL}/admin/api/${process.env.SHOPIFY_API_VERSION}`;
+	constructor(storeId = 'buycosari') {
+		this.storeId = storeId;
+		this.setupStoreConfig();
+	}
+
+	setupStoreConfig() {
+		// Store configurations
+		const storeConfigs = {
+			buycosari: {
+				shopUrl: 'buycosari.com',
+				accessToken: process.env.COSARI_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			},
+			meonutrition: {
+				shopUrl: 'meonutrition.com',
+				accessToken: process.env.MEONUTRITION_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			},
+			nomobark: {
+				shopUrl: 'nomobark.com',
+				accessToken: process.env.NOMOBARK_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			},
+			dermao: {
+				shopUrl: 'dermao.com',
+				accessToken: process.env.DERMAO_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			},
+			gamoseries: {
+				shopUrl: 'gamoseries.com',
+				accessToken: process.env.GAMOSERIES_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			},
+			cosara: {
+				shopUrl: 'cosara.com',
+				accessToken: process.env.COSARA_ACCESS_TOKEN,
+				apiVersion: process.env.SHOPIFY_API_VERSION || '2024-04'
+			}
+		};
+
+		const config = storeConfigs[this.storeId];
+		if (!config) {
+			throw new Error(`Store configuration not found for: ${this.storeId}`);
+		}
+
+		this.baseURL = `https://${config.shopUrl}/admin/api/${config.apiVersion}`;
 		this.headers = {
-			'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+			'X-Shopify-Access-Token': config.accessToken,
 			'Content-Type': 'application/json'
 		};
+
+		console.log(`🏪 Initialized Shopify service for store: ${this.storeId}`);
+		console.log(`🔗 Base URL: ${this.baseURL}`);
 	}
 
 	async fetchOrders(limit = 50, since_id = null, syncDate = null, socket = null) {
@@ -36,7 +83,7 @@ class ShopifyService {
 
 				// Emit progress update for each page
 				if (socket) {
-					const progress = Math.min(15 + (pageCount * 10), 75); // Progress from 15% to 75%
+					const progress = Math.min(10 + (pageCount * 2), 20); // Progress from 10% to 20%
 					socket.emit('syncProgress', {
 						stage: 'fetching',
 						message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
@@ -68,6 +115,7 @@ class ShopifyService {
 				allOrders = allOrders.concat(orders);
 				totalFetched += orders.length;
 
+				console.log(allOrders[0])
 				console.log(`📦 Fetched ${orders.length} orders (total: ${totalFetched})`);
 
 				// No max orders limit - fetch all available orders
@@ -103,24 +151,49 @@ class ShopifyService {
 
 	async saveOrdersToDatabase(orders, socket = null) {
 		try {
-			console.log(`🔄 Preparing to save ${orders.length} orders to database...`);
+			console.log(`🔄 Preparing to save ${orders.length} orders to database using upsert...`);
 
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'saving',
-					message: `💾 Preparing to save ${orders.length} orders...`,
-					progress: 80,
-					total: orders.length
+					message: `💾 Preparing to save ${orders.length} orders using upsert...`,
+					progress: 25,
+					total: orders.length,
+					current: 0
 				});
 			}
 
 			// Transform all orders to database format
 			const orderDataArray = [];
-			const orderIds = [];
+			const uniqueCustomers = new Map();
+			
+			var {count: customerCount} = await supabase
+				.from('customers')
+				.select('*', {count: 'exact', head: true})
+				.eq('store_id', this.storeId);
+			
+			var chunk = 1000;
+			var allCustomers = [];
+			for (var i = 0; i < customerCount; i+= chunk) {
+				const currentChunk = Math.floor(i / chunk) + 1;
+
+				const { data: customers, error: customersError } = await supabase
+					.from('customers')
+					.select('*')
+					.eq('store_id', this.storeId)
+					.range(i, i + chunk - 1);
+
+				if (customersError) {
+					console.error(`❌ Error in customers upsert chunk ${currentChunk}:`, customersError);
+					throw customersError;
+				}
+				allCustomers.push(...customers);
+			}
+
 			orders.forEach((order) => {
-				orderIds.push(order.id.toString())
 				orderDataArray.push({
 					shopify_order_id: order.id.toString(),
+					store_id: this.storeId, // Add store ID
 					order_number: order.order_number,
 					total_price: parseFloat(order.total_price),
 					subtotal_price: parseFloat(order.subtotal_price),
@@ -134,18 +207,51 @@ class ShopifyService {
 					customer_email: order.customer?.email || null,
 					customer_id: order.customer?.id?.toString() || null
 				})
+				
+				// Extract customer data if customer exists
+				if (order.customer && order.customer.id) {
+					const customerId = order.customer.id.toString();
+					if (!uniqueCustomers.has(customerId)) {
+						// Get default address from customer
+						const defaultAddress = order.customer.default_address || {};
+						var customer = allCustomers.find(customer => customer.customer_id === customerId);
+						uniqueCustomers.set(customerId, {
+							customer_id: customerId,
+							store_id: this.storeId,
+							email: order.customer.email || null,
+							first_name: order.customer.first_name || null,
+							last_name: order.customer.last_name || null,
+							phone: order.customer.phone || null,
+							orders_count: order.customer.orders_count || 0,
+							total_spent: parseFloat(order.customer.total_spent || 0),
+							// Address fields
+							address1: defaultAddress.address1 || null,
+							address2: defaultAddress.address2 || null,
+							city: defaultAddress.city || null,
+							province: defaultAddress.province || null,
+							country: defaultAddress.country || null,
+							zip: defaultAddress.zip || null,
+							created_at: new Date(order.customer.created_at || order.created_at).toISOString(),
+							updated_at: new Date(order.customer.updated_at || order.updated_at).toISOString(),
+							// Track first order date - will be updated during upsert
+							first_order_date: customer ? new Date(customer.first_order_date).toISOString() : new Date(order.created_at).toISOString(),
+							first_order_price: customer ? parseFloat(customer.first_order_price) : parseFloat(order.total_price)
+						});
+					}
+					else {
+						if (uniqueCustomers.get(customerId).first_order_date > order.created_at) {
+							uniqueCustomers.get(customerId).first_order_date = new Date(order.created_at).toISOString();
+							uniqueCustomers.get(customerId).first_order_price = parseFloat(order.total_price);
+						}
+					}
+				}
 			})
 			
-			console.log(orderDataArray.length, "orderDataArray")
 			// Extract unique products from line items and prepare for products table
 			const uniqueProducts = new Map();
 			const lineItemsData = [];
 			
-			console.log(orders[0])
-			var t = 0, tt = 0, c = 0;
 			orders.forEach(order => {
-				t += parseFloat(order.total_price);
-				c += order.line_items.length;
 				if (order.line_items && order.line_items.length > 0) {
 					order.line_items.forEach(lineItem => {
 						// Skip line items without product_id
@@ -153,13 +259,13 @@ class ShopifyService {
 							console.log(`⚠️  Skipping line item without product_id: ${lineItem.id}`);
 							return;
 						}
-						tt += parseFloat(parseFloat(lineItem.price || 0) * (lineItem.quantity || 1))
 						const productId = lineItem.product_id.toString();
 						
 						// Add to unique products map
 						if (!uniqueProducts.has(productId)) {
 							uniqueProducts.set(productId, {
 								product_id: productId,
+								store_id: this.storeId, // Add store ID
 								product_title: lineItem.title || 'Unknown Product',
 								product_type: lineItem.product_type || null,
 								vendor: lineItem.vendor || null,
@@ -172,6 +278,7 @@ class ShopifyService {
 						// Prepare line item data
 						lineItemsData.push({
 							shopify_order_id: order.id.toString(),
+							store_id: this.storeId, // Add store ID
 							financial_status: order.financial_status,
 							line_item_id: lineItem.id.toString(),
 							product_id: productId,
@@ -187,185 +294,131 @@ class ShopifyService {
 					});
 				}
 			});
-			tt = 0;
-			lineItemsData.forEach(lineItem => {
-				tt += parseFloat(lineItem.total_price)
-			})
-			console.log(t, tt, c, "order_line_items length")
 			const startTime = Date.now();
 
-			// Extract all shopify_order_ids for deletion
-			console.log(`🗑️  Deleting ${orderIds.length} existing orders and line items before inserting...`);
-
-			// Delete existing line items first (due to foreign key constraint) - CHUNKED
-			const BATCH_SIZE = 1000;
-			if (lineItemsData.length > 0) {
-				
-				if (orderIds.length > BATCH_SIZE) {
-					console.log(`🗑️  Large line items deletion detected (${orderIds.length} orders). Processing deletions in chunks of ${BATCH_SIZE}...`);
-					
-					const totalLineItemDeleteChunks = Math.ceil(orderIds.length / BATCH_SIZE);
-					let totalLineItemsDeleted = 0;
-					
-					for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
-						const deleteChunk = orderIds.slice(i, i + BATCH_SIZE);
-						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
-						console.log(`🗑️  Deleting line items chunk ${currentChunk}/${totalLineItemDeleteChunks} (${deleteChunk.length} orders)...`);
-						
-						const { error: deleteLineItemsError } = await supabase
-							.from('order_line_items')
-							.delete()
-							.in('shopify_order_id', deleteChunk);
-						
-						if (deleteLineItemsError) {
-							console.error(`❌ Error deleting line items chunk ${currentChunk}:`, deleteLineItemsError);
-							throw deleteLineItemsError;
-						}
-						
-						totalLineItemsDeleted += deleteChunk.length;
-						console.log(`✅ Line items delete chunk ${currentChunk} completed. Total processed: ${totalLineItemsDeleted}/${orderIds.length}`);
-					}
-				} else {
-					// Single deletion for smaller datasets
-					const { error: deleteLineItemsError } = await supabase
-						.from('order_line_items')
-						.delete()
-						.in('shopify_order_id', orderIds);
-					
-					if (deleteLineItemsError) {
-						console.error('❌ Error deleting existing line items:', deleteLineItemsError);
-						throw deleteLineItemsError;
-					}
-				}
-				console.log(`🗑️  Deleted existing line items for ${orderIds.length} orders`);
-			}
-
-			// Delete existing orders in chunks to avoid IN clause limits - CHUNKED
-			let totalDeleted = 0;
-
-			if (orderIds.length > BATCH_SIZE) {
-				console.log(`📦 Large deletion detected (${orderIds.length} orders). Processing deletions in chunks of ${BATCH_SIZE}...`);
-
-				const totalDeleteChunks = Math.ceil(orderIds.length / BATCH_SIZE);
-
-				for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
-					const deleteChunk = orderIds.slice(i, i + BATCH_SIZE);
-					const currentDeleteChunk = Math.floor(i / BATCH_SIZE) + 1;
-					console.log(`🗑️  Deleting orders chunk ${currentDeleteChunk}/${totalDeleteChunks} (${deleteChunk.length} orders)...`);
-
-					const { error: deleteError } = await supabase
-						.from('orders')
-						.delete()
-						.in('shopify_order_id', deleteChunk);
-
-					if (deleteError) {
-						console.error(`❌ Error deleting orders chunk ${currentDeleteChunk}:`, deleteError);
-						throw deleteError;
-					}
-
-					totalDeleted += deleteChunk.length;
-					console.log(`✅ Orders delete chunk ${currentDeleteChunk} completed. Total deleted: ${totalDeleted}/${orderIds.length}`);
-				}
-			} else {
-				// Single deletion for smaller datasets
-				const { error: deleteError } = await supabase
-					.from('orders')
-					.delete()
-					.in('shopify_order_id', orderIds);
-
-				if (deleteError) {
-					console.error('❌ Error deleting existing orders:', deleteError);
-					throw deleteError;
-				}
-
-				totalDeleted = orderIds.length;
-			}
-
-			console.log(`✅ Deleted ${totalDeleted} existing orders`);
-
-			// Save unique products to products table first (to satisfy foreign key constraint)
+			// Save unique products to products table using upsert
 			if (uniqueProducts.size > 0) {
-				console.log(`📦 Saving ${uniqueProducts.size} unique products to products table...`);
+				console.log(`📦 Saving ${uniqueProducts.size} unique products to products table using upsert...`);
 				
 				const productsArray = Array.from(uniqueProducts.values());
 				
-				// Check for existing products to avoid duplicates
-				const productIds = productsArray.map(p => p.product_id);
-				const { count: existingProductsCount } = await supabase
-					.from('products')
-					.select('*', { count: 'exact', head: true })
-					.in('product_id', productIds);
+				// Upsert products in chunks
+				const BATCH_SIZE = 1000;
+				let totalProductsSaved = 0;
 
-				let existingProductMap = new Map();
-				if (existingProductsCount > 0) {
-					for (let i = 0; i < existingProductsCount; i += BATCH_SIZE) {
-						const chunk = productIds.slice(i, i + BATCH_SIZE);
-						const { data: existingProducts, error: existingError } = await supabase
+				if (productsArray.length > BATCH_SIZE) {
+					const totalChunks = Math.ceil(productsArray.length / BATCH_SIZE);
+
+					for (let i = 0; i < productsArray.length; i += BATCH_SIZE) {
+						const chunk = productsArray.slice(i, i + BATCH_SIZE);
+						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
+						console.log(`🔄 Processing products chunk ${currentChunk}/${totalChunks} (${chunk.length} products)...`);
+
+						const { error: productsError } = await supabase
 							.from('products')
-							.select('product_id, product_title')
-							.in('product_id', chunk);
+							.upsert(chunk, { 
+								onConflict: 'product_id',
+								ignoreDuplicates: false 
+							});
 
-						if (existingError) {
-							console.error('❌ Error checking existing products:', existingError);
-							throw existingError;
+						if (productsError) {
+							console.error(`❌ Error in products upsert chunk ${currentChunk}:`, productsError);
+							throw productsError;
 						}
 
-						existingProducts.forEach(product => {
-							existingProductMap.set(product.product_id, product);
-						});
+						totalProductsSaved += chunk.length;
+						console.log(`✅ Products chunk ${currentChunk} completed. Total saved: ${totalProductsSaved}/${productsArray.length}`);
 					}
-				}
-
-				console.log(existingProductMap.size, 999)
-
-				// Filter out products that already exist with same product_id
-				const newProducts = productsArray.filter(product => {
-					const existing = existingProductMap.get(product.product_id);
-					if (existing) {
-						console.log(`⚠️  Product ${product.product_id} already exists, skipping`);
-						return false;
-					}
-					return true;
-				});
-				console.log(newProducts.length, 888)
-
-				if (newProducts.length > 0) {
-					console.log(`📦 Inserting ${newProducts.length} new products...`);
-					
-					// Insert only new products
+				} else {
 					const { error: productsError } = await supabase
 						.from('products')
-						.insert(newProducts);
+						.upsert(productsArray, { 
+							onConflict: 'product_id',
+							ignoreDuplicates: false 
+						});
 
 					if (productsError) {
 						console.error('❌ Error saving products:', productsError);
 						throw productsError;
 					}
 
-					console.log(`✅ Successfully saved ${newProducts.length} new products to products table`);
-				} else {
-					console.log('✅ All products already exist in database');
+					totalProductsSaved = productsArray.length;
 				}
+
+				console.log(`✅ Successfully saved ${totalProductsSaved} products to products table using upsert`);
 			}
 
-			// For very large datasets, process in chunks
+			// Save unique customers to customers table using upsert
+			const BATCH_SIZE = 1000;
+			if (uniqueCustomers.size > 0) {
+				console.log(`👥 Saving ${uniqueCustomers.size} unique customers to customers table using upsert...`);
+				
+				const customersArray = Array.from(uniqueCustomers.values());
+				
+				// Upsert customers in chunks
+				let totalCustomersSaved = 0;
+
+				if (customersArray.length > BATCH_SIZE) {
+					const totalChunks = Math.ceil(customersArray.length / BATCH_SIZE);
+					console.log(`📊 Processing ${customersArray.length} customers in ${totalChunks} chunks of ${BATCH_SIZE}...`);
+
+					for (let i = 0; i < customersArray.length; i += BATCH_SIZE) {
+						const chunk = customersArray.slice(i, i + BATCH_SIZE);
+						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
+						console.log(`🔄 Processing customers chunk (${currentChunk}/${totalChunks}) - ${chunk.length} customers...`);
+
+						const { error: customersError } = await supabase
+							.from('customers')
+							.upsert(chunk, { 
+								onConflict: 'customer_id',
+								ignoreDuplicates: false 
+							});
+
+						if (customersError) {
+							console.error(`❌ Error in customers upsert chunk (${currentChunk}/${totalChunks}):`, customersError);
+							throw customersError;
+						}
+
+						totalCustomersSaved += chunk.length;
+						console.log(`✅ Customers chunk (${currentChunk}/${totalChunks}) completed. Progress: ${totalCustomersSaved}/${customersArray.length} customers saved`);
+					}
+				} else {
+					console.log(`📊 Processing ${customersArray.length} customers in single batch...`);
+					const { error: customersError } = await supabase
+						.from('customers')
+						.upsert(customersArray, { 
+							onConflict: 'customer_id',
+							ignoreDuplicates: false 
+						});
+
+					if (customersError) {
+						console.error('❌ Error saving customers:', customersError);
+						throw customersError;
+					}
+
+					totalCustomersSaved = customersArray.length;
+				}
+
+				console.log(`✅ Successfully saved ${totalCustomersSaved} customers to customers table using upsert`);
+			}
+
+			// Save orders using upsert
 			let totalSaved = 0;
 
 			if (orderDataArray.length > BATCH_SIZE) {
-				console.log(`📦 Large dataset detected (${orderDataArray.length} orders). Processing in chunks of ${BATCH_SIZE}...`);
-
 				const totalChunks = Math.ceil(orderDataArray.length / BATCH_SIZE);
+				console.log(`📦 Large dataset detected (${orderDataArray.length} orders). Processing in ${totalChunks} chunks of ${BATCH_SIZE}...`);
 
 				for (let i = 0; i < orderDataArray.length; i += BATCH_SIZE) {
 					const chunk = orderDataArray.slice(i, i + BATCH_SIZE);
 					const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
-					console.log(`🔄 Processing chunk ${currentChunk}/${totalChunks} (${chunk.length} orders)...`);
+					console.log(`🔄 Processing orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`);
 
 					if (socket) {
-						const progress = 80 + Math.floor((currentChunk / totalChunks) * 10); // Progress from 80% to 90%
+						const progress = 25 + Math.floor((currentChunk / totalChunks) * 60); // Progress from 25% to 85%
 						socket.emit('syncProgress', {
 							stage: 'saving',
-							message: `💾 Saving chunk ${currentChunk}/${totalChunks} (${chunk.length} orders)...`,
+							message: `💾 Saving orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`,
 							progress: progress,
 							total: orders.length,
 							current: totalSaved
@@ -374,49 +427,57 @@ class ShopifyService {
 
 					const { error } = await supabase
 						.from('orders')
-						.insert(chunk);
+						.upsert(chunk, { 
+							onConflict: 'shopify_order_id',
+							ignoreDuplicates: false 
+						});
 
 					if (error) {
-						console.error(`❌ Error in batch save chunk ${currentChunk}:`, error);
+						console.error(`❌ Error in orders upsert chunk (${currentChunk}/${totalChunks}):`, error);
 						throw error;
 					}
 
 					totalSaved += chunk.length;
-					console.log(`✅ Chunk ${currentChunk} completed. Total saved: ${totalSaved}/${orderDataArray.length}`);
+					console.log(`✅ Orders chunk (${currentChunk}/${totalChunks}) completed. Progress: ${totalSaved}/${orderDataArray.length} orders saved`);
 				}
 			} else {
 				// Single batch operation for smaller datasets
 				if (socket) {
 					socket.emit('syncProgress', {
 						stage: 'saving',
-						message: `💾 Saving ${orderDataArray.length} orders to database...`,
+						message: `💾 Saving ${orderDataArray.length} orders to database using upsert...`,
 						progress: 85,
-						total: orders.length
+						total: orders.length,
+						current: orderDataArray.length
 					});
 				}
 
 				const { data, error } = await supabase
 					.from('orders')
-					.insert(orderDataArray);
+					.upsert(orderDataArray, { 
+						onConflict: 'shopify_order_id',
+						ignoreDuplicates: false 
+					});
 
 				if (error) {
-					console.error('❌ Error in batch save:', error);
+					console.error('❌ Error in orders upsert:', error);
 					throw error;
 				}
 
 				totalSaved = orderDataArray.length;
 			}
 
-			// Save line items if we have any
+			// Save line items using upsert
 			if (lineItemsData.length > 0) {
-				console.log(`📦 Saving ${lineItemsData.length} line items to database...`);
+				console.log(`📦 Saving ${lineItemsData.length} line items to database using upsert...`);
 
 				if (socket) {
 					socket.emit('syncProgress', {
 						stage: 'saving',
-						message: `💾 Saving ${lineItemsData.length} line items...`,
+						message: `💾 Saving ${lineItemsData.length} line items using upsert...`,
 						progress: 90,
-						total: orders.length
+						total: orders.length,
+						current: orders.length
 					});
 				}
 
@@ -426,46 +487,57 @@ class ShopifyService {
 
 				if (lineItemsData.length > LINE_ITEMS_BATCH_SIZE) {
 					const totalLineItemChunks = Math.ceil(lineItemsData.length / LINE_ITEMS_BATCH_SIZE);
+					console.log(`📦 Processing ${lineItemsData.length} line items in ${totalLineItemChunks} chunks of ${LINE_ITEMS_BATCH_SIZE}...`);
 
 					for (let i = 0; i < lineItemsData.length; i += LINE_ITEMS_BATCH_SIZE) {
 						const chunk = lineItemsData.slice(i, i + LINE_ITEMS_BATCH_SIZE);
 						const currentChunk = Math.floor(i / LINE_ITEMS_BATCH_SIZE) + 1;
-						console.log(`🔄 Processing line items chunk ${currentChunk}/${totalLineItemChunks} (${chunk.length} items)...`);
+						console.log(`🔄 Processing line items chunk (${currentChunk}/${totalLineItemChunks}) - ${chunk.length} items...`);
 
 						const { error: lineItemsError } = await supabase
 							.from('order_line_items')
-							.insert(chunk);
+							.upsert(chunk, { 
+								onConflict: 'line_item_id',
+								ignoreDuplicates: false 
+							});
 
 						if (lineItemsError) {
-							console.error(`❌ Error in line items batch save chunk ${currentChunk}:`, lineItemsError);
+							console.error(`❌ Error in line items upsert chunk (${currentChunk}/${totalLineItemChunks}):`, lineItemsError);
 							throw lineItemsError;
 						}
 
 						totalLineItemsSaved += chunk.length;
-						console.log(`✅ Line items chunk ${currentChunk} completed. Total saved: ${totalLineItemsSaved}/${lineItemsData.length}`);
+						console.log(`✅ Line items chunk (${currentChunk}/${totalLineItemChunks}) completed. Progress: ${totalLineItemsSaved}/${lineItemsData.length} items saved`);
 					}
 				} else {
 					const { error: lineItemsError } = await supabase
 						.from('order_line_items')
-						.insert(lineItemsData);
+						.upsert(lineItemsData, { 
+							onConflict: 'line_item_id',
+							ignoreDuplicates: false 
+						});
 
 					if (lineItemsError) {
-						console.error('❌ Error in line items batch save:', lineItemsError);
+						console.error('❌ Error in line items upsert:', lineItemsError);
 						throw lineItemsError;
 					}
 
 					totalLineItemsSaved = lineItemsData.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalLineItemsSaved} line items to database`);
+				console.log(`✅ Successfully saved ${totalLineItemsSaved} line items to database using upsert`);
 			}
 
 			const endTime = Date.now();
 			const duration = endTime - startTime;
 
-			console.log(`✅ Successfully saved ${totalSaved} orders and ${lineItemsData.length} line items to database in batch operation(s)`);
-			console.log(`⏱️  Batch operation completed in ${duration}ms (${Math.round(totalSaved / (duration / 1000))} orders/second)`);
-			return { count: totalSaved, lineItemsCount: lineItemsData.length };
+			console.log(`✅ Successfully saved ${totalSaved} orders, ${lineItemsData.length} line items, and ${uniqueCustomers.size} customers to database using upsert`);
+			console.log(`⏱️  Upsert operation completed in ${duration}ms (${Math.round(totalSaved / (duration / 1000))} orders/second)`);
+			return { 
+				count: totalSaved, 
+				lineItemsCount: lineItemsData.length,
+				customersCount: uniqueCustomers.size
+			};
 		} catch (error) {
 			console.error('Error saving orders to database:', error);
 			throw error;
@@ -531,14 +603,13 @@ class ShopifyService {
 					});
 				}
 				console.log('🗑️  Deleting existing analytics from sync date onwards...');
-				await analyticsService.deleteAnalyticsFromDate(syncDate);
 			}
 
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'fetching',
 					message: '📥 Fetching orders from Shopify...',
-					progress: 15,
+					progress: 10,
 					total: 'unlimited'
 				});
 			}
@@ -548,9 +619,10 @@ class ShopifyService {
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'saving',
-					message: '💾 Saving orders to database...',
-					progress: 80,
-					total: 'unlimited'
+					message: `💾 Saving ${orders.length} orders to database...`,
+					progress: 25,
+					total: orders.length,
+					current: 0
 				});
 			}
 
@@ -560,8 +632,8 @@ class ShopifyService {
 				socket.emit('syncProgress', {
 					stage: 'sync_completed',
 					message: '✅ Order sync completed! Starting analytics calculation...',
-					progress: 90,
-					total: 'unlimited',
+					progress: 100,
+					total: orders.length,
 					ordersCount: orders.length
 				});
 			}
@@ -623,6 +695,63 @@ class ShopifyService {
 			throw error;
 		}
 	}
+
+	async processCustomerChunk(customers) {
+		try {
+			// Process each customer individually to handle first_order_date logic
+			for (const customer of customers) {
+				// Check if customer already exists
+				const { data: existingCustomer, error: fetchError } = await supabase
+					.from('customers')
+					.select('first_order_date')
+					.eq('customer_id', customer.customer_id)
+					.eq('store_id', customer.store_id)
+					.single();
+
+				if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found"
+					console.error(`❌ Error fetching existing customer ${customer.customer_id}:`, fetchError);
+					throw fetchError;
+				}
+
+				if (existingCustomer) {
+					// Customer exists - check if we should update first_order_date
+					if (existingCustomer.first_order_date) {
+						const existingDate = new Date(existingCustomer.first_order_date);
+						const newDate = new Date(customer.first_order_date);
+						
+						// Only update if the new order date is earlier
+						if (newDate < existingDate) {
+							console.log(`🔄 Updating first_order_date for customer ${customer.customer_id} from ${existingDate.toISOString()} to ${newDate.toISOString()}`);
+							customer.first_order_date = newDate.toISOString();
+						} else {
+							// Keep the existing first_order_date
+							customer.first_order_date = existingCustomer.first_order_date;
+						}
+					}
+					// If no existing first_order_date, use the current one
+				}
+				// If customer doesn't exist, first_order_date is already set to the current order date
+			}
+
+			// Now upsert all customers with the correct first_order_date values
+			const { error: upsertError } = await supabase
+				.from('customers')
+				.upsert(customers, { 
+					onConflict: 'customer_id',
+					ignoreDuplicates: false 
+				});
+
+			if (upsertError) {
+				console.error('❌ Error upserting customers:', upsertError);
+				throw upsertError;
+			}
+
+			console.log(`✅ Successfully processed ${customers.length} customers with first_order_date logic`);
+		} catch (error) {
+			console.error('❌ Error processing customer chunk:', error);
+			throw error;
+		}
+	}
 }
 
-module.exports = new ShopifyService(); 
+module.exports = ShopifyService; 

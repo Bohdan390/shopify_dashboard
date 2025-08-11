@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, DollarSign, Package, Calendar, Filter, Search, ChevronUp, ChevronDown, X, ChevronLeft, ChevronRight, Link } from 'lucide-react';
 import axios from 'axios';
 import ProductAnalyticsLoader from './loaders/ProductAnalyticsLoader';
+import ProductGroups from './ProductGroups';
+import BeautifulSelect from './BeautifulSelect';
+import { useStore } from '../contexts/StoreContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -308,6 +311,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 const ProductAnalytics = () => {
   const [productAnalytics, setProductAnalytics] = useState({ products: [], pagination: {} });
   const [loading, setLoading] = useState(false);
+  const { selectedStore } = useStore();
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -341,6 +345,7 @@ const ProductAnalytics = () => {
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [linkingCampaigns, setLinkingCampaigns] = useState(new Set()); // Track which campaigns are being linked/unlinked
   const [campaignSearchTerm, setCampaignSearchTerm] = useState(''); // Search term for campaigns in modal
+  const [showProductGroupsModal, setShowProductGroupsModal] = useState(false);
 
   const fetchProductAnalytics = async () => {
     try {
@@ -348,6 +353,7 @@ const ProductAnalytics = () => {
       const params = {
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
+        storeId: selectedStore,
         sortBy,
         sortOrder,
         search: searchTerm,
@@ -374,7 +380,7 @@ const ProductAnalytics = () => {
 
   useEffect(() => {
     fetchProductAnalytics();
-  }, [dateRange, sortBy, sortOrder, searchTerm, filters, currentPage, itemsPerPage]);
+  }, [dateRange, sortBy, sortOrder, searchTerm, filters, currentPage, itemsPerPage, selectedStore]);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -604,17 +610,189 @@ const ProductAnalytics = () => {
 
   const SortableHeader = ({ field, children, currentSortBy, currentSortOrder }) => (
     <th
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
       onClick={() => handleSort(field)}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         {children}
-        {currentSortBy === field && (
-          currentSortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-        )}
+        {getSortIcon(field)}
       </div>
     </th>
   );
+
+  const getSortIcon = (key) => {
+    if (sortBy !== key) {
+      return (
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    return sortOrder === 'asc' ? (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    ) : (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
+  };
+
+  const PaginationControls = () => {
+    if (!productAnalytics.pagination) return null;
+
+    // Generate smart page numbers
+    const generatePageNumbers = () => {
+      const current = productAnalytics.pagination.page;
+      const total = productAnalytics.pagination.totalPages;
+      const pages = [];
+
+      // Always show first page
+      pages.push(1);
+
+      if (total <= 7) {
+        // If total pages <= 7, show all pages
+        for (let i = 2; i <= total; i++) {
+          pages.push(i);
+        }
+      } else {
+        // Smart pagination for larger page counts
+        if (current <= 4) {
+          // Near the beginning
+          for (let i = 2; i <= 5; i++) {
+            pages.push(i);
+          }
+          pages.push('...');
+          pages.push(total);
+        } else if (current >= total - 3) {
+          // Near the end
+          pages.push('...');
+          for (let i = total - 4; i <= total; i++) {
+            pages.push(i);
+          }
+        } else {
+          // In the middle
+          pages.push('...');
+          for (let i = current - 1; i <= current + 1; i++) {
+            pages.push(i);
+          }
+          pages.push('...');
+          pages.push(total);
+        }
+      }
+
+      return pages;
+    };
+
+    const pageNumbers = generatePageNumbers();
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+        <div className="flex items-center gap-2">
+          {/* Pagination Info */}
+          <div className="flex items-center text-sm text-gray-700">
+            <span>
+              Showing {((productAnalytics.pagination.page - 1) * productAnalytics.pagination.limit) + 1} to{' '}
+              {Math.min(productAnalytics.pagination.page * productAnalytics.pagination.limit, productAnalytics.pagination.totalCount)} of{' '}
+              {productAnalytics.pagination.totalCount} results
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {/* Page Size Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Show:</span>
+            <BeautifulSelect
+              value={itemsPerPage}
+              onChange={(value) => setItemsPerPage(parseInt(value))}
+              options={[
+                { value: 25, label: '25' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' }
+              ]}
+              placeholder="Select"
+              className="w-24"
+              size="sm"
+            />
+            <span className="text-sm text-gray-500">per page</span>
+          </div>
+
+          {/* First page button */}
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={productAnalytics.pagination.page === 1}
+            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === 1
+              ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            title="First page"
+          >
+            «
+          </button>
+
+          {/* Previous button */}
+          <button
+            onClick={() => setCurrentPage(productAnalytics.pagination.page - 1)}
+            disabled={!productAnalytics.pagination.hasPrevPage}
+            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasPrevPage
+              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            Previous
+          </button>
+
+          {/* Page numbers */}
+          <div className="flex items-center space-x-1">
+            {pageNumbers.map((page, index) => (
+              <React.Fragment key={index}>
+                {page === '...' ? (
+                  <span className="px-2 text-gray-500">...</span>
+                ) : (
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 text-sm rounded-md ${page === productAnalytics.pagination.page
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    {page}
+                  </button>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Next button */}
+          <button
+            onClick={() => setCurrentPage(productAnalytics.pagination.page + 1)}
+            disabled={!productAnalytics.pagination.hasNextPage}
+            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasNextPage
+              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            Next
+          </button>
+
+          {/* Last page button */}
+          <button
+            onClick={() => setCurrentPage(productAnalytics.pagination.totalPages)}
+            disabled={productAnalytics.pagination.page === productAnalytics.pagination.totalPages}
+            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === productAnalytics.pagination.totalPages
+              ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            title="Last page"
+          >
+            »
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="p-8">
@@ -624,94 +802,114 @@ const ProductAnalytics = () => {
         <p className="text-gray-600">Analyze performance across all products</p>
       </div>
 
+      {/* Product Groups Analytics Button - Only for meonutrition store */}
+
       {/* Beautiful Date Range Filter with Calendar */}
       <div className="card mb-6">
         <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-600 mb-1">Start Date</label>
-              <button
-                onClick={() => setShowStartCalendar(true)}
-                className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-              >
-                <span>{dateRange.startDate || 'Select start date'}</span>
-                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-              </button>
-            </div>
-            <span className="flex items-center text-gray-500">to</span>
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-600 mb-1">End Date</label>
-              <button
-                onClick={() => setShowEndCalendar(true)}
-                className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-              >
-                <span>{dateRange.endDate || 'Select end date'}</span>
-                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-              </button>
-            </div>
-
-            {/* Quick Filters Button */}
-            <div className="flex flex-col">
-              <label className="text-xs text-gray-600 mb-1">Quick Filters</label>
-              <div className="relative date-presets-container">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Start Date</label>
                 <button
-                  onClick={() => setShowDatePresets(!showDatePresets)}
-                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                  onClick={() => setShowStartCalendar(true)}
+                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
                 >
-                  <Filter className="w-4 h-4" />
-                  Presets
+                  <span>{dateRange.startDate || 'Select start date'}</span>
+                  <Calendar className="w-4 h-4 text-gray-400 ml-2" />
                 </button>
+              </div>
+              <span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">End Date</label>
+                <button
+                  onClick={() => setShowEndCalendar(true)}
+                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
+                >
+                  <span>{dateRange.endDate || 'Select end date'}</span>
+                  <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                </button>
+              </div>
 
-                {showDatePresets && (
-                  <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                    <div className="py-1">
-                      <button
-                        onClick={() => handleDatePreset('today')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Today
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('yesterday')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Yesterday
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('last7days')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Last 7 Days
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('last30days')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Last 30 Days
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('last90days')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Last 90 Days
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('thisMonth')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        This Month
-                      </button>
-                      <button
-                        onClick={() => handleDatePreset('lastMonth')}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Last Month
-                      </button>
+              {/* Quick Filters Button */}
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Quick Filters</label>
+                <div className="relative date-presets-container">
+                  <button
+                    onClick={() => setShowDatePresets(!showDatePresets)}
+                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Presets
+                  </button>
+
+                  {showDatePresets && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                      <div className="py-1">
+                        <button
+                          onClick={() => handleDatePreset('today')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Today
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('yesterday')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Yesterday
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('last7days')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Last 7 Days
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('last30days')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Last 30 Days
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('last90days')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Last 90 Days
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('thisMonth')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          This Month
+                        </button>
+                        <button
+                          onClick={() => handleDatePreset('lastMonth')}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Last Month
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* View Product Groups Analytics Button - Right side */}
+            {selectedStore === 'meonutrition' && (
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">Actions</label>
+                <button
+                  onClick={() => setShowProductGroupsModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  View Product Groups Analytics
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Date Range Display */}
@@ -752,8 +950,8 @@ const ProductAnalytics = () => {
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-4 py-2 rounded-lg border transition-colors ${showFilters
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                   }`}
               >
                 <Filter className="w-4 h-4 mr-2 inline" />
@@ -772,19 +970,7 @@ const ProductAnalytics = () => {
               )}
             </div>
 
-            {/* Items per page */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Show:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(parseInt(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
+
           </div>
 
           {/* Advanced Filters */}
@@ -887,8 +1073,8 @@ const ProductAnalytics = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Profit</p>
                 <p className={`text-2xl font-bold ${productAnalytics.products.reduce((sum, product) => sum + product.profit, 0) >= 0
-                    ? 'text-green-600'
-                    : 'text-red-600'
+                  ? 'text-green-600'
+                  : 'text-red-600'
                   }`}>
                   {formatCurrency(productAnalytics.products.reduce((sum, product) => sum + product.profit, 0))}
                 </p>
@@ -912,10 +1098,10 @@ const ProductAnalytics = () => {
 
       {/* Product Analytics Table */}
       <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Product Performance</h2>
         </div>
-
+        <PaginationControls />
         {loading ? (
           <ProductAnalyticsLoader />
         ) : productAnalytics.products && productAnalytics.products.length > 0 ? (
@@ -946,7 +1132,7 @@ const ProductAnalytics = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {productAnalytics.products.map((product, index) => (
                   <tr
-                    key={product.product_title || index}
+                    key={index}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
                     onClick={() => handleProductClick(product)}
                     title="Click to manage campaign links"
@@ -997,37 +1183,8 @@ const ProductAnalytics = () => {
           </div>
         )}
 
-        {/* Pagination */}
-        {productAnalytics.pagination && productAnalytics.pagination.totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
-                Showing {((productAnalytics.pagination.page - 1) * productAnalytics.pagination.limit) + 1} to{' '}
-                {Math.min(productAnalytics.pagination.page * productAnalytics.pagination.limit, productAnalytics.pagination.totalCount)} of{' '}
-                {productAnalytics.pagination.totalCount} results
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={!productAnalytics.pagination.hasPrevPage}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-                <span className="px-3 py-2 text-sm text-gray-700">
-                  Page {productAnalytics.pagination.page} of {productAnalytics.pagination.totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={!productAnalytics.pagination.hasNextPage}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Pagination Controls */}
+        <PaginationControls />
       </div>
 
       {/* Manual Link Modal */}
@@ -1120,8 +1277,8 @@ const ProductAnalytics = () => {
                             <div
                               key={campaign.campaign_id}
                               className={`p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isLinked
-                                  ? 'border-green-300 bg-green-50 shadow-sm'
-                                  : 'border-gray-200 bg-white hover:border-blue-300'
+                                ? 'border-green-300 bg-green-50 shadow-sm'
+                                : 'border-gray-200 bg-white hover:border-blue-300'
                                 }`}
                             >
                               <div className="flex items-center justify-between">
@@ -1129,8 +1286,8 @@ const ProductAnalytics = () => {
                                   <div className="font-semibold text-gray-900 mb-2">{campaign.campaign_name || campaign.campaign_id}</div>
                                   <div className="flex items-center gap-2">
                                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${campaign.platform === 'facebook'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-red-100 text-red-800'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-red-100 text-red-800'
                                       }`}>
                                       {campaign.platform === 'facebook' ? 'Facebook' : 'Google'}
                                     </span>
@@ -1147,8 +1304,8 @@ const ProductAnalytics = () => {
                                       onClick={() => handleUnlinkCampaign(linkedCampaign.id, campaign.campaign_id)}
                                       disabled={linkingCampaigns.has(campaign.campaign_id)}
                                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
-                                          ? 'bg-gray-400 text-white cursor-not-allowed'
-                                          : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg transform hover:scale-105'
+                                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                                        : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg transform hover:scale-105'
                                         }`}
                                     >
                                       {linkingCampaigns.has(campaign.campaign_id) ? (
@@ -1165,8 +1322,8 @@ const ProductAnalytics = () => {
                                       onClick={() => handleLinkCampaign(campaign)}
                                       disabled={linkingCampaigns.has(campaign.campaign_id)}
                                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
-                                          ? 'bg-gray-400 text-white cursor-not-allowed'
-                                          : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:scale-105'
+                                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:scale-105'
                                         }`}
                                     >
                                       {linkingCampaigns.has(campaign.campaign_id) ? (
@@ -1202,11 +1359,11 @@ const ProductAnalytics = () => {
                 </div>
               )}
             </div>
-
-
           </div>
         </div>
       )}
+
+
 
       {/* Calendar Modals */}
       <CustomCalendar
@@ -1224,6 +1381,29 @@ const ProductAnalytics = () => {
         selectedDate={dateRange.endDate}
         label="Select End Date"
       />
+
+      {/* Product Groups Analytics Modal */}
+      {showProductGroupsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-800">Product Groups Analytics</h2>
+              <button
+                onClick={() => setShowProductGroupsModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <ProductGroups selectedStore={selectedStore} dateRange={dateRange} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

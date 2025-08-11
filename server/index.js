@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+// const rateLimit = require('express-rate-limit'); // No longer needed
 const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
@@ -25,13 +25,13 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
+// Rate limiting - DISABLED for development
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // limit each IP to 100 requests per windowMs
+//   message: 'Too many requests from this IP, please try again later.'
+// });
+// app.use(limiter);
 
 // Database connection - Supabase only
 const { supabase } = require('./config/database-supabase');
@@ -53,6 +53,8 @@ app.use('/api/shopify', require('./routes/shopify'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/campaign-roi', require('./routes/campaignRoi'));
+app.use('/api/product-groups', require('./routes/productGroups'));
+app.use('/api/customers', require('./routes/customers'));
 
 // Health check
 app.get('/health', (req, res) => {

@@ -11,6 +11,7 @@ import axios from 'axios';
 import BeautifulSelect from './BeautifulSelect';
 import { io } from 'socket.io-client';
 import AdSpendLoader from './loaders/AdSpendLoader';
+import { useStore } from '../contexts/StoreContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -321,6 +322,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const AdSpend = () => {
+	const { selectedStore } = useStore();
 	const [adSpendData, setAdSpendData] = useState([]);
 	const [campaigns, setCampaigns] = useState([]);
 	const [stores, setStores] = useState([]);
@@ -359,6 +361,7 @@ const AdSpend = () => {
 		totalImpressions: 0,
 		totalClicks: 0,
 		totalConversions: 0,
+		totalRevenue: 0,
 		roas: 0
 	});
 
@@ -425,6 +428,11 @@ const AdSpend = () => {
 
 	// Effect for filters and date range changes (affects both table and chart)
 	useEffect(() => {
+		// Don't run this effect during sync operations
+		if (syncProgress && syncProgress.stage !== 'completed') {
+			return;
+		}
+		
 		// Reset to first page when filters change
 		setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 		fetchAdSpendData();
@@ -437,7 +445,7 @@ const AdSpend = () => {
 			fetchSummaryStats();
 			fetchChartData();
 		}, 100);
-	}, [dateRange, filters]);
+	}, [dateRange, filters, selectedStore, syncProgress]);
 
 	// Separate effect for pagination changes (only affects table, not chart)
 	useEffect(() => {
@@ -509,30 +517,49 @@ const AdSpend = () => {
 			const params = new URLSearchParams({
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
-				...filters
+				store_id: selectedStore
 			});
-
-			console.log('🔍 Fetching summary stats for date range:', dateRange.startDate, 'to', dateRange.endDate);
 
 			const response = await axios.get(`/api/ads/summary-stats?${params}`);
-			const data = response.data.data || [];
+			const { data, revenue } = response.data;
 
-			console.log('📊 Summary stats received:', data.length, 'records');
-			console.log('📊 Sample summary data:', data.slice(0, 3));
+			if (data && Array.isArray(data)) {
+				console.log('📊 Summary stats data received:', data.length, 'records');
+				console.log('💰 Revenue data received:', revenue);
+				
+				// Calculate summary stats including revenue for ROAS
+				const stats = data.reduce((acc, item) => {
+					const spend = parseFloat(item.spend_amount) || 0;
+					acc.totalSpend += spend;
+					acc.totalImpressions += parseInt(item.impressions) || 0;
+					acc.totalClicks += parseInt(item.clicks) || 0;
+					acc.totalConversions += parseFloat(item.conversions) || 0;
 
-			calculateSummaryStats(data);
+					if (item.platform === 'facebook') {
+						acc.facebookSpend += spend;
+					} else if (item.platform === 'google') {
+						acc.googleSpend += spend;
+					}
+
+					return acc;
+				}, {
+					totalSpend: 0,
+					facebookSpend: 0,
+					googleSpend: 0,
+					totalImpressions: 0,
+					totalClicks: 0,
+					totalConversions: 0,
+					totalRevenue: parseFloat(revenue) || 0
+				});
+
+				// Calculate ROAS using actual revenue data (not conversions)
+				stats.roas = stats.totalSpend > 0 ? (stats.totalRevenue / stats.totalSpend) : 0;
+
+				console.log('💰 Calculated stats with revenue:', stats);
+				setSummaryStats(stats);
+			}
 		} catch (error) {
-			console.error('❌ Error fetching summary stats:', error);
-			// Set default values if error
-			setSummaryStats({
-				totalSpend: 0,
-				facebookSpend: 0,
-				googleSpend: 0,
-				totalImpressions: 0,
-				totalClicks: 0,
-				totalConversions: 0,
-				roas: 0
-			});
+			console.error('Error fetching summary stats:', error);
 		}
 	};
 
@@ -542,8 +569,10 @@ const AdSpend = () => {
 			const params = new URLSearchParams({
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
+				store_id: selectedStore,
 			});
 
+			console.log(selectedStore, 33333)
 			// Add filters but exclude pagination
 			Object.keys(filters).forEach(key => {
 				if (key !== 'page' && key !== 'pageSize') {
@@ -551,7 +580,7 @@ const AdSpend = () => {
 				}
 			});
 
-			console.log('🔍 Fetching chart data for date range:', dateRange.startDate, 'to', dateRange.endDate);
+			console.log('🔍 Fetching chart data for date range:', dateRange.startDate, 'to', dateRange.endDate, 'store:', selectedStore);
 
 			const response = await axios.get(`/api/ads/chart-data?${params}`);
 			const data = response.data.data || [];
@@ -621,45 +650,14 @@ const AdSpend = () => {
 		}
 	};
 
-	const calculateSummaryStats = (data) => {
-		console.log('🧮 Calculating summary stats from', data.length, 'records');
-
-		const stats = data.reduce((acc, item) => {
-			const spend = parseFloat(item.spend_amount) || 0;
-			acc.totalSpend += spend;
-			acc.totalImpressions += parseInt(item.impressions) || 0;
-			acc.totalClicks += parseInt(item.clicks) || 0;
-			acc.totalConversions += parseFloat(item.conversions) || 0;
-
-			if (item.platform === 'facebook') {
-				acc.facebookSpend += spend;
-			} else if (item.platform === 'google') {
-				acc.googleSpend += spend;
-			}
-
-			return acc;
-		}, {
-			totalSpend: 0,
-			facebookSpend: 0,
-			googleSpend: 0,
-			totalImpressions: 0,
-			totalClicks: 0,
-			totalConversions: 0
-		});
-
-		stats.roas = stats.totalSpend > 0 ? (stats.totalConversions / stats.totalSpend) : 0;
-
-		console.log('💰 Calculated stats:', stats);
-		setSummaryStats(stats);
-	};
-
 	const syncAds = async (platform = 'all') => {
 		try {
-			setSyncProgress({ stage: 'starting', message: 'Starting Windsor.ai sync...', progress: 0 });
+			setSyncProgress({ stage: 'starting', message: `Starting Windsor.ai sync for ${selectedStore}...`, progress: 0 });
 
 			const response = await axios.post('/api/ads/sync-windsor', {
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
+				storeId: selectedStore,
 				socketId: socket?.id // Pass socket ID for real-time progress
 			});
 
@@ -715,6 +713,7 @@ const AdSpend = () => {
 				pageSize: adSpendPagination.pageSize,
 				sortBy: currentSortConfig.key,
 				sortOrder: currentSortConfig.direction,
+				store_id: selectedStore,
 				...filters
 			});
 
@@ -1041,7 +1040,7 @@ const AdSpend = () => {
 										<Calendar className="w-4 h-4 text-gray-400 ml-2" />
 									</button>
 								</div>
-								<span className="flex items-center text-gray-500">to</span>
+								<span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
 								<div className="flex flex-col">
 									<label className="text-xs text-gray-600 mb-1">End Date</label>
 									<button
@@ -1080,6 +1079,20 @@ const AdSpend = () => {
 										)}
 									</div>
 								</div>
+
+								{/* Sync All Button */}
+								<div className="flex flex-col" style={{marginLeft: 10}}>
+									<label className="text-xs text-gray-600 mb-1">Sync Data</label>
+									<button
+										onClick={() => syncAds('all')}
+										disabled={loading}
+										style={{height: 38}}
+										className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+									>
+										<RefreshCw className="w-4 h-4 mr-2" />
+										Sync All
+									</button>
+								</div>
 							</div>
 
 							{/* Date Range Display */}
@@ -1087,67 +1100,6 @@ const AdSpend = () => {
 								Selected: {dateRange.startDate} to {dateRange.endDate}
 							</div>
 						</div>
-					</div>
-
-					{/* Additional Filters and Sync Buttons */}
-					<div className="flex gap-4 mb-8 items-center">
-						{/* Platform Filter */}
-						<div className="flex gap-2 ml-4">
-							<button
-								onClick={() => syncAds('all')}
-								disabled={loading}
-								className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm"
-							>
-								<RefreshCw className="w-4 h-4 mr-1" />
-								Sync All
-							</button>
-							<button
-								onClick={() => syncAds('facebook')}
-								disabled={loading}
-								className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm"
-							>
-								<Facebook className="w-4 h-4 mr-1" />
-								Sync FB
-							</button>
-							<button
-								onClick={() => syncAds('google')}
-								disabled={loading}
-								className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center text-sm"
-							>
-								<Chrome className="w-4 h-4 mr-1" />
-								Sync Google
-							</button>
-						</div>
-						<div className="flex items-center gap-2 ml-4">
-							<label className="text-sm font-medium text-gray-700 whitespace-nowrap">Platform:</label>
-							<BeautifulSelect
-								value={filters.platform}
-								onChange={(value) => setFilters(prev => ({ ...prev, platform: value }))}
-								options={[
-									{ value: '', label: 'All Platforms' },
-									{ value: 'facebook', label: 'Facebook' },
-									{ value: 'google', label: 'Google' }
-								]}
-								className="w-40"
-							/>
-						</div>
-
-						{/* Store Filter */}
-						<div className="flex items-center gap-2">
-							<label className="text-sm font-medium text-gray-700 whitespace-nowrap">Store:</label>
-							<BeautifulSelect
-								value={filters.storeId}
-								onChange={(value) => setFilters(prev => ({ ...prev, storeId: value }))}
-								options={[
-									{ value: '', label: 'All Stores' },
-									...stores.map(store => ({ value: store.store_id, label: store.store_name }))
-								]}
-								className="w-32"
-							/>
-						</div>
-
-						{/* Sync Buttons */}
-						
 					</div>
 
 					{/* Summary Cards */}
@@ -1196,7 +1148,33 @@ const AdSpend = () => {
 									<p className="text-2xl font-bold text-gray-900">
 										{`${summaryStats.roas.toFixed(2)}x`}
 									</p>
+									<p className="text-xs text-gray-500 mt-1">
+										Revenue: {formatCurrency(summaryStats.totalRevenue)}
+									</p>
 								</div>
+							</div>
+						</div>
+					</div>
+
+					{/* Debug Info */}
+					<div className="bg-gray-50 p-4 rounded-lg mb-6">
+						<h4 className="text-sm font-medium text-gray-700 mb-2">Debug Info (ROAS Calculation)</h4>
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+							<div>
+								<span className="text-gray-600">Total Revenue:</span>
+								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalRevenue)}</span>
+							</div>
+							<div>
+								<span className="text-gray-600">Total Ad Spend:</span>
+								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalSpend)}</span>
+							</div>
+							<div>
+								<span className="text-gray-600">ROAS Formula:</span>
+								<span className="ml-2 font-medium">Revenue ÷ Ad Spend</span>
+							</div>
+							<div>
+								<span className="text-gray-600">ROAS Result:</span>
+								<span className="ml-2 font-medium">{summaryStats.totalSpend > 0 ? `${(summaryStats.totalRevenue / summaryStats.totalSpend).toFixed(2)}x` : 'N/A'}</span>
 							</div>
 						</div>
 					</div>

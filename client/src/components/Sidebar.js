@@ -6,18 +6,25 @@ import {
   DollarSign, 
   Package,
   TrendingUp,
-  Package2
+  Package2,
+  Users
 } from 'lucide-react';
+import GlobalStoreSelector from './GlobalStoreSelector';
+import { useStore } from '../contexts/StoreContext';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { selectedStore } = useStore();
 
   const navigation = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/ad-spend', icon: DollarSign, label: 'Ad Spend' },
     { path: '/cost-of-goods', icon: Package, label: 'Cost of Goods' },
     { path: '/product-analytics', icon: Package2, label: 'Product Analytics' },
+    // Only show Product Trends for meonutrition store
+    ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
   ];
 
   return (
@@ -27,6 +34,9 @@ const Sidebar = () => {
         <h1 className="text-xl font-bold text-gray-900">Shopify Dashboard</h1>
         <p className="text-sm text-gray-600 mt-1">Revenue & Profit Analytics</p>
       </div>
+
+      {/* Global Store Selector */}
+      <GlobalStoreSelector />
 
       {/* Navigation */}
       <nav className="flex-1 mt-6">

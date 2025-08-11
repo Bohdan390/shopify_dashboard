@@ -18,7 +18,7 @@ class WindsorService {
     }
   }
 
-  async fetchAdData(startDate, endDate, dataSource = 'facebook_ads') {
+  async fetchAdData(startDate, endDate, dataSource = 'facebook_ads', storeId = null) {
     try {
       if (!this.apiKey) {
         throw new Error('Windsor API key not configured');
@@ -26,17 +26,37 @@ class WindsorService {
 
       console.log(`🔍 Fetching ${dataSource} data from Windsor.ai`);
 
+      var query = {}
+      if (storeId == "meonutrition") {
+        query = {select_accounts: "google_ads__912-676-2735"}
+      }
+      else if (storeId == "buycosari") {
+        query = {select_accounts: "google_ads__102-337-4754"}
+      }
+      else if (storeId == "cosara") {
+        query = {select_accounts: "google_ads__917-538-6903"}
+      }
+      else if (storeId == "nomobark") {
+        query = {select_accounts: "google_ads__150-979-2980"}
+      }
+      else if (storeId == "dermao") {
+        query = {select_accounts: "google_ads__973-401-9827"}
+      }
+      else if (storeId == "gamoseries") {
+        query = {select_accounts: "google_ads__102-337-4754"}
+      }
+      // facebook__2024454474573344
       const response = await axios.get(`${this.baseURL}/all`, {
         params: {
           api_key: this.apiKey,
           date_from: startDate,
           date_to: endDate,
+          ...query,
           fields: 'account_name,campaign,clicks,datasource,date,source,spend',
           _renderer: 'json'
         }
       });
 
-      console.log(response.data.data.length)
       if (response.data && response.data.data) {
         console.log(`✅ Fetched ${response.data.data.length} records from Windsor.ai`);
         return this.processWindsorData(response.data.data, dataSource);
@@ -79,12 +99,12 @@ class WindsorService {
     return this.fetchAdData(startDate, endDate, 'google_ads');
   }
 
-  async fetchAllAdData(startDate, endDate) {
+  async fetchAllAdData(startDate, endDate, storeId) {
     try {
       console.log('🔄 Fetching data from all ad platforms via Windsor.ai...');
       
       // Use the single endpoint that returns all data
-      const data = await this.fetchAdData(startDate, endDate, 'all');
+      const data = await this.fetchAdData(startDate, endDate, 'all', storeId);
       
       console.log(`✅ Total records fetched: ${data.length}`);
       
@@ -102,17 +122,12 @@ class WindsorService {
     var arr = campaignName.split('_');
     var store_id = arr[0];
 
-    if (campaignName.includes("NonBrand") || campaignName.includes("Nonbrand")) {
-      
-    }
-
-
     return { store_id, product_id: null };
   }
 
-  async saveAdDataToDatabase(adData, socket = null) {
+  async saveAdDataToDatabase(adData, socket = null, storeId = null) {
     try {
-      console.log(`💾 Saving ${adData.length} ad records to database...`);
+      console.log(`💾 Saving ${adData.length} ad records to database for store: ${storeId || 'all stores'}...`);
       
       // Group data by campaign for campaign table
       const campaigns = new Map();
@@ -122,20 +137,18 @@ class WindsorService {
         // Create campaign record
         const campaignKey = `${record.campaign_id}_${record.platform}`;
         if (!campaigns.has(campaignKey)) {
-          const { store_id, product_id } = this.mapCampaignToStoreProduct(record.campaign_name);
           campaigns.set(campaignKey, {
             campaign_id: record.campaign_id,
             campaign_name: record.campaign_name,
             platform: record.platform,
             account_id: record.account_name || 'windsor_ai',
-            store_id,
-            product_id,
+            store_id: storeId || record.account_name,
+            product_id: null,
             status: 'active'
           });
         }
         
         // Create ad spend record
-        const { store_id, product_id } = this.mapCampaignToStoreProduct(record.campaign_name);
         adSpendRecords.push({
           date: record.date,
           campaign_id: record.campaign_id,
@@ -145,8 +158,8 @@ class WindsorService {
           clicks: record.clicks,
           conversions: record.conversions,
           conversion_value: record.conversion_value,
-          store_id,
-          product_id
+          store_id: storeId || record.account_name,
+          product_id: null
         });
       }
       
@@ -165,18 +178,36 @@ class WindsorService {
       const campaignArray = Array.from(campaigns.values());
       
       if (campaignArray.length > 0) {
-        const { error: campaignError } = await this.supabase
-          .from('ad_campaigns')
-          .upsert(campaignArray, { 
-            onConflict: 'campaign_id',
-            ignoreDuplicates: false 
-          });
-          
-        if (campaignError) {
-          console.error('❌ Error saving campaigns:', campaignError);
-          throw campaignError;
+        // Save campaigns to database in chunks
+        const chunkSize = 1000; // Supabase limit
+        const chunks = [];
+        
+        for (let i = 0; i < campaignArray.length; i += chunkSize) {
+          chunks.push(campaignArray.slice(i, i + chunkSize));
         }
-        console.log(`✅ Saved ${campaignArray.length} campaigns`);
+        
+        console.log(`📦 Processing ${campaignArray.length} campaigns in ${chunks.length} chunks...`);
+        
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          console.log(`💾 Saving campaign chunk ${i + 1}/${chunks.length} (${chunk.length} campaigns)...`);
+          
+          const { error: campaignError } = await this.supabase
+            .from('ad_campaigns')
+            .upsert(chunk, { 
+              onConflict: 'campaign_id',
+              ignoreDuplicates: false 
+            });
+            
+          if (campaignError) {
+            console.error(`❌ Error saving campaign chunk ${i + 1}:`, campaignError);
+            throw campaignError;
+          }
+          
+          console.log(`✅ Saved campaign chunk ${i + 1}/${chunks.length} (${chunk.length} campaigns)`);
+        }
+        
+        console.log(`✅ Saved all ${campaignArray.length} campaigns`);
       }
       
       // Save ad spend data to database
@@ -192,19 +223,45 @@ class WindsorService {
       }
       
       if (adSpendRecords.length > 0) {
-        // Save to ad_spend_detailed table
-        const { error: spendError } = await this.supabase
-          .from('ad_spend_detailed')
-          .upsert(adSpendRecords, { 
-            onConflict: 'date,campaign_id,platform',
-            ignoreDuplicates: false 
-          });
-          
-        if (spendError) {
-          console.error('❌ Error saving ad spend detailed data:', spendError);
-          throw spendError;
+        // Save to ad_spend_detailed table in chunks
+        const chunkSize = 1000; // Supabase limit
+        const chunks = [];
+        
+        for (let i = 0; i < adSpendRecords.length; i += chunkSize) {
+          chunks.push(adSpendRecords.slice(i, i + chunkSize));
         }
-        console.log(`✅ Saved ${adSpendRecords.length} ad spend detailed records`);
+        
+        console.log(`📦 Processing ${adSpendRecords.length} records in ${chunks.length} chunks...`);
+        
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          console.log(`💾 Saving chunk ${i + 1}/${chunks.length} (${chunk.length} records)...`);
+          
+          if (socket) {
+            socket.emit('adsSyncProgress', {
+              stage: 'saving_spend_chunk',
+              message: `💾 Saving chunk ${i + 1}/${chunks.length} (${chunk.length} records)...`,
+              progress: 85 + (i / chunks.length) * 10,
+              total: 'unlimited'
+            });
+          }
+          
+          const { error: spendError } = await this.supabase
+            .from('ad_spend_detailed')
+            .upsert(chunk, { 
+              onConflict: 'date,campaign_id,platform',
+              ignoreDuplicates: false 
+            });
+            
+          if (spendError) {
+            console.error(`❌ Error saving ad spend chunk ${i + 1}:`, spendError);
+            throw spendError;
+          }
+          
+          console.log(`✅ Saved chunk ${i + 1}/${chunks.length} (${chunk.length} records)`);
+        }
+        
+        console.log(`✅ Saved all ${adSpendRecords.length} ad spend detailed records`);
       }
       
       console.log(`🎉 Successfully saved all Windsor.ai data to database!`);
@@ -219,15 +276,15 @@ class WindsorService {
     }
   }
 
-  async fetchAndSaveAdData(startDate, endDate, socket = null) {
+  async fetchAndSaveAdData(startDate, endDate, socket = null, storeId = null) {
     try {
-      console.log('🔄 Fetching and saving Windsor.ai ad data...');
+      console.log(`🔄 Fetching and saving Windsor.ai ad data for store: ${storeId || 'all stores'}...`);
       
       // Emit initial progress
       if (socket) {
         socket.emit('adsSyncProgress', {
           stage: 'starting',
-          message: '🔄 Starting Windsor.ai ads sync...',
+          message: `🔄 Starting Windsor.ai ads sync for ${storeId || 'all stores'}...`,
           progress: 0,
           total: 'unlimited'
         });
@@ -237,13 +294,13 @@ class WindsorService {
       if (socket) {
         socket.emit('adsSyncProgress', {
           stage: 'fetching',
-          message: '📥 Fetching ad data from Windsor.ai...',
+          message: `📥 Fetching ad data from Windsor.ai for ${storeId || 'all stores'}...`,
           progress: 20,
           total: 'unlimited'
         });
       }
       
-      const adData = await this.fetchAllAdData(startDate, endDate);
+      const adData = await this.fetchAllAdData(startDate, endDate, storeId);
       
       if (adData.length === 0) {
         console.log('⚠️  No ad data to save');
@@ -270,7 +327,7 @@ class WindsorService {
       }
       
       // Save to database
-      const result = await this.saveAdDataToDatabase(adData, socket);
+      const result = await this.saveAdDataToDatabase(adData, socket, storeId);
       
       if (socket) {
         socket.emit('adsSyncProgress', {
