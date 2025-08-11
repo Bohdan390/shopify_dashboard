@@ -387,7 +387,11 @@ const StoreAnalytics = () => {
       const response = await axios.get('/api/analytics/store', {
         params: {
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate
+          endDate: dateRange.endDate,
+          page: currentPage,
+          limit: itemsPerPage,
+          sortBy,
+          sortOrder
         }
       });
       setStoreAnalytics(response.data);
@@ -502,7 +506,7 @@ const StoreAnalytics = () => {
                 <Calendar className="w-4 h-4 text-gray-400 ml-2" />
               </button>
             </div>
-            <span className="flex items-center text-gray-500">to</span>
+            <span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
             <div className="flex flex-col">
               <label className="text-xs text-gray-600 mb-1">End Date</label>
               <button

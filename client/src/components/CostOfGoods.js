@@ -207,9 +207,8 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
                     <button
                       key={year}
                       onClick={() => selectYear(year)}
-                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${
-                        year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-                      }`}
+                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+                        }`}
                     >
                       {year}
                     </button>
@@ -252,9 +251,8 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
                     <button
                       key={index}
                       onClick={() => selectMonth(index)}
-                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${
-                        index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-                      }`}
+                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+                        }`}
                     >
                       {month}
                     </button>
@@ -296,29 +294,29 @@ const CostOfGoods = () => {
     fetchCostOfGoods();
   }, [dateRange]);
 
-  	// Close date presets dropdown when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showDatePresets && !event.target.closest('.date-presets-container')) {
-				setShowDatePresets(false);
-			}
-		};
+  // Close date presets dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showDatePresets && !event.target.closest('.date-presets-container')) {
+        setShowDatePresets(false);
+      }
+    };
 
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => document.removeEventListener('mousedown', handleClickOutside);
-	}, [showDatePresets]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePresets]);
 
-	// Close Add Cost Entry Modal when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showForm && !event.target.closest('.add-cost-entry-modal')) {
-				setShowForm(false);
-			}
-		};
+  // Close Add Cost Entry Modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showForm && !event.target.closest('.add-cost-entry-modal')) {
+        setShowForm(false);
+      }
+    };
 
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => document.removeEventListener('mousedown', handleClickOutside);
-	}, [showForm]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showForm]);
 
   const fetchCostOfGoods = async () => {
     try {
@@ -335,7 +333,7 @@ const CostOfGoods = () => {
   const handleDatePreset = (preset) => {
     const today = new Date();
     let startDate = new Date();
-    
+
     switch (preset) {
       case 'today':
         startDate = today;
@@ -367,7 +365,7 @@ const CostOfGoods = () => {
       default:
         return;
     }
-    
+
     setDateRange({
       startDate: startDate.toISOString().split('T')[0],
       endDate: today.toISOString().split('T')[0]
@@ -387,7 +385,7 @@ const CostOfGoods = () => {
     e.preventDefault();
     try {
       setAddingEntry(true);
-      
+
       if (editingEntry) {
         // Update existing entry
         await axios.put(`/api/ads/cog/${editingEntry.id}`, formData);
@@ -395,7 +393,7 @@ const CostOfGoods = () => {
         // Add new entry
         await axios.post('/api/ads/cog', formData);
       }
-      
+
       setFormData({
         productId: '',
         productTitle: '',
@@ -504,22 +502,22 @@ const CostOfGoods = () => {
                 onClick={() => setShowStartCalendar(true)}
                 className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
               >
-                                 <span>{dateRange.startDate || 'Select start date'}</span>
-                 <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                <span>{dateRange.startDate || 'Select start date'}</span>
+                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
               </button>
             </div>
-            <span className="flex items-center text-gray-500">to</span>
+            <span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
             <div className="flex flex-col">
               <label className="text-xs text-gray-600 mb-1">End Date</label>
               <button
                 onClick={() => setShowEndCalendar(true)}
                 className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
               >
-                                 <span>{dateRange.endDate || 'Select end date'}</span>
-                 <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                <span>{dateRange.endDate || 'Select end date'}</span>
+                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
               </button>
             </div>
-            
+
             {/* Quick Filters Button */}
             <div className="flex flex-col">
               <label className="text-xs text-gray-600 mb-1">Quick Filters</label>
@@ -531,7 +529,7 @@ const CostOfGoods = () => {
                   <Filter className="w-4 h-4" />
                   Presets
                 </button>
-                
+
                 {showDatePresets && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <div className="py-1">
@@ -583,7 +581,7 @@ const CostOfGoods = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Date Range Display */}
           <div className="text-xs text-gray-500">
             Selected: {dateRange.startDate} to {dateRange.endDate}
@@ -599,7 +597,7 @@ const CostOfGoods = () => {
         selectedDate={dateRange.startDate}
         label="Select Start Date"
       />
-      
+
       <CustomCalendar
         isOpen={showEndCalendar}
         onClose={() => setShowEndCalendar(false)}
@@ -621,7 +619,7 @@ const CostOfGoods = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
@@ -633,7 +631,7 @@ const CostOfGoods = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
@@ -645,7 +643,7 @@ const CostOfGoods = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
@@ -665,13 +663,13 @@ const CostOfGoods = () => {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={costOfGoods.slice(0, 10)}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="date" 
+            <XAxis
+              dataKey="date"
               tickFormatter={(value) => new Date(value).toLocaleDateString()}
             />
             <YAxis />
             {costOfGoods.length > 0 && (
-              <Tooltip 
+              <Tooltip
                 formatter={(value) => formatCurrency(value)}
                 labelFormatter={(label) => new Date(label).toLocaleDateString()}
               />
@@ -748,11 +746,11 @@ const CostOfGoods = () => {
 
       {/* Add Cost Entry Modal */}
       {showForm && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           onClick={() => setShowForm(false)}
         >
-          <div 
+          <div
             className="bg-white rounded-lg p-6 w-full max-w-md add-cost-entry-modal"
             onClick={(e) => e.stopPropagation()}
           >
@@ -770,7 +768,7 @@ const CostOfGoods = () => {
                   placeholder="Enter product ID"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Product Title</label>
                 <input
@@ -781,7 +779,7 @@ const CostOfGoods = () => {
                   placeholder="Enter product title"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cost per Unit</label>
@@ -795,7 +793,7 @@ const CostOfGoods = () => {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                   <input
@@ -808,7 +806,7 @@ const CostOfGoods = () => {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Total Cost</label>
                 <input
@@ -821,7 +819,7 @@ const CostOfGoods = () => {
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input
@@ -832,7 +830,7 @@ const CostOfGoods = () => {
                   required
                 />
               </div>
-              
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"

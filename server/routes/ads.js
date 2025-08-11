@@ -7,20 +7,25 @@ const analyticsService = require('../services/analyticsService');
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate, storeId, accountName } = req.body;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    console.log('🔄 Starting Windsor.ai sync...');
+    if (!storeId && !accountName) {
+      return res.status(400).json({ error: 'Either storeId or accountName is required' });
+    }
+
+    const filterText = accountName ? `account: ${accountName}` : `store: ${storeId}`;
+    console.log(`🔄 Starting Windsor.ai sync for ${filterText}...`);
 
     // Get the socket instance from the request
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
     // Use the new fetchAndSaveAdData method with socket for progress updates
-    const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket);
+    const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, accountName);
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
@@ -33,7 +38,7 @@ router.post('/sync-windsor', async (req, res) => {
     }
     
     console.log('🔄 Recalculating ads-only analytics after Windsor.ai sync...');
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate);
+    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
     
     if (socket) {
       socket.emit('adsSyncProgress', {
@@ -45,10 +50,11 @@ router.post('/sync-windsor', async (req, res) => {
     }
     
     res.json({
-      message: 'Windsor.ai sync and analytics recalculation completed successfully',
+      message: `Windsor.ai sync and analytics recalculation completed successfully for ${filterText}`,
       campaignsSaved: result.campaignsSaved,
       adSpendRecordsSaved: result.adSpendRecordsSaved,
-      dateRange: { startDate, endDate }
+      dateRange: { startDate, endDate },
+      filter: { storeId, accountName }
     });
 
   } catch (error) {
@@ -60,20 +66,20 @@ router.post('/sync-windsor', async (req, res) => {
 // Sync Google Ads data
 router.post('/sync-google', async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate, storeId } = req.body;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    console.log('🔄 Starting Google Ads sync...');
+    console.log(`🔄 Starting Google Ads sync for store: ${storeId || 'all stores'}...`);
 
     // Get the socket instance from the request
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
     const googleAdsService = require('../services/googleAdsService');
-    await googleAdsService.syncGoogleAds(startDate, endDate, socket);
+    await googleAdsService.syncGoogleAds(startDate, endDate, socket, storeId);
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
@@ -86,7 +92,7 @@ router.post('/sync-google', async (req, res) => {
     }
     
     console.log('🔄 Recalculating ads-only analytics after Google Ads sync...');
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate);
+    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
     
     if (socket) {
       socket.emit('adsSyncProgress', {
@@ -111,20 +117,20 @@ router.post('/sync-google', async (req, res) => {
 // Sync Facebook Ads data
 router.post('/sync-facebook', async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate, storeId } = req.body;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    console.log('🔄 Starting Facebook Ads sync...');
+    console.log(`🔄 Starting Facebook Ads sync for store: ${storeId || 'all stores'}...`);
 
     // Get the socket instance from the request
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
     const facebookAdsService = require('../services/facebookAdsService');
-    await facebookAdsService.syncFacebookAds(startDate, endDate, socket);
+    await facebookAdsService.syncFacebookAds(startDate, endDate, socket, storeId);
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
@@ -137,7 +143,7 @@ router.post('/sync-facebook', async (req, res) => {
     }
     
     console.log('🔄 Recalculating ads-only analytics after Facebook Ads sync...');
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate);
+    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
     
     if (socket) {
       socket.emit('adsSyncProgress', {
@@ -164,6 +170,7 @@ router.get('/spend-detailed', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id, page = 1, pageSize = 20, sortBy = 'date', sortOrder = 'desc' } = req.query;
     
+    console.log(store_id, 22222)
     // Calculate offset for pagination
     const offset = (parseInt(page) - 1) * parseInt(pageSize);
     
@@ -258,6 +265,29 @@ router.get('/summary-stats', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id } = req.query;
     
+    console.log(store_id, 11111)
+    
+    // Get revenue data from orders using the RPC function
+    let revenueData = { totalRevenue: 0 };
+    if (startDate && endDate && store_id) {
+      try {
+        const { data: revenueStats, error: revenueError } = await supabase.rpc('get_orders_price_stats', {
+          p_store_id: store_id,
+          p_start_date: startDate + 'T00:00:00',
+          p_end_date: endDate + 'T23:59:59.999'
+        });
+
+        if (revenueError) {
+          console.error('❌ Error fetching revenue stats:', revenueError);
+        } else if (revenueStats && revenueStats.length > 0) {
+          revenueData.totalRevenue = revenueStats[0].total_orders_price || 0;
+          console.log(`💰 Revenue data fetched: $${revenueData.totalRevenue}`);
+        }
+      } catch (revenueErr) {
+        console.error('❌ Error in revenue calculation:', revenueErr);
+      }
+    }
+
     // First, get the count to see how much data we have
     let countQuery = supabase
       .from('ad_spend_detailed')
@@ -271,13 +301,13 @@ router.get('/summary-stats', async (req, res) => {
     //   countQuery = countQuery.eq('platform', platform);
     // }
 
-    // if (store_id) {
-    //   countQuery = countQuery.eq('store_id', store_id);
-    // }
+    if (store_id) {
+      countQuery = countQuery.eq('store_id', store_id);
+    }
 
-    // if (product_id) {
-    //   countQuery = countQuery.eq('product_id', product_id);
-    // }
+    if (product_id) {
+      countQuery = countQuery.eq('product_id', product_id);
+    }
 
     const { count, error: countError } = await countQuery;
     
@@ -309,13 +339,13 @@ router.get('/summary-stats', async (req, res) => {
       //   query = query.eq('platform', platform);
       // }
 
-      // if (store_id) {
-      //   query = query.eq('store_id', store_id);
-      // }
+      if (store_id) {
+        query = query.eq('store_id', store_id);
+      }
 
-      // if (product_id) {
-      //   query = query.eq('product_id', product_id);
-      // }
+      if (product_id) {
+        query = query.eq('product_id', product_id);
+      }
 
       const { data: chunkData, error } = await query;
 
@@ -329,7 +359,12 @@ router.get('/summary-stats', async (req, res) => {
     }
 
     console.log(`📊 Summary stats fetched: ${allData.length} total records`);
-    res.json({ data: allData });
+    
+    // Return both ad spend data and revenue data
+    res.json({ 
+      data: allData,
+      revenue: revenueData.totalRevenue
+    });
 
   } catch (error) {
     console.error('❌ Error getting summary stats:', error);
@@ -342,7 +377,6 @@ router.get('/chart-data', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id } = req.query;
     
-    // First, get the count to see how much data we have
     let countQuery = supabase
       .from('ad_spend_detailed')
       .select('*', { count: 'exact', head: true });

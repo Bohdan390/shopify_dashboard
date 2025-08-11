@@ -8,6 +8,7 @@ const BeautifulSelect = ({
   placeholder = "Select an option",
   disabled = false,
   className = "",
+  style = {},
   size = "md" // sm, md, lg
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -82,6 +83,7 @@ const BeautifulSelect = ({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
+        style={style}
         className={`
           w-full bg-white border border-gray-300 rounded-lg 
           ${sizeClasses[size]}

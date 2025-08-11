@@ -9,7 +9,7 @@ class GoogleAdsService {
 		this.developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 	}
 
-	async fetchCampaigns(socket = null) {
+	async fetchCampaigns(socket = null, storeId = null) {
 		try {
 			console.log('📘 Fetching Google Ads campaigns...');
 
@@ -46,7 +46,7 @@ class GoogleAdsService {
 			console.log(`✅ Fetched ${campaigns.length} Google Ads campaigns`);
 
 			// Save campaigns to database
-			await this.saveCampaigns(campaigns, socket);
+			await this.saveCampaigns(campaigns, socket, storeId);
 
 			return campaigns;
 		} catch (error) {
@@ -59,7 +59,7 @@ class GoogleAdsService {
 		}
 	}
 
-	async saveCampaigns(campaigns, socket = null) {
+	async saveCampaigns(campaigns, socket = null, storeId = null) {
 		try {
 			console.log(`💾 Saving ${campaigns.length} Google Ads campaigns to database...`);
 
@@ -68,6 +68,7 @@ class GoogleAdsService {
 				campaign_name: campaign.campaign.name,
 				platform: 'google',
 				account_id: this.customerId,
+				store_id: storeId,
 				status: campaign.campaign.status.toLowerCase(),
 				created_at: new Date().toISOString(),
 				updated_at: new Date().toISOString()
@@ -102,7 +103,7 @@ class GoogleAdsService {
 		}
 	}
 
-	async fetchAdSpend(startDate, endDate, socket = null) {
+	async fetchAdSpend(startDate, endDate, socket = null, storeId = null) {
 		try {
 			console.log(`📊 Fetching Google Ads spend from ${startDate} to ${endDate}...`);
 
@@ -143,7 +144,7 @@ class GoogleAdsService {
 			console.log(`✅ Fetched ${insights.length} Google Ads spend records`);
 
 			// Save ad spend data
-			await this.saveAdSpend(insights, socket);
+			await this.saveAdSpend(insights, socket, storeId);
 
 			return insights;
 		} catch (error) {
@@ -156,7 +157,7 @@ class GoogleAdsService {
 		}
 	}
 
-	async saveAdSpend(insights, socket = null) {
+	async saveAdSpend(insights, socket = null, storeId = null) {
 		try {
 			console.log(`💾 Saving ${insights.length} Google Ads spend records...`);
 
@@ -167,7 +168,7 @@ class GoogleAdsService {
 				const spendAmount = parseFloat(insight.metrics.cost_micros) / 1000000;
 
 				// Map campaign to store/product based on campaign name
-				const { storeId, productId } = this.mapCampaignToStoreProduct(insight.campaign.name);
+				const { storeId: mappedStoreId, productId } = this.mapCampaignToStoreProduct(insight.campaign.name);
 
 				adSpendData.push({
 					date: insight.segments.date,
@@ -178,7 +179,7 @@ class GoogleAdsService {
 					clicks: parseInt(insight.metrics.clicks) || 0,
 					conversions: parseFloat(insight.metrics.conversions) || 0,
 					conversion_value: parseFloat(insight.metrics.conversions_value) || 0,
-					store_id: storeId,
+					store_id: storeId || mappedStoreId,
 					product_id: productId
 				});
 			}
@@ -249,24 +250,24 @@ class GoogleAdsService {
 		return { storeId, productId };
 	}
 
-	async syncGoogleAds(startDate, endDate, socket = null) {
+	async syncGoogleAds(startDate, endDate, socket = null, storeId = null) {
 		try {
-			console.log('🔄 Starting Google Ads sync...');
+			console.log(`🔄 Starting Google Ads sync for store: ${storeId || 'all stores'}...`);
 
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'starting_google',
-					message: '🔄 Starting Google Ads sync...',
+					message: `🔄 Starting Google Ads sync for ${storeId || 'all stores'}...`,
 					progress: 0,
 					total: 'unlimited'
 				});
 			}
 
 			// Fetch and save campaigns
-			await this.fetchCampaigns(socket);
+			await this.fetchCampaigns(socket, storeId);
 
 			// Fetch and save ad spend data
-			await this.fetchAdSpend(startDate, endDate, socket);
+			await this.fetchAdSpend(startDate, endDate, socket, storeId);
 
 			if (socket) {
 				socket.emit('syncProgress', {

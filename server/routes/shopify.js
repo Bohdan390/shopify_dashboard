@@ -1,40 +1,43 @@
 const express = require('express');
 const router = express.Router();
-const shopifyService = require('../services/shopifyService');
+const ShopifyService = require('../services/shopifyService');
 const analyticsService = require('../services/analyticsService');
 const { supabase } = require('../config/database-supabase');
 
 // Sync orders from Shopify
 router.post('/sync-orders', async (req, res) => {
   try {
-    	const { limit = 50, syncDate } = req.body;
+    	const { limit = 50, syncDate, storeId = 'buycosari' } = req.body;
     
     console.log('🔄 Starting order sync...');
-    		console.log(`📊 Parameters: limit=${limit}, syncDate=${syncDate}`);
+    		console.log(`📊 Parameters: limit=${limit}, syncDate=${syncDate}, storeId=${storeId}`);
     
     // Get the socket instance from the request
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
     
+    // Create store-specific service instance
+    const storeService = new ShopifyService(storeId);
+    
     // Step 1: Sync orders from Shopify with real-time progress
-    const ordersCount = await shopifyService.syncOrders(parseInt(limit), syncDate, socket);
+    const ordersCount = await storeService.syncOrders(parseInt(limit), syncDate, socket);
     console.log(`✅ Orders synced successfully (${ordersCount} orders)`);
     
-    // Step 2: Recalculate analytics from the sync date onwards
+    // Step 2: Recalculate ONLY revenue/orders (no ads, no COGS) - much faster!
     if (socket) {
       socket.emit('syncProgress', {
         stage: 'analytics_starting',
-        message: `🔄 Starting analytics recalculation from ${syncDate}...`,
+        message: `🔄 Starting revenue recalculation from ${syncDate}...`,
         progress: 90,
         total: 'unlimited'
       });
     }
-    await analyticsService.recalculateAnalyticsFromDate(syncDate, socket);
+    await analyticsService.recalculateOrdersOnlyFromDate(syncDate, socket, false, storeId);
     
     if (socket) {
       socket.emit('syncProgress', {
         stage: 'completed',
-        message: '✅ Sync and analytics calculation completed successfully!',
+        message: '✅ Sync and revenue calculation completed successfully!',
         progress: 100,
         total: 'unlimited',
         ordersCount: ordersCount
@@ -42,7 +45,7 @@ router.post('/sync-orders', async (req, res) => {
     }
     
     res.json({ 
-      message: 'Orders synced and analytics recalculated successfully',
+      message: 'Orders synced and revenue recalculated successfully',
       ordersCount: ordersCount,
       syncDate: syncDate,
       timestamp: new Date().toISOString()
@@ -76,7 +79,8 @@ router.get('/revenue', async (req, res) => {
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
 
-    const revenueData = await shopifyService.getRevenueData(startDate, endDate);
+    const storeService = new ShopifyService('buycosari'); // Default store for revenue data
+    const revenueData = await storeService.getRevenueData(startDate, endDate);
     res.json(revenueData);
   } catch (error) {
     console.error('Error getting revenue data:', error);
@@ -87,7 +91,7 @@ router.get('/revenue', async (req, res) => {
 // Get recent orders with pagination, search, and sorting
 router.get('/orders', async (req, res) => {
   try {
-    const { limit = 100, offset = 0, page = 1, search = '', status = '', sortBy = 'created_at', sortDirection = 'desc' } = req.query;
+    const { limit = 100, offset = 0, page = 1, search = '', status = '', sortBy = 'created_at', sortDirection = 'desc', storeId = 'buycosari' } = req.query;
     const pageSize = parseInt(limit);
     const pageOffset = parseInt(offset) || (parseInt(page) - 1) * pageSize;
     
@@ -101,7 +105,8 @@ router.get('/orders', async (req, res) => {
     // Build query with search and status filters
     let query = supabase
       .from('orders')
-      .select('order_number, total_price, financial_status, fulfillment_status, created_at, customer_email, shopify_order_id');
+      .select('order_number, total_price, financial_status, fulfillment_status, created_at, customer_email, shopify_order_id')
+      .eq('store_id', storeId);
     
     // Add search filter if provided
     if (search && search.trim()) {
@@ -116,7 +121,8 @@ router.get('/orders', async (req, res) => {
     // Get total count for pagination (with filters)
     let countQuery = supabase
       .from('orders')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId);
     
     if (search && search.trim()) {
       countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_email.ilike.%${search}%`);
@@ -163,49 +169,22 @@ router.get('/orders', async (req, res) => {
 // Get order statistics
 router.get('/stats', async (req, res) => {
   try {
-    
+    const { storeId = 'buycosari', startDate, endDate } = req.query;
     // Get total count first (same as orders endpoint)
-    let {count} = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true });
 
-    let chunkSize = 1000;
-    let paidOrders = [];
-    for (let i = 0; i < count; i += chunkSize) {
-      let dataQuery = supabase
-      .from('orders')
-      .select('financial_status, total_price')
-      .eq('financial_status', 'paid')
-      .order('created_at', { ascending: true })
-      .range(i, i + chunkSize - 1);
-      const { data, error } = await dataQuery;
-      if (error) throw error;
-      for (let order of data) {
-        if (order.total_price > 0) {
-          paidOrders.push(order);
-        }
-      }
-    }
-      
-    const stats = paidOrders.reduce((acc, order) => {
-      acc.totalRevenue += parseFloat(order.total_price || 0);
-      if (order.financial_status === 'paid') {
-        acc.paidOrders += 1;
-      }
-      return acc;
-    }, {
-      totalOrders: count, // Use the exact count from database
-      paidOrders: 0,
-      totalRevenue: 0,
-      avgOrderValue: 0
+    const stats = await supabase.rpc('get_orders_price_stats', {
+      p_store_id: storeId,
+      p_start_date: startDate + 'T00:00:00',
+      p_end_date: endDate + 'T23:59:59.999'
     });
-
-    stats.avgOrderValue = stats.totalOrders > 0 
-      ? stats.totalRevenue / stats.totalOrders 
-      : 0;
-    
-      console.log(stats)
-    res.json(stats);
+    var data = {
+      totalOrders: stats.data[0].total_orders_count,
+      paidOrders: stats.data[0].paid_orders_count,
+      totalRevenue: stats.data[0].total_orders_price,
+      paidRevenue: stats.data[0].paid_orders_price,
+      avgOrderValue: stats.data[0].total_orders_price / stats.data[0].total_orders_count,
+    }
+    res.json(data);
   } catch (error) {
     console.error('Error getting order stats:', error);
     res.status(500).json({ error: 'Failed to get order statistics' });

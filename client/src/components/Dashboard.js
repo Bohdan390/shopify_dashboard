@@ -13,6 +13,7 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import BeautifulSelect from './BeautifulSelect';
 import DashboardLoader from './loaders/DashboardLoader';
+import { useStore } from '../contexts/StoreContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -59,7 +60,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	// Close calendar modal when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event) => {
-			if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal')) {
+			if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal') && !event.target.closest('.sync-modal') && !event.target.closest('.recalc-modal')) {
 				onClose();
 			}
 		};
@@ -111,7 +112,10 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 		if (date) {
 			setSelectedDateState(date);
 			onDateSelect(formatDate(date));
-			onClose();
+			// Only close the calendar modal, not other modals
+			setTimeout(() => {
+				onClose();
+			}, 100);
 		}
 	};
 
@@ -163,7 +167,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 bg-black bg-opacity-50 z-[80] flex items-center justify-center">
+		<div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
 			<div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
 				{/* Header */}
 				<div className="flex items-center justify-between mb-4">
@@ -369,7 +373,8 @@ const Dashboard = () => {
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [recalcProgress, setRecalcProgress] = useState(null);
 
-	// Store and Product Analytics states
+	// Store context
+	const { selectedStore } = useStore();
 
 
 	const handleDateRangeChange = async () => {
@@ -378,10 +383,10 @@ const Dashboard = () => {
 				setLoading(true);
 
 				// Fetch both analytics and summary data
-				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
-				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
+				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
 
-				console.log('📅 Fetching custom range data for:', dateRange.startDate, 'to', dateRange.endDate);
+				console.log('📅 Fetching custom range data for:', dateRange.startDate, 'to', dateRange.endDate, 'store:', selectedStore);
 				console.log('📅 Date types:', typeof dateRange.startDate, typeof dateRange.endDate);
 				console.log('📅 Start date object:', new Date(dateRange.startDate).toISOString());
 				console.log('📅 End date object:', new Date(dateRange.endDate).toISOString());
@@ -532,6 +537,11 @@ const Dashboard = () => {
 
 	const fetchDashboardData = useCallback(async () => {
 		try {
+			// Don't run this function during sync operations
+			if (syncProgress && syncProgress.stage !== 'completed') {
+				return;
+			}
+			
 			if (showCustomDateRange) return;
 			setLoading(true);
 			let url;
@@ -543,9 +553,9 @@ const Dashboard = () => {
 					setLoading(false);
 					return;
 				}
-				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
 			} else {
-				url = `/api/analytics/dashboard?period=${period}`;
+				url = `/api/analytics/dashboard?period=${period}&storeId=${selectedStore}`;
 			}
 
 			const response = await axios.get(url);
@@ -557,7 +567,7 @@ const Dashboard = () => {
 		} finally {
 			setLoading(false);
 		}
-	}, [period, showCustomDateRange]);
+	}, [period, showCustomDateRange, selectedStore, syncProgress]);
 
 
 
@@ -596,7 +606,7 @@ const Dashboard = () => {
 	// Close sync modal when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event) => {
-			if (showSyncModal && !event.target.closest('.sync-modal')) {
+			if (showSyncModal && !event.target.closest('.sync-modal') && !event.target.closest('.calendar-modal')) {
 				closeSyncModal();
 			}
 		};
@@ -608,7 +618,7 @@ const Dashboard = () => {
 	// Close recalc modal when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event) => {
-			if (showRecalcModal && !event.target.closest('.recalc-modal')) {
+			if (showRecalcModal && !event.target.closest('.recalc-modal') && !event.target.closest('.calendar-modal')) {
 				closeRecalcModal();
 			}
 		};
@@ -632,7 +642,8 @@ const Dashboard = () => {
 			// Pass socket ID for real-time progress updates
 			await axios.post('/api/analytics/recalculate', {
 				recalcDate: recalcDate,
-				socketId: socket?.id // Pass socket ID for WebSocket communication
+				socketId: socket?.id, // Pass socket ID for WebSocket communication
+				storeId: selectedStore // Pass selected store ID
 			});
 
 			// Progress updates will come via WebSocket
@@ -665,7 +676,8 @@ const Dashboard = () => {
 			const response = await axios.post('/api/shopify/sync-orders', {
 				syncDate: syncDate,
 				limit: 250,    // Fetch 250 orders per page (Shopify's maximum)
-				socketId: socket?.id // Pass socket ID for WebSocket communication
+				socketId: socket?.id, // Pass socket ID for WebSocket communication
+				storeId: selectedStore // Pass selected store ID
 			});
 			console.log('✅ Orders synced successfully');
 
@@ -1021,7 +1033,7 @@ const Dashboard = () => {
 										</svg>
 									</button>
 								</div>
-								<span className="flex items-center text-gray-500">to</span>
+								<span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
 								<div className="flex flex-col">
 									<label className="text-xs text-gray-600 mb-1">End Date</label>
 									<button
@@ -1625,12 +1637,10 @@ const Dashboard = () => {
 
 
 
-
-
 			{/* Sync Orders Modal */}
 			{showSyncModal && (
 				<div
-					className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+					className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center"
 					onClick={closeSyncModal}
 				>
 					<div
