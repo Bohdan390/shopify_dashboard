@@ -3,7 +3,7 @@ import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import { CheckCircle, AlertCircle, Info, Clock, RefreshCw } from 'lucide-react';
 import axios from 'axios';
-import io from 'socket.io-client';
+import { createSocket, setupSocketHandlers } from '../config/socket';
 
 const GlobalStoreSelector = () => {
 	const { selectedStore, setSelectedStore, notifySyncComplete, notifyAdsSyncComplete } = useStore();
@@ -28,7 +28,8 @@ const GlobalStoreSelector = () => {
 
 	// WebSocket connection setup
 	useEffect(() => {
-		const newSocket = io('http://localhost:5000');
+		const newSocket = createSocket();
+		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
 			console.log('🔌 Connected to WebSocket server');

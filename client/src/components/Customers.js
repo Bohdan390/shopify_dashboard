@@ -138,10 +138,6 @@ const Customers = () => {
         setSearchLoading(true);
         setPagination(prev => ({ ...prev, currentPage: 1 }));
         fetchCustomerAnalytics(1, pagination.pageSize, sortConfig.field, sortConfig.direction, false, true).finally(() => setSearchLoading(false));
-        
-        if (window.showToast) {
-            window.showToast.info('Searching', `Searching for customers with email "${searchEmail}"`);
-        }
     };
 
     // Handle page change
