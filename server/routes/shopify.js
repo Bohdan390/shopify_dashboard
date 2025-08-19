@@ -91,7 +91,7 @@ router.get('/revenue', async (req, res) => {
 // Get recent orders with pagination, search, and sorting
 router.get('/orders', async (req, res) => {
   try {
-    const { limit = 100, offset = 0, page = 1, search = '', status = '', sortBy = 'created_at', sortDirection = 'desc', storeId = 'buycosari' } = req.query;
+    const { limit = 100, offset = 0, page = 1, search = '', status = '', sortBy = 'created_at', sortDirection = 'desc', storeId = 'buycosari', startDate, endDate } = req.query;
     const pageSize = parseInt(limit);
     const pageOffset = parseInt(offset) || (parseInt(page) - 1) * pageSize;
     
@@ -105,8 +105,10 @@ router.get('/orders', async (req, res) => {
     // Build query with search and status filters
     let query = supabase
       .from('orders')
-      .select('order_number, total_price, financial_status, fulfillment_status, created_at, customer_email, shopify_order_id')
-      .eq('store_id', storeId);
+      .select('order_number, total_price, financial_status, fulfillment_status, created_at, customer_email, shopify_order_id, refund_price, total_tax, total_discounts')
+      .eq('store_id', storeId)
+      .gte('created_at', startDate + 'T00:00:00')
+      .lte('created_at', endDate + 'T23:59:59.999');
     
     // Add search filter if provided
     if (search && search.trim()) {
@@ -122,7 +124,9 @@ router.get('/orders', async (req, res) => {
     let countQuery = supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
-      .eq('store_id', storeId);
+      .eq('store_id', storeId)
+      .gte('created_at', startDate + 'T00:00:00')
+      .lte('created_at', endDate + 'T23:59:59.999');
     
     if (search && search.trim()) {
       countQuery = countQuery.or(`order_number.ilike.%${search}%,customer_email.ilike.%${search}%`);
@@ -134,7 +138,6 @@ router.get('/orders', async (req, res) => {
     
     const { count, error: countError } = await countQuery;
     if (countError) throw countError;
-    
     // Get orders with pagination, filters, and sorting
     const { data, error } = await query
       .order(validSortBy, { ascending: validSortDirection === 'asc' })

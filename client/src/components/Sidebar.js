@@ -7,25 +7,40 @@ import {
   Package,
   TrendingUp,
   Package2,
-  Users
+  Users,
+  LogOut
 } from 'lucide-react';
 import GlobalStoreSelector from './GlobalStoreSelector';
 import { useStore } from '../contexts/StoreContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
   const location = useLocation();
   const { selectedStore } = useStore();
+  const { logout, sessionExpiry } = useAuth();
 
   const navigation = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/customers', icon: Users, label: 'Customers' },
+    { path: '/customer-ltv', icon: Users, label: 'Customer LTV' },
     { path: '/ad-spend', icon: DollarSign, label: 'Ad Spend' },
     { path: '/cost-of-goods', icon: Package, label: 'Cost of Goods' },
     { path: '/product-analytics', icon: Package2, label: 'Product Analytics' },
     // Only show Product Trends for meonutrition store
-    ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
+    // ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
   ];
+
+  const formatTimeRemaining = () => {
+    if (!sessionExpiry) return '';
+    const now = new Date().getTime();
+    const remaining = sessionExpiry - now;
+    if (remaining <= 0) return 'Expired';
+    
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="w-64 bg-white shadow-lg flex flex-col">
@@ -57,6 +72,17 @@ const Sidebar = () => {
           ))}
         </div>
       </nav>
+
+      {/* Logout Section */}
+      <div className="p-4 border-t border-gray-200">
+        <button
+          onClick={logout}
+          className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors duration-200"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
+        </button>
+      </div>
     </div>
   );
 };

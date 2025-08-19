@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 const StoreContext = createContext();
 
@@ -11,11 +11,25 @@ export const useStore = () => {
 };
 
 export const StoreProvider = ({ children }) => {
-  const [selectedStore, setSelectedStore] = useState('buycosari');
+  const [selectedStore, setSelectedStore] = useState(localStorage.getItem("selectedStore") || "buycosari");
+  const [syncCompleted, setSyncCompleted] = useState(0);
+  const [adsSyncCompleted, setAdsSyncCompleted] = useState(0);
+
+  const notifySyncComplete = useCallback(() => {
+    setSyncCompleted(prev => prev + 1);
+  }, []);
+
+  const notifyAdsSyncComplete = useCallback(() => {
+    setAdsSyncCompleted(prev => prev + 1);
+  }, []);
 
   const value = {
     selectedStore,
     setSelectedStore,
+    syncCompleted,
+    adsSyncCompleted,
+    notifySyncComplete,
+    notifyAdsSyncComplete,
   };
 
   return (

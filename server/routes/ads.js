@@ -3,12 +3,19 @@ const router = express.Router();
 const { supabase } = require('../config/database-supabase');
 const windsorService = require('../services/windsorService');
 const analyticsService = require('../services/analyticsService');
+const common = require('../config/common');
 
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
   try {
-    const { startDate, endDate, storeId, accountName } = req.body;
+    let { startDate, endDate, storeId, accountName } = req.body;
     
+    if (!startDate) startDate = common.createLocalDateWithTime("2020-01-01").toISOString();
+    if (!endDate) endDate = common.createLocalDateWithTime(new Date()).toISOString();
+
+    startDate = startDate.split('T')[0];
+    endDate = endDate.split('T')[0];
+
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Start date and end date are required' });
     }
@@ -25,6 +32,7 @@ router.post('/sync-windsor', async (req, res) => {
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
     // Use the new fetchAndSaveAdData method with socket for progress updates
+    var date = new Date();
     const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, accountName);
     
     // After syncing ads, recalculate analytics based on ads data
@@ -40,6 +48,8 @@ router.post('/sync-windsor', async (req, res) => {
     console.log('🔄 Recalculating ads-only analytics after Windsor.ai sync...');
     await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
     
+    await common.updateSyncTracking('last_ads_sync_date', date, storeId);
+
     if (socket) {
       socket.emit('adsSyncProgress', {
         stage: 'completed',
@@ -62,116 +72,11 @@ router.post('/sync-windsor', async (req, res) => {
     res.status(500).json({ error: 'Failed to sync Windsor.ai data' });
   }
 });
-
-// Sync Google Ads data
-router.post('/sync-google', async (req, res) => {
-  try {
-    const { startDate, endDate, storeId } = req.body;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'Start date and end date are required' });
-    }
-
-    console.log(`🔄 Starting Google Ads sync for store: ${storeId || 'all stores'}...`);
-
-    // Get the socket instance from the request
-    const io = req.app.get('io');
-    const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
-
-    const googleAdsService = require('../services/googleAdsService');
-    await googleAdsService.syncGoogleAds(startDate, endDate, socket, storeId);
-    
-    // After syncing ads, recalculate analytics based on ads data
-    if (socket) {
-      socket.emit('adsSyncProgress', {
-        stage: 'analytics_starting',
-        message: '🔄 Starting analytics recalculation...',
-        progress: 90,
-        total: 'unlimited'
-      });
-    }
-    
-    console.log('🔄 Recalculating ads-only analytics after Google Ads sync...');
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
-    
-    if (socket) {
-      socket.emit('adsSyncProgress', {
-        stage: 'completed',
-        message: '✅ Google Ads sync and analytics recalculation completed!',
-        progress: 100,
-        total: 'unlimited'
-      });
-    }
-    
-    res.json({
-      message: 'Google Ads sync and analytics recalculation completed successfully',
-      dateRange: { startDate, endDate }
-    });
-
-  } catch (error) {
-    console.error('❌ Error syncing Google Ads data:', error);
-    res.status(500).json({ error: 'Failed to sync Google Ads data' });
-  }
-});
-
-// Sync Facebook Ads data
-router.post('/sync-facebook', async (req, res) => {
-  try {
-    const { startDate, endDate, storeId } = req.body;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'Start date and end date are required' });
-    }
-
-    console.log(`🔄 Starting Facebook Ads sync for store: ${storeId || 'all stores'}...`);
-
-    // Get the socket instance from the request
-    const io = req.app.get('io');
-    const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
-
-    const facebookAdsService = require('../services/facebookAdsService');
-    await facebookAdsService.syncFacebookAds(startDate, endDate, socket, storeId);
-    
-    // After syncing ads, recalculate analytics based on ads data
-    if (socket) {
-      socket.emit('adsSyncProgress', {
-        stage: 'analytics_starting',
-        message: '🔄 Starting analytics recalculation...',
-        progress: 90,
-        total: 'unlimited'
-      });
-    }
-    
-    console.log('🔄 Recalculating ads-only analytics after Facebook Ads sync...');
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
-    
-    if (socket) {
-      socket.emit('adsSyncProgress', {
-        stage: 'completed',
-        message: '✅ Facebook Ads sync and analytics recalculation completed!',
-        progress: 100,
-        total: 'unlimited'
-      });
-    }
-    
-    res.json({
-      message: 'Facebook Ads sync and analytics recalculation completed successfully',
-      dateRange: { startDate, endDate }
-    });
-
-  } catch (error) {
-    console.error('❌ Error syncing Facebook Ads data:', error);
-    res.status(500).json({ error: 'Failed to sync Facebook Ads data' });
-  }
-});
-
 // Get detailed ad spend data with pagination
 router.get('/spend-detailed', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id, page = 1, pageSize = 20, sortBy = 'date', sortOrder = 'desc' } = req.query;
     
-    console.log(store_id, 22222)
-    // Calculate offset for pagination
     const offset = (parseInt(page) - 1) * parseInt(pageSize);
     
     let query = supabase
@@ -264,8 +169,6 @@ router.get('/campaigns', async (req, res) => {
 router.get('/summary-stats', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id } = req.query;
-    
-    console.log(store_id, 11111)
     
     // Get revenue data from orders using the RPC function
     let revenueData = { totalRevenue: 0 };
@@ -477,27 +380,6 @@ router.get('/chart-data', async (req, res) => {
   }
 });
 
-// Get stores
-router.get('/stores', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('stores')
-      .select('*')
-      .order('store_name', { ascending: true });
-
-    if (error) {
-      console.error('❌ Error fetching stores:', error);
-      throw error;
-    }
-
-    res.json({ data: data || [] });
-
-  } catch (error) {
-    console.error('❌ Error getting stores:', error);
-    res.status(500).json({ error: 'Failed to get stores' });
-  }
-});
-
 // Add store
 router.post('/stores', async (req, res) => {
   try {
@@ -635,6 +517,330 @@ router.get('/analytics', async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting analytics:', error);
     res.status(500).json({ error: 'Failed to get analytics' });
+  }
+});
+
+// ===== COST OF GOODS (COG) ENDPOINTS =====
+
+// Get cost of goods data with server-side pagination
+router.get('/cog', async (req, res) => {
+  try {
+    const { 
+      startDate, 
+      endDate, 
+      store_id, 
+      product_id, 
+      page = 1, 
+      pageSize = 25, 
+      sortBy = 'date', 
+      sortOrder = 'desc' 
+    } = req.query;
+    
+    // buycosari 2023-10-30
+    // meonutrition 2025-05-19
+    // dermao 2024-05-01
+    // nomobark 2024-05-14
+    // gamoseries 2025-06-26
+    // cosara 2025-05-27
+
+    const {data:products} = await supabase.from("products").select("product_id").neq('store_id', "meonutrition");
+    var ids = products.map(item => item.product_id);
+    await supabase.from("products").update({product_sku_id: ids}).in("product_id", ids);
+
+    // Calculate offset for pagination
+    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    
+    // Build the main query with pagination
+    let query = supabase
+      .from('cost_of_goods')
+      .select('*', { count: 'exact' })
+      .order(sortBy, { ascending: sortOrder === 'asc' })
+      .range(offset, offset + parseInt(pageSize) - 1);
+
+    // Add date range filter if provided
+    if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+
+    // Add store filter if provided
+    if (store_id) {
+      query = query.eq('store_id', store_id);
+    }
+
+    // Add product filter if provided
+    if (product_id) {
+      query = query.eq('product_id', product_id);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('❌ Error fetching cost of goods:', error);
+      throw error;
+    }
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil((count || 0) / parseInt(pageSize));
+    const currentPage = parseInt(page);
+    const hasNext = currentPage < totalPages;
+    const hasPrev = currentPage > 1;
+
+    console.log(`📊 Fetched ${data?.length || 0} cost of goods records (page ${currentPage}/${totalPages}, total: ${count})`);
+    
+    res.json({
+      data: data || [],
+      pagination: {
+        currentPage,
+        totalPages,
+        totalEntries: count || 0,
+        pageSize: parseInt(pageSize),
+        hasNext,
+        hasPrev
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting cost of goods:', error);
+    res.status(500).json({ error: 'Failed to get cost of goods data' });
+  }
+});
+
+// Add new cost of goods entry
+router.post('/cog', async (req, res) => {
+  try {
+    const { 
+      product_id, 
+      product_title, 
+      cost_per_unit, 
+      quantity, 
+      total_cost, 
+      date,
+      store_id = 'buycosari' // Default store ID
+    } = req.body;
+
+    // Validate required fields
+    if (!product_id || !product_title || !cost_per_unit || !quantity || !total_cost || !date) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: product_id, product_title, cost_per_unit, quantity, total_cost, date' 
+      });
+    }
+
+    // Calculate total cost if not provided
+    let calculatedTotalCost = total_cost || (parseFloat(cost_per_unit) * parseInt(quantity));
+
+    const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
+    var productSkuId = "";
+    if (existingProduct.length > 0) {
+      productSkuId = existingProduct[0].product_sku_id;
+    }
+
+    const { data, error } = await supabase
+      .from('cost_of_goods')
+      .insert({
+        product_id,
+        product_title,
+        cost_per_unit: parseFloat(cost_per_unit),
+        quantity: parseInt(quantity),
+        total_cost: parseFloat(calculatedTotalCost),
+        date,
+        store_id,
+        product_sku_id: productSkuId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+      if (productSkuId) {
+        productSkuId = productSkuId.includes("-") ? productSkuId.split("-")[0] + "-" + productSkuId.split("-")[1] : productSkuId;
+        await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSkuId);
+      }
+
+      const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', date).eq('store_id', store_id).limit(1);
+      if (analytic.length > 0) {
+        calculatedTotalCost = parseFloat(calculatedTotalCost) + parseFloat(analytic[0].cost_of_goods);
+      }
+      await supabase.from("analytics").upsert({
+        date,
+        store_id,
+        cost_of_goods: parseFloat(calculatedTotalCost)
+      }, { 
+        onConflict: 'date,store_id',
+        ignoreDuplicates: false 
+      })
+
+    if (error) {
+      console.error('❌ Error adding cost of goods entry:', error);
+      throw error;
+    }
+
+    console.log(`✅ Added cost of goods entry: ${product_title} - $${calculatedTotalCost}`);
+    res.json({ message: 'Cost of goods entry added successfully', data });
+
+  } catch (error) {
+    console.error('❌ Error adding cost of goods entry:', error);
+    res.status(500).json({ error: 'Failed to add cost of goods entry' });
+  }
+});
+
+// Update cost of goods entry
+router.put('/cog/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      product_id, 
+      product_title, 
+      cost_per_unit, 
+      quantity, 
+      total_cost, 
+      date,
+      store_id 
+    } = req.body;
+
+    // Validate required fields
+    if (!product_id || !product_title || !cost_per_unit || !quantity || !total_cost || !date) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: product_id, product_title, cost_per_unit, quantity, total_cost, date' 
+      });
+    }
+
+    // Calculate total cost if not provided
+    let calculatedTotalCost = total_cost || (parseFloat(cost_per_unit) * parseInt(quantity));
+
+    const {data: updated} = await supabase
+      .from("cost_of_goods")
+      .select("total_cost")
+      .eq("id", id)
+      .limit(1);
+
+    let originTotalCost = 0;
+    if (updated.length > 0) {
+      originTotalCost = updated[0].total_cost;
+    }
+    const { data, error } = await supabase
+      .from('cost_of_goods')
+      .update({
+        product_id,
+        product_title,
+        cost_per_unit: parseFloat(cost_per_unit),
+        quantity: parseInt(quantity),
+        total_cost: parseFloat(calculatedTotalCost),
+        date,
+        store_id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', date).eq('store_id', store_id).limit(1);
+    if (analytic.length > 0) {
+      calculatedTotalCost = (calculatedTotalCost - originTotalCost) + parseFloat(analytic[0].cost_of_goods);
+    }
+    await supabase.from("analytics").upsert({
+      date,
+      store_id,
+      cost_of_goods: parseFloat(calculatedTotalCost)
+    }, { 
+      onConflict: 'date,store_id',
+      ignoreDuplicates: false 
+    })
+    if (error) {
+      console.error('❌ Error updating cost of goods entry:', error);
+      throw error;
+    }
+
+    console.log(`✅ Updated cost of goods entry: ${product_title} - $${calculatedTotalCost}`);
+    res.json({ message: 'Cost of goods entry updated successfully', data });
+
+  } catch (error) {
+    console.error('❌ Error updating cost of goods entry:', error);
+    res.status(500).json({ error: 'Failed to update cost of goods entry' });
+  }
+});
+
+// Delete cost of goods entry
+router.delete('/cog/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let calculatedTotalCost = 0;
+    const {data:costOfGoods} = await supabase.from("cost_of_goods").select("total_cost, date, store_id").eq("id", id).limit(1);
+    if (costOfGoods.length > 0) {
+      calculatedTotalCost = costOfGoods[0].total_cost;
+    }
+    const { error } = await supabase
+      .from('cost_of_goods')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('❌ Error deleting cost of goods entry:', error);
+      throw error;
+    }
+    const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', costOfGoods[0].date).eq('store_id', costOfGoods[0].store_id).limit(1);
+    if (analytic.length > 0) {
+      calculatedTotalCost = parseFloat(analytic[0].cost_of_goods) - calculatedTotalCost;
+      if (calculatedTotalCost < 0) calculatedTotalCost = 0;
+      await supabase.from("analytics").upsert({
+        date: costOfGoods[0].date,
+        store_id: costOfGoods[0].store_id,
+        cost_of_goods: parseFloat(calculatedTotalCost)
+      }, { 
+        onConflict: 'date,store_id',
+        ignoreDuplicates: false 
+      })
+    }
+    console.log(`✅ Deleted cost of goods entry with ID: ${id}`);
+    res.json({ message: 'Cost of goods entry deleted successfully' });
+
+  } catch (error) {
+    console.error('❌ Error deleting cost of goods entry:', error);
+    res.status(500).json({ error: 'Failed to delete cost of goods entry' });
+  }
+});
+
+// Get cost of goods summary statistics
+router.get('/cog/summary', async (req, res) => {
+  try {
+    const { startDate, endDate, store_id } = req.query;
+    
+    let query = supabase
+      .from('cost_of_goods')
+      .select('total_cost, quantity, date');
+
+    // Add date range filter if provided
+    if (startDate && endDate) {
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+
+    // Add store filter if provided
+    if (store_id) {
+      query = query.eq('store_id', store_id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Error fetching cost of goods summary:', error);
+      throw error;
+    }
+
+    // Calculate summary statistics
+    const summary = {
+      totalCost: data.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0),
+      totalQuantity: data.reduce((sum, item) => sum + parseInt(item.quantity || 0), 0),
+      entryCount: data.length,
+      averageCostPerUnit: data.length > 0 
+        ? data.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0) / data.length 
+        : 0
+    };
+
+    console.log(`📊 Cost of goods summary: $${summary.totalCost} total cost, ${summary.totalQuantity} total quantity`);
+    res.json(summary);
+
+  } catch (error) {
+    console.error('❌ Error getting cost of goods summary:', error);
+    res.status(500).json({ error: 'Failed to get cost of goods summary' });
   }
 });
 

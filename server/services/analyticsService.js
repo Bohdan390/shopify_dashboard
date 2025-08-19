@@ -564,11 +564,11 @@ class AnalyticsService {
 					// Transform the data to match frontend expectations
 					groupedBySku[sku].push({
 						month_year: trend.month_year,
-						revenue: trend.total_revenue || 0,
-						profit: trend.total_profit || 0,
+						revenue: common.roundPrice(trend.total_revenue) || 0,
+						profit: common.roundPrice(trend.total_profit) || 0,
 						orders: trend.order_count || 0,
-						ad_spend: trend.ad_spend || 0,
-						cost_of_goods: trend.cost_of_goods || 0,
+						ad_spend: common.roundPrice(trend.ad_spend) || 0,
+						cost_of_goods: common.roundPrice(trend.cost_of_goods) || 0,
 						month: trend.month,
 						year: trend.year
 					});
@@ -606,11 +606,13 @@ class AnalyticsService {
 	// Lightweight orders-only recalculation (no ads, no COGS)
 	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari') {
 		try {
+			syncDate = common.createLocalDate(syncDate).toISOString().split('T')[0];
 			console.log(`🔄 Recalculating ORDERS ONLY from ${syncDate} onwards for store: ${storeId}`);
 			let initialProgress = 0;
 			if (socket) {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 				initialProgress = isStandaloneRecalc ? 0 : 95;
+				initialProgress = 0;
 				socket.emit(eventType, {
 					stage: isStandaloneRecalc ? 'starting' : 'analytics',
 					message: `🔄 Recalculating revenue from ${syncDate}...`,
@@ -623,7 +625,7 @@ class AnalyticsService {
 			const { data: minDateData, error: minDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.eq('financial_status', 'paid')
+				.neq('financial_status', 'refunded')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: true })
@@ -634,7 +636,7 @@ class AnalyticsService {
 			const { data: maxDateData, error: maxDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.eq('financial_status', 'paid')
+				.neq('financial_status', 'refunded')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: false })
@@ -675,7 +677,7 @@ class AnalyticsService {
 					// Calculate revenue for this date ONLY
 					const { data: revenueData, error: revenueError } = await supabase
 						.from('orders')
-						.select('total_price')
+						.select('total_price, total_tax, total_discounts')
 						.eq('financial_status', 'paid')
 						.eq('store_id', storeId)
 						.gte('created_at', `${date}T00:00:00`)
@@ -714,12 +716,12 @@ class AnalyticsService {
 					const analyticsData = {
 						date: date,
 						store_id: storeId,
-						revenue: revenue, // Updated revenue
-						google_ads_spend: existingGoogleAds, // Preserve existing ads
-						facebook_ads_spend: existingFacebookAds, // Preserve existing ads
-						cost_of_goods: existingCOGS, // Preserve existing COGS
-						profit: profit, // Recalculated profit
-						profit_margin: profitMargin // Recalculated margin
+						revenue: common.roundPrice(revenue), // Updated revenue
+						google_ads_spend: common.roundPrice(existingGoogleAds), // Preserve existing ads
+						facebook_ads_spend: common.roundPrice(existingFacebookAds), // Preserve existing ads
+						cost_of_goods: common.roundPrice(existingCOGS), // Preserve existing COGS
+						profit: common.roundPrice(profit), // Recalculated profit
+						profit_margin: common.roundPrice(profitMargin) // Recalculated margin
 					};
 
 					const { error: upsertError } = await supabase
@@ -734,13 +736,13 @@ class AnalyticsService {
 					processedCount++;
 
 					// Emit progress
-					if (socket && processedCount % 5 === 0) {
-						const progress = Math.min(95, initialProgress + (processedCount / allDates.length) * 10);
+					if (socket) {
+						const progress = initialProgress + (processedCount / allDates.length) * 100;
 						const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 						socket.emit(eventType, {
 							stage: 'processing',
 							message: `📊 Processing revenue for ${date}... (${processedCount}/${allDates.length})`,
-							progress: progress,
+							progress: Number(progress.toFixed(1)) > 100 ? 100 : Number(progress.toFixed(1)),
 							total: allDates.length,
 							current: processedCount
 						});
@@ -795,11 +797,6 @@ class AnalyticsService {
 		}
 	}
 
-	// Store Analytics - Group by store field from campaigns
-	async calculateStoreAnalytics(startDate, endDate) {
-		
-	}
-
 	// Product Analytics - Match campaigns to products based on order line items
 	async calculateProductAnalytics(startDate, endDate, options = {}) {
 		console.log(startDate + 'T00:00:00', endDate + 'T23:59:59.999')
@@ -828,46 +825,102 @@ class AnalyticsService {
 
 		if (productRevenueError) throw productRevenueError;
 
+		var productSkus = [];
+
+		productRevenue.forEach(product => {
+			var productSku = product.product_sku_id;
+			if (productSku.includes("-")) {
+				productSku = productSku.split("-")[0] + "-" + productSku.split("-")[1];
+			}
+			if (!productSkus.includes(productSku)) {
+				productSkus.push(productSku);
+			}
+		});
+		
+		// Process and enrich product data
+		// Get manual product-campaign links
+		const {count: campaignCount} = await supabase
+			.from('product_campaign_links')
+			.select('*', { count: 'exact', head: true })
+			.eq('store_id', storeId)
+			.eq('is_active', true)
+			.in('product_sku', productSkus);
+
+		var allProductCampaignLinks = [];
+		for (var i = 0; i < campaignCount; i += 1000) {
+			const { data: manualLinks, error: linksError } = await supabase
+				.from('product_campaign_links')
+				.select('*')
+				.eq('store_id', storeId)
+				.eq('is_active', true)
+				.in('product_sku', productSkus)
+				.range(i, i + 1000 - 1);
+			if (linksError) throw linksError;
+			allProductCampaignLinks.push(...manualLinks);
+		}
+
+		var campaignNames = allProductCampaignLinks.map(link => link.campaign_id);
+
 		const { data: adSpend, error: adSpendError } = await supabase
 		.rpc('aggregate_ad_spend_by_campaign', {
 			start_date: startDate + 'T00:00:00',
-			end_date: endDate + 'T23:59:59.999'
+			end_date: endDate + 'T23:59:59.999',
+			p_campaign_names: campaignNames
 		});
 
 		if (adSpendError) throw adSpendError;
 
-		// Process and enrich product data
-		// Get manual product-campaign links
-		const { data: manualLinks, error: linksError } = await supabase
-			.from('product_campaign_links')
-			.select('*')
-			.eq('is_active', true);
-
-		if (linksError) throw linksError;
-
-		let processedProducts = productRevenue.map(product => {
+		var productSkus = new Map();
+		var totalRevenue = 0, totalProfit = 0, totalAdSpend = 0;
+		if (productRevenue.length > 0) {
+			productRevenue.forEach(product => {
+				var productSku = product.product_sku_id;
+				if (productSku.includes("-")) {
+					productSku = productSku.split("-")[0] + "-" + productSku.split("-")[1];
+				}
+				totalRevenue += product.total_revenue;
+				if (!productSkus.has(productSku)) {
+					productSkus.set(productSku, {
+						sku_title: storeId !== "meonutrition" ? product.product_title : common.extractProductSku(product.product_title),
+						campaigns: product.campaigns == undefined ? [] : product.campaigns,
+						product_sku: productSku,
+						total_revenue: common.roundPrice(product.total_revenue),
+						order_count: product.order_count,
+					});
+				}
+				else {
+					productSkus.get(productSku).total_revenue += common.roundPrice(product.total_revenue);
+					productSkus.get(productSku).order_count += product.order_count;
+					if (product.campaigns != undefined) {
+						productSkus.get(productSku).campaigns.push(...product.campaigns);
+					}
+				}
+			});
+		}
+		let processedProducts = Array.from(productSkus.values()).map(product => {
 			product.ad_spend = 0;
 			if (product.campaigns === undefined) {
 				product.campaigns = [];
 				product.orders = [];
 			}
-
 			// Find manual links for this product
-			const productLinks = manualLinks.filter(link => link.product_id === product.product_title);
+			const productLinks = allProductCampaignLinks.filter(link => link.product_sku === product.product_sku);
 			
 			// Calculate total ad spend from linked campaigns
 			productLinks.forEach(link => {
 				const campaignSpend = adSpend.find(ad => ad.campaign_id === link.campaign_id);
 				if (campaignSpend) {
-					product.ad_spend += campaignSpend.total_spend;
+					product.ad_spend += common.roundPrice(campaignSpend.total_spend);
 					if (!product.campaigns.includes(link.campaign_id)) {
 						product.campaigns.push(link.campaign_id);
 					}
 				}
 			});
-
-			product.profit = product.total_revenue - product.ad_spend;
-			product.roi_percentage = product.total_revenue > 0 ? (product.profit / product.total_revenue) * 100 : 0;
+			product.profit = common.roundPrice(product.total_revenue - product.ad_spend);
+			totalAdSpend += common.roundPrice(product.ad_spend);
+			totalProfit += common.roundPrice(product.profit);
+			product.roi_percentage = product.total_revenue > 0 ? (product.profit / common.roundPrice(product.total_revenue)) * 100 : 0;
+			product.roi_percentage = common.roundPrice(product.roi_percentage);
 			return product;
 		});
 
@@ -879,27 +932,6 @@ class AnalyticsService {
 			);
 		}
 
-		// Apply range filters
-		if (minRevenue !== null) {
-			processedProducts = processedProducts.filter(product => product.total_revenue >= minRevenue);
-		}
-		if (maxRevenue !== null) {
-			processedProducts = processedProducts.filter(product => product.total_revenue <= maxRevenue);
-		}
-		if (minProfit !== null) {
-			processedProducts = processedProducts.filter(product => product.profit >= minProfit);
-		}
-		if (maxProfit !== null) {
-			processedProducts = processedProducts.filter(product => product.profit <= maxProfit);
-		}
-		if (minROI !== null) {
-			processedProducts = processedProducts.filter(product => product.roi_percentage >= minROI);
-		}
-		if (maxROI !== null) {
-			processedProducts = processedProducts.filter(product => product.roi_percentage <= maxROI);
-		}
-
-		// Apply sorting
 		processedProducts.sort((a, b) => {
 			let aValue = a[sortBy];
 			let bValue = b[sortBy];
@@ -929,6 +961,9 @@ class AnalyticsService {
 
 		return {
 			products: paginatedProducts,
+			totalRevenue: totalRevenue,
+			totalProfit: totalProfit,
+			totalAdSpend: totalAdSpend,
 			pagination: {
 				page,
 				limit,
@@ -963,10 +998,13 @@ class AnalyticsService {
 				}
 			});
 			console.log(adsData[0].platform, googleAdsData.length, faceBookAdsData.length, 555555)
-			const googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
-			const facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			googleAdsSpend = common.roundPrice(googleAdsSpend);
+			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			// Calculate total ad spend
-			const totalAdSpend = googleAdsSpend + facebookAdsSpend;
+			let totalAdSpend = googleAdsSpend + facebookAdsSpend;
+			totalAdSpend = common.roundPrice(totalAdSpend);
 
 			console.log(`    💰 Found Google Ads spend: $${googleAdsSpend}, Facebook Ads spend: $${facebookAdsSpend}, Total: $${totalAdSpend}`);
 
@@ -990,12 +1028,16 @@ class AnalyticsService {
 				// Use existing revenue and cost of goods
 				revenue = parseFloat(existingAnalytics.revenue) || 0;
 				existingCostOfGoods = parseFloat(existingAnalytics.cost_of_goods) || 0;
+				revenue = common.roundPrice(revenue);
+				existingCostOfGoods = common.roundPrice(existingCostOfGoods);
 				console.log(`    📊 Found existing analytics: revenue $${revenue}, cost of goods $${existingCostOfGoods}`);
 			}
 
 			// Use the higher cost of goods value (existing or new)
-			const profit = revenue - totalAdSpend - existingCostOfGoods;
-			const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+			let profit = revenue - totalAdSpend - existingCostOfGoods;
+			profit = common.roundPrice(profit);
+			let profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+			profitMargin = common.roundPrice(profitMargin);
 
 			// Upsert analytics data - only update ads-related fields, preserve revenue
 			const analyticsData = {
@@ -1010,6 +1052,7 @@ class AnalyticsService {
 
 			// Use upsert to update existing record or create new one
 			try {
+				console.log(analyticsData, 123);
 				const { error: upsertError } = await supabase
 					.from('analytics')
 					.upsert(analyticsData, { 

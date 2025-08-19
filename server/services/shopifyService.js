@@ -1,6 +1,11 @@
 const axios = require('axios');
 const { supabase, insert, update, select } = require('../config/database-supabase');
 const analyticsService = require('./analyticsService');
+const common = require('../config/common');
+
+function sleep(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 class ShopifyService {
 	constructor(storeId = 'buycosari') {
@@ -49,6 +54,7 @@ class ShopifyService {
 		}
 
 		this.baseURL = `https://${config.shopUrl}/admin/api/${config.apiVersion}`;
+		console.log(config.accessToken, this.storeId, 123);
 		this.headers = {
 			'X-Shopify-Access-Token': config.accessToken,
 			'Content-Type': 'application/json'
@@ -67,8 +73,41 @@ class ShopifyService {
 			if (syncDate) {
 				console.log('Sync date provided:', syncDate);
 			}
-
+			if (this.storeId == "buycosari") {
+				if (new Date(syncDate) < new Date("2023-10-30")) {
+					syncDate = "2023-10-30";
+				}
+			}
+			else if (this.storeId == "meonutrition") {
+				if (new Date(syncDate) < new Date("2025-05-19")) {
+					syncDate = "2025-05-19";
+				}
+			}
+			else if (this.storeId == "dermao") {
+				if (new Date(syncDate) < new Date("2024-05-01")) {
+					syncDate = "2024-05-01";
+				}
+			}
+			else if (this.storeId == "nomobark") {
+				if (new Date(syncDate) < new Date("2024-05-14")) {
+					syncDate = "2024-05-14";
+				}
+			}
+			else if (this.storeId == "gamoseries") {
+				if (new Date(syncDate) < new Date("2025-06-26")) {
+					syncDate = "2025-06-26";
+				}
+			}
+			else if (this.storeId == "cosara") {
+				if (new Date(syncDate) < new Date("2025-05-27")) {
+					syncDate = "2025-05-27";
+				}
+			}
 			var nextPage = false, pageInfo = "";
+			var now = common.createLocalDateWithTime(new Date());
+			var totalDiff = common.diffInMilliSeconds(now, common.createLocalDateWithTime(syncDate));
+			var lastDate;
+			console.log("Total diff:", totalDiff);
 			while (true) {
 				pageCount++;
 				let url = `${this.baseURL}/orders.json?limit=${limit}&status=any`;
@@ -82,20 +121,34 @@ class ShopifyService {
 				}
 
 				// Emit progress update for each page
-				if (socket) {
-					const progress = Math.min(10 + (pageCount * 2), 20); // Progress from 10% to 20%
-					socket.emit('syncProgress', {
-						stage: 'fetching',
-						message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
-						progress: progress,
-						total: 'unlimited',
-						current: totalFetched
-					});
-				}
 
 				const response = await axios.get(url, { headers: this.headers });
 				orders = response.data.orders;
 
+				if (orders.length > 0) {
+					var minDate = orders.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))?.[0]?.updated_at;
+					minDate = common.createLocalDateWithTime(minDate);
+					if (lastDate) {
+						if (minDate.getTime() > lastDate.getTime()) {
+							minDate = lastDate;
+						}
+					}
+					lastDate = minDate;
+					var diff = totalDiff - common.diffInMilliSeconds(minDate, now);
+					console.log(minDate, lastDate, diff, totalDiff, syncDate, 123);
+					if (diff < 0) diff = 0;
+					if (socket) {
+						let progress = Number((100 / totalDiff * diff).toFixed(1));
+						if (progress > 100) progress = 100;
+						socket.emit('syncProgress', {
+							stage: 'fetching',
+							message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
+							progress: progress,
+							total: 'unlimited',
+							current: totalFetched
+						});
+					}
+				}
 				const linkHeader = response.headers['link'];
 
 				if (linkHeader && linkHeader.includes('rel="next"')) {
@@ -115,7 +168,6 @@ class ShopifyService {
 				allOrders = allOrders.concat(orders);
 				totalFetched += orders.length;
 
-				console.log(allOrders[0])
 				console.log(`📦 Fetched ${orders.length} orders (total: ${totalFetched})`);
 
 				// No max orders limit - fetch all available orders
@@ -132,9 +184,18 @@ class ShopifyService {
 				}
 
 				// Add a small delay to avoid rate limiting
-				await new Promise(resolve => setTimeout(resolve, 100));
 			}
 
+
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'fetching',
+					message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
+					progress: 100,
+					total: 'unlimited',
+					current: totalFetched
+				});
+			}
 			console.log(`✅ Total orders fetched: ${allOrders.length}`);
 
 			return allOrders;
@@ -151,13 +212,13 @@ class ShopifyService {
 
 	async saveOrdersToDatabase(orders, socket = null) {
 		try {
-			console.log(`🔄 Preparing to save ${orders.length} orders to database using upsert...`);
+			console.log(`🔄 Preparing to save ${orders.length} orders to database...`);
 
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'saving',
-					message: `💾 Preparing to save ${orders.length} orders using upsert...`,
-					progress: 25,
+					message: `💾 Preparing to save ${orders.length} orders...`,
+					progress: 0,
 					total: orders.length,
 					current: 0
 				});
@@ -189,26 +250,98 @@ class ShopifyService {
 				}
 				allCustomers.push(...customers);
 			}
-
+			const uniqueProducts = new Map();
+			const lineItemsData = [];
+			var updateProductSkus = [];
 			orders.forEach((order) => {
-				orderDataArray.push({
-					shopify_order_id: order.id.toString(),
-					store_id: this.storeId, // Add store ID
-					order_number: order.order_number,
-					total_price: parseFloat(order.total_price),
-					subtotal_price: parseFloat(order.subtotal_price),
-					total_tax: parseFloat(order.total_tax),
-					total_discounts: parseFloat(order.total_discounts),
-					currency: order.currency,
-					financial_status: order.financial_status,
-					fulfillment_status: order.fulfillment_status,
-					created_at: new Date(order.created_at).toISOString(),
-					updated_at: new Date(order.updated_at).toISOString(),
-					customer_email: order.customer?.email || null,
-					customer_id: order.customer?.id?.toString() || null
-				})
-				
 				// Extract customer data if customer exists
+				var priceStr = {};
+				if (order.line_items && order.line_items.length > 0) {
+					order.line_items.forEach(lineItem => {
+						// Skip line items without product_id
+						if (!lineItem.product_id) {
+							console.log(`⚠️  Skipping line item without product_id: ${lineItem.id}`);
+							return;
+						}
+						const productId = lineItem.product_id.toString();
+						// Add to unique products map
+						if (!lineItem.sku || this.storeId != "meonutrition") {
+							lineItem.sku = productId;
+						}
+
+						if (!uniqueProducts.has(productId)) {
+							uniqueProducts.set(productId, {
+								product_id: productId,
+								store_id: this.storeId, // Add store ID
+								product_sku_id: lineItem.sku || productId,
+								product_title: lineItem.title || 'Unknown Product',
+								vendor: lineItem.vendor || null,
+								status: 'active',
+								created_at: new Date().toISOString(),
+								updated_at: new Date().toISOString()
+							});
+						}
+						
+						var sku = lineItem.sku.includes("-") ? lineItem.sku.split("-")[0] + "-" + lineItem.sku.split("-")[1] : lineItem.sku;
+						if (!updateProductSkus.includes(sku)) {
+							updateProductSkus.push(sku);
+						}
+						var totalPrice = parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount;
+						var refundPrice = 0;
+						if (lineItem.sku) {
+							if (!priceStr[lineItem.sku]) {
+								priceStr[lineItem.sku] = 0;
+							}
+							if (order.financial_status == "refunded") {
+								priceStr[lineItem.sku] += 0;
+								refundPrice += totalPrice;
+							}
+							else if(order.financial_status == "partially_refunded") {
+								priceStr[lineItem.sku] += totalPrice;
+								order.refunds.forEach(refund => {
+									if (refund.line_item_id == lineItem.id) {
+										totalPrice -= refund.amount;
+										priceStr[lineItem.sku] -= refund.amount;
+										refundPrice += refund.amount;
+									}
+								});
+							}
+							else {
+								priceStr[lineItem.sku] += totalPrice;
+							}
+						}
+						if (order.product_sku_ids) {
+							if (!order.product_sku_ids.includes(lineItem.sku)) {
+								order.product_sku_ids += "," + lineItem.sku;
+							}
+						}
+						else {
+							order.product_sku_ids = lineItem.sku;
+						}
+						if (!order.financial_status) {
+							order.financial_status = "unpaid";
+						}
+						// Prepare line item data
+						lineItemsData.push({
+							shopify_order_id: order.id.toString(),
+							store_id: this.storeId, // Add store ID
+							customer_id: order.customer ? order.customer.id.toString() : null,
+							financial_status: order.financial_status,
+							line_item_id: lineItem.id.toString(),
+							product_id: productId,
+							product_title: lineItem.title || 'Unknown Product',
+							variant_id: lineItem.variant_id?.toString() || null,
+							variant_title: lineItem.variant_title || null,
+							sku: lineItem.sku || productId,
+							quantity: lineItem.quantity || 1,
+							price: parseFloat(lineItem.price || 0),
+							total_price: parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount,
+							refund_price: refundPrice,
+							created_at: new Date(order.created_at).toISOString()
+						});
+					});
+				}
+
 				if (order.customer && order.customer.id) {
 					const customerId = order.customer.id.toString();
 					if (!uniqueCustomers.has(customerId)) {
@@ -235,70 +368,155 @@ class ShopifyService {
 							updated_at: new Date(order.customer.updated_at || order.updated_at).toISOString(),
 							// Track first order date - will be updated during upsert
 							first_order_date: customer ? new Date(customer.first_order_date).toISOString() : new Date(order.created_at).toISOString(),
-							first_order_price: customer ? parseFloat(customer.first_order_price) : parseFloat(order.total_price)
+							first_order_id: customer ? customer.first_order_id : order.id.toString(),
+							first_order_prices: customer ? customer.first_order_prices : JSON.stringify(priceStr),
+							first_order_sku: customer ? customer.first_order_sku : order.product_sku_ids
 						});
 					}
 					else {
 						if (uniqueCustomers.get(customerId).first_order_date > order.created_at) {
 							uniqueCustomers.get(customerId).first_order_date = new Date(order.created_at).toISOString();
-							uniqueCustomers.get(customerId).first_order_price = parseFloat(order.total_price);
+							uniqueCustomers.get(customerId).first_order_id = order.id.toString();
+							uniqueCustomers.get(customerId).first_order_sku = order.product_sku_ids;
+							uniqueCustomers.get(customerId).first_order_prices = JSON.stringify(priceStr);
 						}
 					}
 				}
+
+				let totalRefunds = 0;
+				if (order.financial_status == "partially_refunded") {
+					totalRefunds = order.refunds.reduce((sum, refund) => sum + (refund.amount || 0), 0);
+				}
+				else if (order.financial_status == "refunded") {
+					totalRefunds = order.total_price;
+				}
+				orderDataArray.push({
+					shopify_order_id: order.id.toString(),
+					store_id: this.storeId, // Add store ID
+					order_number: order.order_number,
+					total_price: parseFloat(order.total_price),
+					subtotal_price: parseFloat(order.subtotal_price),
+					total_tax: parseFloat(order.total_tax),
+					total_discounts: parseFloat(order.total_discounts),
+					currency: order.currency,
+					financial_status: order.financial_status,
+					fulfillment_status: order.fulfillment_status,
+					created_at: new Date(order.created_at).toISOString(),
+					updated_at: new Date(order.updated_at).toISOString(),
+					customer_email: order.customer?.email || null,
+					customer_id: order.customer?.id?.toString() || null,
+					product_sku_ids: order.product_sku_ids || "",
+					refund_price: totalRefunds
+				})
 			})
 			
 			// Extract unique products from line items and prepare for products table
-			const uniqueProducts = new Map();
-			const lineItemsData = [];
 			
-			orders.forEach(order => {
-				if (order.line_items && order.line_items.length > 0) {
-					order.line_items.forEach(lineItem => {
-						// Skip line items without product_id
-						if (!lineItem.product_id) {
-							console.log(`⚠️  Skipping line item without product_id: ${lineItem.id}`);
-							return;
-						}
-						const productId = lineItem.product_id.toString();
+			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', this.storeId).in('product_sku', updateProductSkus);
+			
+			const startTime = Date.now();
+
+			if (lineItemsData.length > 0) {
+				console.log(`💾 Saving ${lineItemsData.length} line items...`);
+
+				if (socket) {
+					socket.emit('syncProgress', {
+						stage: 'saving',
+						message: `💾 Saving ${lineItemsData.length} line items...`,
+						progress: 10,
+						total: orders.length,
+						current: orders.length
+					});
+				}
+
+				// Save line items in chunks
+				const LINE_ITEMS_BATCH_SIZE = 1000;
+				let totalLineItemsSaved = 0;
+
+				if (lineItemsData.length > LINE_ITEMS_BATCH_SIZE) {
+					const totalLineItemChunks = Math.ceil(lineItemsData.length / LINE_ITEMS_BATCH_SIZE);
+					console.log(`📦 Processing ${lineItemsData.length} line items in ${totalLineItemChunks} chunks of ${LINE_ITEMS_BATCH_SIZE}...`);
+
+					for (let i = 0; i < lineItemsData.length; i += LINE_ITEMS_BATCH_SIZE) {
+						const chunk = lineItemsData.slice(i, i + LINE_ITEMS_BATCH_SIZE);
+						const currentChunk = Math.floor(i / LINE_ITEMS_BATCH_SIZE) + 1;
+						const progress = Math.round(((i + chunk.length) / lineItemsData.length) * 100);
 						
-						// Add to unique products map
-						if (!uniqueProducts.has(productId)) {
-							uniqueProducts.set(productId, {
-								product_id: productId,
-								store_id: this.storeId, // Add store ID
-								product_title: lineItem.title || 'Unknown Product',
-								product_type: lineItem.product_type || null,
-								vendor: lineItem.vendor || null,
-								status: 'active',
-								created_at: new Date().toISOString(),
-								updated_at: new Date().toISOString()
+						console.log(`🔄 Processing chunk ${currentChunk}/${totalLineItemChunks} (${progress}% - ${i + chunk.length}/${lineItemsData.length} items)...`);
+
+						// Emit progress to frontend for each chunk
+						if (socket) {
+							socket.emit('syncProgress', {
+								stage: 'saving',
+								message: `💾 Saving ${lineItemsData.length} line items...`,
+								progress: 10 + Math.floor((currentChunk / totalLineItemChunks) * 30),
+								total: lineItemsData.length,
+								current: i + chunk.length
 							});
 						}
 
-						// Prepare line item data
-						lineItemsData.push({
-							shopify_order_id: order.id.toString(),
-							store_id: this.storeId, // Add store ID
-							financial_status: order.financial_status,
-							line_item_id: lineItem.id.toString(),
-							product_id: productId,
-							product_title: lineItem.title || 'Unknown Product',
-							variant_id: lineItem.variant_id?.toString() || null,
-							variant_title: lineItem.variant_title || null,
-							sku: lineItem.sku || null,
-							quantity: lineItem.quantity || 1,
-							price: parseFloat(lineItem.price || 0),
-							total_price: parseFloat(lineItem.price || 0) * (lineItem.quantity || 1),
-							created_at: new Date(order.created_at).toISOString()
+						const { error: lineItemsError } = await supabase
+							.from('order_line_items')
+							.upsert(chunk, { 
+								onConflict: 'line_item_id',
+								ignoreDuplicates: false 
+							});
+
+						if (lineItemsError) {
+							console.error(`❌ Error in line items upsert chunk (${currentChunk}/${totalLineItemChunks}):`, lineItemsError);
+							throw lineItemsError;
+						}
+
+						totalLineItemsSaved += chunk.length;
+						console.log(`✅ Chunk ${currentChunk}/${totalLineItemChunks} completed. Progress: ${totalLineItemsSaved}/${lineItemsData.length} items saved`);
+					}
+				} else {
+					const { error: lineItemsError } = await supabase
+						.from('order_line_items')
+						.upsert(lineItemsData, { 
+							onConflict: 'line_item_id',
+							ignoreDuplicates: false 
 						});
-					});
+
+					if (lineItemsError) {
+						console.error('❌ Error in line items upsert:', lineItemsError);
+						throw lineItemsError;
+					}
+
+					totalLineItemsSaved = lineItemsData.length;
+				}
+
+				console.log(`✅ Successfully saved ${totalLineItemsSaved} line items to database`);
+			}
+
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'saving',
+					message: `💾 Saving ${lineItemsData.length} line items...`,
+					progress: 40,
+					total: orders.length,
+					current: orders.length
+				});
+			}
+			const { data: productRevenue, error: productRevenueError } = await supabase
+				.rpc('get_product_revenue_by_id', {
+					store_id_filter: this.storeId
+				});
+			
+			productRevenue.forEach(product => {
+				if (uniqueProducts.get(product.product_id)) {
+					uniqueProducts.get(product.product_id).sale_price = parseFloat(product.total_revenue);
+					uniqueProducts.get(product.product_id).sale_quantity = parseInt(product.total_quantity);
 				}
 			});
-			const startTime = Date.now();
 
-			// Save unique products to products table using upsert
+			if (productRevenueError) {
+				console.error('❌ Error getting product revenue:', productRevenueError);
+				throw productRevenueError;
+			}
+			// Save unique products to products table
 			if (uniqueProducts.size > 0) {
-				console.log(`📦 Saving ${uniqueProducts.size} unique products to products table using upsert...`);
+				console.log(`📦 Saving ${uniqueProducts.size} unique products to products table...`);
 				
 				const productsArray = Array.from(uniqueProducts.values());
 				
@@ -326,6 +544,16 @@ class ShopifyService {
 							throw productsError;
 						}
 
+						if (socket) {
+							socket.emit('syncProgress', {
+								stage: 'saving',
+								message: `💾 Saving ${uniqueProducts.size} unique products to products table...`,
+								progress: 40 + Math.floor((currentChunk / totalChunks) * 10),
+								total: uniqueProducts.size,
+								current: totalProductsSaved
+							});
+						}
+
 						totalProductsSaved += chunk.length;
 						console.log(`✅ Products chunk ${currentChunk} completed. Total saved: ${totalProductsSaved}/${productsArray.length}`);
 					}
@@ -345,13 +573,22 @@ class ShopifyService {
 					totalProductsSaved = productsArray.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalProductsSaved} products to products table using upsert`);
+				console.log(`✅ Successfully saved ${totalProductsSaved} products to products table`);
 			}
 
-			// Save unique customers to customers table using upsert
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'saving',
+					message: `💾 Saving ${uniqueProducts.size} unique products to products table...`,
+					progress: 50,
+					total: uniqueProducts.length,
+					current: uniqueProducts.length
+				});
+			}
+			// Save unique customers to customers table
 			const BATCH_SIZE = 1000;
 			if (uniqueCustomers.size > 0) {
-				console.log(`👥 Saving ${uniqueCustomers.size} unique customers to customers table using upsert...`);
+				console.log(`👥 Saving ${uniqueCustomers.size} unique customers to customers table...`);
 				
 				const customersArray = Array.from(uniqueCustomers.values());
 				
@@ -365,7 +602,19 @@ class ShopifyService {
 					for (let i = 0; i < customersArray.length; i += BATCH_SIZE) {
 						const chunk = customersArray.slice(i, i + BATCH_SIZE);
 						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
+						const progress = Math.round(((i + chunk.length) / customersArray.length) * 100);
 						console.log(`🔄 Processing customers chunk (${currentChunk}/${totalChunks}) - ${chunk.length} customers...`);
+
+						// Emit progress to frontend for each customers chunk
+						if (socket) {
+							socket.emit('syncProgress', {
+								stage: 'saving',
+								message: `👥 Processing customers chunk ${currentChunk}/${totalChunks} (${progress}% - ${i + chunk.length}/${customersArray.length} customers)...`,
+								progress: 50 + Math.floor((currentChunk / totalChunks) * 20), // Progress from 98% to 100%
+								total: customersArray.length,
+								current: i + chunk.length
+							});
+						}
 
 						const { error: customersError } = await supabase
 							.from('customers')
@@ -399,10 +648,20 @@ class ShopifyService {
 					totalCustomersSaved = customersArray.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalCustomersSaved} customers to customers table using upsert`);
+				console.log(`✅ Successfully saved ${totalCustomersSaved} customers to customers table`);
 			}
 
-			// Save orders using upsert
+
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'saving',
+					message: `💾 Saving ${uniqueCustomers.size} unique customers to customers table...`,
+					progress: 70,
+					total: uniqueCustomers.length,
+					current: uniqueCustomers.length
+				});
+			}
+			// Save orders
 			let totalSaved = 0;
 
 			if (orderDataArray.length > BATCH_SIZE) {
@@ -415,7 +674,7 @@ class ShopifyService {
 					console.log(`🔄 Processing orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`);
 
 					if (socket) {
-						const progress = 25 + Math.floor((currentChunk / totalChunks) * 60); // Progress from 25% to 85%
+						const progress = 70 + Math.floor((currentChunk / totalChunks) * 30); // Progress from 25% to 85%
 						socket.emit('syncProgress', {
 							stage: 'saving',
 							message: `💾 Saving orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`,
@@ -442,16 +701,6 @@ class ShopifyService {
 				}
 			} else {
 				// Single batch operation for smaller datasets
-				if (socket) {
-					socket.emit('syncProgress', {
-						stage: 'saving',
-						message: `💾 Saving ${orderDataArray.length} orders to database using upsert...`,
-						progress: 85,
-						total: orders.length,
-						current: orderDataArray.length
-					});
-				}
-
 				const { data, error } = await supabase
 					.from('orders')
 					.upsert(orderDataArray, { 
@@ -463,75 +712,23 @@ class ShopifyService {
 					console.error('❌ Error in orders upsert:', error);
 					throw error;
 				}
-
-				totalSaved = orderDataArray.length;
-			}
-
-			// Save line items using upsert
-			if (lineItemsData.length > 0) {
-				console.log(`📦 Saving ${lineItemsData.length} line items to database using upsert...`);
-
 				if (socket) {
 					socket.emit('syncProgress', {
 						stage: 'saving',
-						message: `💾 Saving ${lineItemsData.length} line items using upsert...`,
-						progress: 90,
+						message: `💾 Saving ${orderDataArray.length} orders to database...`,
+						progress: 100,
 						total: orders.length,
-						current: orders.length
+						current: orderDataArray.length
 					});
 				}
-
-				// Save line items in chunks
-				const LINE_ITEMS_BATCH_SIZE = 1000;
-				let totalLineItemsSaved = 0;
-
-				if (lineItemsData.length > LINE_ITEMS_BATCH_SIZE) {
-					const totalLineItemChunks = Math.ceil(lineItemsData.length / LINE_ITEMS_BATCH_SIZE);
-					console.log(`📦 Processing ${lineItemsData.length} line items in ${totalLineItemChunks} chunks of ${LINE_ITEMS_BATCH_SIZE}...`);
-
-					for (let i = 0; i < lineItemsData.length; i += LINE_ITEMS_BATCH_SIZE) {
-						const chunk = lineItemsData.slice(i, i + LINE_ITEMS_BATCH_SIZE);
-						const currentChunk = Math.floor(i / LINE_ITEMS_BATCH_SIZE) + 1;
-						console.log(`🔄 Processing line items chunk (${currentChunk}/${totalLineItemChunks}) - ${chunk.length} items...`);
-
-						const { error: lineItemsError } = await supabase
-							.from('order_line_items')
-							.upsert(chunk, { 
-								onConflict: 'line_item_id',
-								ignoreDuplicates: false 
-							});
-
-						if (lineItemsError) {
-							console.error(`❌ Error in line items upsert chunk (${currentChunk}/${totalLineItemChunks}):`, lineItemsError);
-							throw lineItemsError;
-						}
-
-						totalLineItemsSaved += chunk.length;
-						console.log(`✅ Line items chunk (${currentChunk}/${totalLineItemChunks}) completed. Progress: ${totalLineItemsSaved}/${lineItemsData.length} items saved`);
-					}
-				} else {
-					const { error: lineItemsError } = await supabase
-						.from('order_line_items')
-						.upsert(lineItemsData, { 
-							onConflict: 'line_item_id',
-							ignoreDuplicates: false 
-						});
-
-					if (lineItemsError) {
-						console.error('❌ Error in line items upsert:', lineItemsError);
-						throw lineItemsError;
-					}
-
-					totalLineItemsSaved = lineItemsData.length;
-				}
-
-				console.log(`✅ Successfully saved ${totalLineItemsSaved} line items to database using upsert`);
+				totalSaved = orderDataArray.length;
 			}
+			// Save line items
 
 			const endTime = Date.now();
 			const duration = endTime - startTime;
 
-			console.log(`✅ Successfully saved ${totalSaved} orders, ${lineItemsData.length} line items, and ${uniqueCustomers.size} customers to database using upsert`);
+			console.log(`✅ Successfully saved ${totalSaved} orders, ${lineItemsData.length} line items, and ${uniqueCustomers.size} customers to database`);
 			console.log(`⏱️  Upsert operation completed in ${duration}ms (${Math.round(totalSaved / (duration / 1000))} orders/second)`);
 			return { 
 				count: totalSaved, 
@@ -548,10 +745,10 @@ class ShopifyService {
 		try {
 			const { data, error } = await supabase
 				.from('orders')
-				.select('created_at, total_price, financial_status')
+				.select('created_at, total_price, financial_status, refund_price')
 				.gte('created_at', startDate)
 				.lte('created_at', endDate)
-				.eq('financial_status', 'paid');
+				.neq('financial_status', 'refunded');
 
 			if (error) throw error;
 
@@ -562,7 +759,7 @@ class ShopifyService {
 				if (!dailyRevenue[date]) {
 					dailyRevenue[date] = { revenue: 0, count: 0 };
 				}
-				dailyRevenue[date].revenue += parseFloat(order.total_price);
+				dailyRevenue[date].revenue += parseFloat(order.total_price) - parseFloat(order.refund_price);
 				dailyRevenue[date].count += 1;
 			});
 
@@ -605,22 +802,24 @@ class ShopifyService {
 				console.log('🗑️  Deleting existing analytics from sync date onwards...');
 			}
 
+			var date = new Date();
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'fetching',
 					message: '📥 Fetching orders from Shopify...',
-					progress: 10,
+					progress: 0,
 					total: 'unlimited'
 				});
 			}
 
 			const orders = await this.fetchOrders(limit, null, syncDate, socket);
 
+			await sleep(1000);
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'saving',
 					message: `💾 Saving ${orders.length} orders to database...`,
-					progress: 25,
+					progress: 0,
 					total: orders.length,
 					current: 0
 				});
@@ -639,6 +838,10 @@ class ShopifyService {
 			}
 
 			console.log('✅ Order sync completed');
+			
+			// Update sync tracking table
+			await common.updateSyncTracking('last_sync_date', date, this.storeId);
+			
 			return orders.length;
 		} catch (error) {
 			console.error('❌ Error syncing orders:', error);
@@ -752,6 +955,8 @@ class ShopifyService {
 			throw error;
 		}
 	}
+
+	
 }
 
 module.exports = ShopifyService; 
