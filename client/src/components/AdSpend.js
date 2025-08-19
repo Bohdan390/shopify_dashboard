@@ -427,7 +427,6 @@ const AdSpend = () => {
 		setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 		fetchAdSpendData();
 		fetchCampaigns();
-		fetchStores();
 		fetchProducts();
 
 		// Fetch summary stats and chart data with a slight delay to ensure fresh data
@@ -445,7 +444,6 @@ const AdSpend = () => {
 			// Refresh all data
 			fetchAdSpendData();
 			fetchCampaigns();
-			fetchStores();
 			fetchProducts();
 			fetchSummaryStats();
 			fetchChartData();
@@ -691,18 +689,6 @@ const AdSpend = () => {
 		}
 	};
 
-	const fetchStores = async () => {
-		try {
-			const response = await axios.get('/api/ads/stores');
-			const data = response.data.data || [];
-			setStores(data);
-		} catch (error) {
-			console.error('❌ Error fetching stores:', error);
-			// Set empty array to prevent errors
-			setStores([]);
-		}
-	};
-
 	const fetchProducts = async () => {
 		try {
 			const response = await axios.get('/api/ads/products');
@@ -719,14 +705,12 @@ const AdSpend = () => {
 		try {
 			setSyncProgress({ stage: 'starting', message: `Starting Windsor.ai sync for ${selectedStore}...`, progress: 0 });
 
-			const response = await axios.post('/api/ads/sync-windsor', {
+			await axios.post('/api/ads/sync-windsor', {
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
 				storeId: selectedStore,
 				socketId: socket?.id // Pass socket ID for real-time progress
 			});
-
-			const { campaignsSaved, adSpendRecordsSaved } = response.data;
 
 			// Progress will be handled by WebSocket, so we don't need to set it here
 			// The WebSocket will handle the progress updates and completion

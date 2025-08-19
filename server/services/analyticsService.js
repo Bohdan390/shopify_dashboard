@@ -75,14 +75,15 @@ class AnalyticsService {
 			const analyticsData = {
 				date,
 				store_id: storeId,
-				revenue,
-				google_ads_spend: googleAdsSpend,
-				facebook_ads_spend: facebookAdsSpend,
-				cost_of_goods: costOfGoods,
-				profit,
-				profit_margin: profitMargin
+				revenue: common.roundPrice(revenue),
+				google_ads_spend: common.roundPrice(googleAdsSpend),
+				facebook_ads_spend: common.roundPrice(facebookAdsSpend),
+				cost_of_goods: common.roundPrice(costOfGoods),
+				profit: common.roundPrice(profit),
+				profit_margin: common.roundPrice(profitMargin)
 			};
 
+			console.log(analyticsData)
 			// Delete existing record for this date first, then insert new one
 			try {
 				// Delete existing analytics for this date

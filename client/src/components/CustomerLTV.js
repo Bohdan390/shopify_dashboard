@@ -22,7 +22,7 @@ import {
     BarChart,
     Download
 } from 'lucide-react';
-
+let isLtvLoading = false
 const CustomerLTV = () => {
 	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
     const [customers, setCustomers] = useState([]);
@@ -273,6 +273,7 @@ const CustomerLTV = () => {
         });
 
         newSocket.on('syncProgress', (data) => {
+            console.log(data)
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
@@ -292,6 +293,10 @@ const CustomerLTV = () => {
                         current: 0
                     });
                 }, 500);
+            }
+            else if (data.stage == "get_customer_ltv_cohorts") {
+                setLtvLoading(false);
+                setLtvData(JSON.parse(data.data) || []);
             }
         });
 
@@ -334,6 +339,8 @@ const CustomerLTV = () => {
 
     // Fetch individual product LTV data
     const fetchIndividualProductLtv = async () => {
+        if (isLtvLoading) return;
+        isLtvLoading = true;
         try {
             setLtvLoading(true);
             const params = new URLSearchParams({
@@ -356,19 +363,9 @@ const CustomerLTV = () => {
                 socketId: socket.id,
                 sku: selectedProductSku
             });
-            setLtvData(response.data.data || []);
-            setPagination(response.data.pagination);
+            isLtvLoading = false;
         } catch (error) {
             console.error('❌ Error fetching customer analytics:', error);
-        } finally {
-            setLtvLoading(false);
-            setLtvSyncProgress({
-                stage: "",
-                message: "",
-                progress: 0,
-                total: 0,
-                current: 0
-            });
         }
     };
 
@@ -575,7 +572,7 @@ const CustomerLTV = () => {
                                     ))}
                                 </div>
                             </div>
-                            {ltvSyncProgress.stage === 'calculating' && (
+                            {(ltvSyncProgress.stage === 'calculating' || ltvSyncProgress.stage === 'completed') && (
                                 <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center" style={{ backgroundColor: 'white' }}>
                                     <div className="relative w-48 bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
                                         <div

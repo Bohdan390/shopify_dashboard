@@ -16,6 +16,10 @@ router.post('/sync-orders', async (req, res) => {
     // Create store-specific service instance
     const storeService = new ShopifyService(storeId);
     
+    res.json({ 
+      message: 'Orders synced and revenue recalculated successfully'
+    });
+
     // Step 1: Sync orders from Shopify with real-time progress
     const ordersCount = await storeService.syncOrders(parseInt(limit), syncDate, socket);
     
@@ -39,13 +43,6 @@ router.post('/sync-orders', async (req, res) => {
         ordersCount: ordersCount
       });
     }
-    
-    res.json({ 
-      message: 'Orders synced and revenue recalculated successfully',
-      ordersCount: ordersCount,
-      syncDate: syncDate,
-      timestamp: new Date().toISOString()
-    });
   } catch (error) {
     console.error('❌ Error syncing orders:', error);
     
