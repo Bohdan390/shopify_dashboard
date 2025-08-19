@@ -124,10 +124,11 @@ class ShopifyService {
 						}
 					}
 					lastDate = minDate;
-					var diff = totalDiff - common.diffInMilliSeconds(minDate, now);
+					var diff = common.diffInMilliSeconds(minDate, now);
+					console.log(diff, totalDiff)
 					if (diff < 0) diff = 0;
 					if (socket) {
-						let progress = Number((100 / totalDiff * diff).toFixed(1));
+						let progress = Number((100 * diff / totalDiff).toFixed(1));
 						if (progress > 100) progress = 100;
 						socket.emit('syncProgress', {
 							stage: 'fetching',
