@@ -427,14 +427,6 @@ const Dashboard = () => {
 		}
 	};
 
-	const showCustomRangeModal = () => {
-		if (dateRange.startDate && dateRange.endDate) {
-			setShowCustomRangePopup(true);
-		} else {
-			alert('Please select both start and end dates');
-		}
-	};
-
 	// WebSocket connection setup
 	useEffect(() => {
 		const newSocket = createSocket();
@@ -445,6 +437,7 @@ const Dashboard = () => {
 
 		newSocket.on('syncProgress', (data) => {
 			setSyncProgress(data);
+			console.log(data)
 
 			// Close sync modal immediately when sync starts
 			if (data.stage === 'starting' || data.stage === 'fetching' || data.stage === 'saving') {
@@ -453,12 +446,13 @@ const Dashboard = () => {
 
 			// Update sync step based on progress
 			if (data.stage === 'completed') {
+				if (data.message && data.message.includes("calculation completed")) {
+					setSyncing(false);
+				}
 				setSyncStep('Complete!');
 				setSyncSuccess(true);
 
 				// Refresh dashboard data after successful sync
-				fetchDashboardData();
-
 				setTimeout(() => {
 					setSyncStep('');
 					setSyncSuccess(false);
@@ -487,9 +481,6 @@ const Dashboard = () => {
 
 				setSyncStep('Recalculation Complete!');
 				setSyncSuccess(true);
-
-				// Refresh dashboard data after successful recalculation
-				fetchDashboardData();
 
 				// Close recalculation modal
 				closeRecalcModal();
@@ -529,6 +520,8 @@ const Dashboard = () => {
 			}
 		}
 	}, [syncCompleted, adsSyncCompleted]);
+
+
 
 	const fetchDashboardData = useCallback(async (showRefreshing = false) => {
 		if (dailyLoading) return;
@@ -591,33 +584,12 @@ const Dashboard = () => {
 		}
 	}, [period, showCustomDateRange, selectedStore, syncProgress]);
 
-
-
+	// Initial data load
 	useEffect(() => {
 		fetchDashboardData();
 	}, [fetchDashboardData]);
 
-	// Listen for sync completion from GlobalStoreSelector
-	useEffect(() => {
-		if (syncCompleted > 0) {
-			fetchDashboardData();
-		}
-	}, [syncCompleted, fetchDashboardData]);
-
-	// Listen for ads sync completion from GlobalStoreSelector
-	useEffect(() => {
-		if (adsSyncCompleted > 0) {
-			fetchDashboardData();
-		}
-	}, [adsSyncCompleted, fetchDashboardData]);
-
 	// Watch for date range changes and fetch data automatically
-	useEffect(() => {
-		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
-			handleDateRangeChange();
-		}
-	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
-
 	// Watch for date range changes and fetch data automatically
 	useEffect(() => {
 		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
@@ -745,10 +717,9 @@ const Dashboard = () => {
 			console.error('Error syncing orders:', error);
 			setSyncStep('Error occurred');
 			setSyncProgress(null);
+			setSyncing(false);
 			setTimeout(() => setSyncStep(''), 2000); // Clear error after 2 seconds
 			alert('Failed to sync orders. Please try again.');
-		} finally {
-			setSyncing(false);
 		}
 	};
 

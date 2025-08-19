@@ -30,6 +30,8 @@ router.post('/sync-windsor', async (req, res) => {
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
+    res.json({ message: `Windsor.ai sync and analytics recalculation completed successfully for ${filterText}` });
+    
     // Use the new fetchAndSaveAdData method with socket for progress updates
     var date = new Date();
     const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, accountName);
@@ -56,14 +58,6 @@ router.post('/sync-windsor', async (req, res) => {
         total: 'unlimited'
       });
     }
-    
-    res.json({
-      message: `Windsor.ai sync and analytics recalculation completed successfully for ${filterText}`,
-      campaignsSaved: result.campaignsSaved,
-      adSpendRecordsSaved: result.adSpendRecordsSaved,
-      dateRange: { startDate, endDate },
-      filter: { storeId, accountName }
-    });
 
   } catch (error) {
     console.error('❌ Error syncing Windsor.ai data:', error);

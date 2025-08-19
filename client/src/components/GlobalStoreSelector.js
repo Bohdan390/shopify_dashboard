@@ -57,27 +57,7 @@ const GlobalStoreSelector = () => {
 
 		// Update sync step based on progress
 		if (data.stage === 'completed') {
-			setSyncStep('Complete!');
-			setSyncSuccess(true);
-
-			// Refresh sync status after successful sync
-			if (selectedStore) {
-				fetchSyncStatus(selectedStore);
-			}
-
-			// Notify parent component that sync is complete based on type
-			if (syncType === 'orders' && notifySyncComplete) {
-				notifySyncComplete();
-			} else if (syncType === 'ads' && notifyAdsSyncComplete) {
-				notifyAdsSyncComplete();
-			}
-
-			setTimeout(() => {
-				setSyncStep('');
-				setSyncSuccess(false);
-				setSyncProgress(null);
-				setSyncType('');
-			}, 2000);
+			window.location.reload()
 		} else if (data.stage === 'error') {
 			setSyncStep('Error occurred');
 			setSyncProgress(null);
@@ -183,9 +163,6 @@ const GlobalStoreSelector = () => {
 			setSyncType('');
 			setTimeout(() => setSyncStep(''), 2000); // Clear error after 2 seconds
 			alert('Failed to sync orders. Please try again.');
-		} finally {
-			setSyncingOrders(false);
-			window.location.reload();
 		}
 	};
 
@@ -199,7 +176,7 @@ const GlobalStoreSelector = () => {
 			setSyncProgress(null);
 			setSyncStep('Starting ads sync...');
 
-			const response = await axios.post('/api/ads/sync-windsor', {
+			await axios.post('/api/ads/sync-windsor', {
 				startDate: syncInfo.lastAdsSyncDate,
 				storeId: selectedStore,
 				socketId: socket?.id // Pass socket ID for real-time progress
@@ -216,8 +193,6 @@ const GlobalStoreSelector = () => {
 			setTimeout(() => setSyncStep(''), 2000); // Clear error after 2 seconds
 			alert('Failed to sync ads. Please try again.');
 		} finally {
-			setSyncingAds(false);
-			window.location.reload();
 		}
 	};
 

@@ -170,6 +170,7 @@ class ShopifyService {
 				// Add a small delay to avoid rate limiting
 			}
 
+			console.log("sync completed")
 
 			if (socket) {
 				socket.emit('syncProgress', {
@@ -746,17 +747,6 @@ class ShopifyService {
 				});
 			}
 
-			if (syncDate) {
-				if (socket) {
-					socket.emit('syncProgress', {
-						stage: 'deleting',
-						message: '🗑️  Deleting existing orders from sync date onwards...',
-						progress: 5,
-						total: 'unlimited'
-					});
-				}
-			}
-
 			var date = new Date();
 			if (socket) {
 				socket.emit('syncProgress', {
@@ -782,6 +772,8 @@ class ShopifyService {
 
 			await this.saveOrdersToDatabase(orders, socket);
 
+			console.log("saved all data")
+
 			if (socket) {
 				socket.emit('syncProgress', {
 					stage: 'sync_completed',
@@ -792,7 +784,6 @@ class ShopifyService {
 				});
 			}
 
-			
 			// Update sync tracking table
 			await common.updateSyncTracking('last_sync_date', date, this.storeId);
 			

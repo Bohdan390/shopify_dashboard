@@ -678,16 +678,22 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 
 		let result = {}
 
+		res.json({
+			message: 'Customer LTV cohorts synced successfully',
+		});
+
 		if (!synced) {
 			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket);
 		}
 		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
-			res.json({
-				success: true,
-				message: 'Customer LTV cohorts synced successfully',
-				data: result.data
-			});
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'get_customer_ltv_cohorts',
+					message: 'Customer LTV cohorts synced successfully',
+					data: JSON.stringify(result.data)
+				});
+			}
 		} else {
 			throw new Error(result.error);
 		}
@@ -1069,7 +1075,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 
 		if (socket) {
 			socket.emit('syncProgress', {
-				stage: 'calculating',
+				stage: 'completed',
 				message: '✅ LTV calculation completed!',
 				progress: 100,
 				total: 'unlimited'
@@ -1144,32 +1150,5 @@ router.get('/sync-status', async (req, res) => {
 		});
 	}
 });
-
-// Helper function to update LTV sync tracking
-async function updateLtvSyncTracking(storeId) {
-	try {
-		const now = new Date().toISOString();
-		
-		// Try to update existing record
-		const { error: updateError } = await supabase
-			.from('sync_tracking')
-			.upsert({
-				store_id: storeId,
-				last_ltv_sync_date: now,
-				updated_at: now
-			}, {
-				onConflict: 'store_id'
-			});
-
-		if (updateError) {
-			console.error('❌ Error updating LTV sync tracking:', updateError);
-			throw updateError;
-		}
-
-	} catch (error) {
-		console.error('❌ Error in updateLtvSyncTracking:', error);
-		// Don't throw error - sync tracking failure shouldn't break the main sync
-	}
-}
 
 module.exports = router; 
