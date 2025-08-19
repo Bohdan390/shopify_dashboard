@@ -11,7 +11,7 @@ import {
 	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart
 } from 'recharts';
 import axios from 'axios';
-import io from 'socket.io-client';
+import { createSocket, setupSocketHandlers } from '../config/socket';
 import BeautifulSelect from './BeautifulSelect';
 import DashboardLoader from './loaders/DashboardLoader';
 import ChartsAndTableLoader from './loaders/ChartsAndTableLoader';
@@ -456,7 +456,8 @@ const Dashboard = () => {
 
 	// WebSocket connection setup
 	useEffect(() => {
-		const newSocket = io('http://localhost:5000');
+		const newSocket = createSocket();
+		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
 			console.log('🔌 Connected to WebSocket server');

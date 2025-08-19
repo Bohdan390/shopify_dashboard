@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import BeautifulSelect from './BeautifulSelect';
-import { io } from 'socket.io-client';
+import { createSocket, setupSocketHandlers } from '../config/socket';
 import AdSpendLoader from './loaders/AdSpendLoader';
 import AdSpendTableLoader from './loaders/AdSpendTableLoader';
 import { useStore } from '../contexts/StoreContext';
@@ -367,7 +367,8 @@ const AdSpend = () => {
 
 	// WebSocket connection setup
 	useEffect(() => {
-		const newSocket = io('http://localhost:5000');
+		const newSocket = createSocket();
+		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
 			console.log('🔌 Connected to WebSocket server (AdSpend)');

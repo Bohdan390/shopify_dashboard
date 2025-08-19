@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { io } from 'socket.io-client';
+import { createSocket, setupSocketHandlers } from '../config/socket';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import SearchableSelect from './SearchableSelect';
@@ -265,8 +265,9 @@ const CustomerLTV = () => {
     // WebSocket progress handling for LTV sync
     const [socket, setSocket] = useState(null);
 
-    useEffect(() => {
-        const newSocket = io('http://localhost:5000');
+    	useEffect(() => {
+		const newSocket = createSocket();
+		setupSocketHandlers(newSocket);
 
         newSocket.on('connect', () => {
             console.log('🔌 Connected to WebSocket server (Customers)');
