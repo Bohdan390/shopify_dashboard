@@ -16,23 +16,14 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY // Use anon key for better security
 );
 
-console.log('🔧 Supabase Configuration:');
-console.log(`   URL: ${process.env.SUPABASE_URL}`);
-console.log(`   Anon Key: ${process.env.SUPABASE_ANON_KEY.substring(0, 20)}...`);
 
 // Initialize database tables
 const initDatabase = async () => {
   try {
-    console.log('Setting up Supabase database tables...');
-
     // Note: With anon key, we can't create tables via RPC
     // Tables need to be created manually in Supabase SQL Editor
-    console.log('💡 Tables need to be created manually in Supabase SQL Editor');
-    console.log('📋 Run the contents of supabase-schema.sql in your Supabase dashboard');
-
   } catch (error) {
     console.error('Error setting up Supabase database:', error);
-    console.log('💡 You can create tables manually in the Supabase SQL editor');
   }
 };
 

@@ -7,8 +7,6 @@ const common = require('../config/common');
 // Health check endpoint
 router.get('/health', async (req, res) => {
 	try {
-		console.log('🏥 Health check requested');
-
 		// Test Supabase connection
 		const { data, error } = await supabase
 			.from('analytics')
@@ -24,7 +22,6 @@ router.get('/health', async (req, res) => {
 			});
 		}
 
-		console.log('✅ Health check passed');
 		res.json({
 			status: 'healthy',
 			message: 'Database connection successful',
@@ -247,7 +244,6 @@ router.post('/recalculate', async (req, res) => {
 		const io = req.app.get('io');
 		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
 
-		console.log('🔄 Recalculating analytics from date:', recalcDate, 'for store:', storeId);
 		const result = await analyticsService.recalculateAnalyticsFromDate(recalcDate, socket, true, storeId);
 
 		// Emit final completion
@@ -280,7 +276,6 @@ router.post('/recalculate-orders-only', async (req, res) => {
 		const io = req.app.get('io');
 		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
 
-		console.log('🔄 Recalculating ORDERS ONLY from date:', recalcDate, 'for store:', storeId);
 		const result = await analyticsService.recalculateOrdersOnlyFromDate(recalcDate, socket, true, storeId);
 
 		// Emit final completion
@@ -308,11 +303,6 @@ router.post('/recalculate-ads-only', async (req, res) => {
 		// Get the socket instance from the request
 		const io = req.app.get('io');
 		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
-
-		console.log('🔄 Recalculating ads-only analytics...');
-		if (startDate && endDate) {
-			console.log(`📅 Date range: ${startDate} to ${endDate}`);
-		}
 
 		const result = await analyticsService.recalculateAdsOnlyAnalytics(socket, 'recalcProgress', startDate, endDate, storeId);
 
@@ -349,8 +339,6 @@ router.post('/recalculate-product-trends', async (req, res) => {
 		// Get the socket instance from the request
 		const io = req.app.get('io');
 		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
-
-		console.log('🔄 Recalculating product trends for date range:', startDate, 'to', endDate, 'for store:', storeId);
 
 		const result = await analyticsService.recalculateAllProductTrends(socket, startDate, endDate, storeId);
 
@@ -488,14 +476,12 @@ router.post('/product-campaign-links/:id', async (req, res) => {
 	try {
 		let { id } = req.params;
 		let { storeId, productSku } = req.body;
-		console.log(req.body, "productSku")
 		if (!productSku.includes("-")) {
 			productSku = productSku;
 		}
 		else {
 			productSku = productSku.split("-")[0] + "-" + productSku.split("-")[1];
 		}
-		console.log(productSku, "productSku")
 		const { error } = await supabase
 			.from('product_campaign_links')
 			.update({ is_active: false, updated_at: new Date() })
@@ -543,8 +529,6 @@ async function getCustomerLtvCohorts(storeId, startDate, endDate, sku) {
 				message: 'startDate and endDate are required'
 			}
 		}
-		console.log('🔍 Fetching customer LTV cohorts for store:', storeId);
-		console.log('📅 Date range:', startDate, 'to', endDate);
 
 		// Get customer LTV cohorts directly from the table
 
@@ -623,7 +607,6 @@ async function getCustomerLtvCohorts(storeId, startDate, endDate, sku) {
 			}
 		})
 
-		console.log('📊 Customer LTV cohorts data received:', returnData.size, 'cohorts');
 		return {
 			success: true,
 			data: Array.from(returnData.values()),
@@ -658,9 +641,6 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 			});
 		}
 
-		console.log('🔄 Syncing customer LTV cohorts for store:', storeId);
-		console.log('📅 Date range:', startDate, 'to', endDate);
-
 		// Clear existing data for the date range
 		const io = req.app.get('io');
 		const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
@@ -691,7 +671,6 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 		if (lastSync.length > 0) {
 			var lastSyncDate = new Date(lastSync[0].created_at);
-			console.log(lastSyncDate, syncDate, "lastSyncDate, syncDate")
 			if (lastSyncDate.getTime() > syncDate.getTime()) {
 				synced = true;
 			}
@@ -704,7 +683,6 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
-			console.log('✅ Customer LTV cohorts sync completed');
 			res.json({
 				success: true,
 				message: 'Customer LTV cohorts synced successfully',
@@ -745,7 +723,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		// 	store_id_param: storeId
 		// });
 
-		console.log(sku)
 		var s = "";
 		if (!sku.includes("-")) {
 			s = sku;
@@ -811,7 +788,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				total: 'unlimited'
 			});
 		}
-		console.log(rangeOrders.length, rangeOrderCount, "rangeOrders")
 
 		var allCustomers = [];
 		const {count: customerCount} = await supabase
@@ -841,7 +817,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				});
 			}
 		}
-		console.log(allCustomers.length, "customers")
 
 		if (socket) {
 			socket.emit('syncProgress', {
@@ -877,7 +852,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				});
 			}
 		}
-		console.log(allProductCampaignLinks.length, "allProductCampaignLinks")
 
 		if (socket) {
 			socket.emit('syncProgress', {
@@ -900,7 +874,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			const { data: products, error: productsError } = await supabase.from('products')
 			.select('product_id, sale_price, sale_quantity').eq('store_id', storeId).like('product_sku_id', `%${sku}%`).range(i, i + chunkSize - 1);
 			if (productsError) throw productsError;
-			console.log(products.length, "products")
 			products.forEach(product => {
 				allProducts.set(product.product_id, product);
 			})
@@ -1068,7 +1041,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		await supabase.from('customer_ltv_cohorts').delete().eq('store_id', storeId).eq('product_sku', s).gte('cohort_month', startDate).lte('cohort_month', endDate);
-		console.log(new Date().getTime() - date.getTime(), "time taken")
 	
 		const { error: deleteError } = await supabase
 			.from('customer_ltv_cohorts')
@@ -1194,7 +1166,6 @@ async function updateLtvSyncTracking(storeId) {
 			throw updateError;
 		}
 
-		console.log(`✅ Updated LTV sync tracking for store: ${storeId}`);
 	} catch (error) {
 		console.error('❌ Error in updateLtvSyncTracking:', error);
 		// Don't throw error - sync tracking failure shouldn't break the main sync

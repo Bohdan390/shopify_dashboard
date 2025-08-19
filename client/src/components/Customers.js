@@ -73,10 +73,6 @@ const Customers = () => {
             const response = await axios.get(`/api/customers/analytics?${params}`);
             setCustomers(response.data.data || []);
             setPagination(response.data.pagination);
-            
-            if (showRefresh && window.showToast) {
-                window.showToast.success('Customers Refreshed', `Successfully loaded ${response.data.data?.length || 0} customers`);
-            }
         } catch (error) {
             console.error('❌ Error fetching customer analytics:', error);
             setError('Failed to fetch customers. Please try again.');
@@ -112,10 +108,6 @@ const Customers = () => {
             setSelectedCustomer(null);
             const response = await axios.get(`/api/customers/${customerId}?storeId=${selectedStore}`);
             setSelectedCustomer(response.data.data);
-            
-            if (window.showToast) {
-                window.showToast.success('Customer Details Loaded', `Details for ${response.data.data?.first_name} ${response.data.data?.last_name} loaded successfully`);
-            }
         } catch (error) {
             console.error('❌ Error fetching customer details:', error);
             if (window.showToast) {
@@ -157,10 +149,6 @@ const Customers = () => {
         const newDirection = sortConfig.field === field && sortConfig.direction === 'asc' ? 'desc' : 'asc';
         setSortConfig({ field, direction: newDirection });
         fetchCustomerAnalytics(1, pagination.pageSize, field, newDirection, false, true);
-        
-        if (window.showToast) {
-            window.showToast.success('Sorted', `Customers sorted by ${field} (${newDirection})`);
-        }
     };
 
     // Get sort icon
@@ -211,7 +199,6 @@ const Customers = () => {
     // Listen for sync completion from GlobalStoreSelector and refresh data
     useEffect(() => {
         if (syncCompleted > 0 || adsSyncCompleted > 0) {
-            console.log('🔄 Sync completed, refreshing Customers data...');
             if (selectedStore) {
                 fetchCustomerAnalytics();
                 fetchSummaryStats();

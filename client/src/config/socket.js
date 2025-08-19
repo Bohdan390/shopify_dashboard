@@ -11,7 +11,6 @@ const getSocketUrl = () => {
 // Create socket instance with configuration
 const createSocket = () => {
   const socketUrl = getSocketUrl();
-  console.log('🔌 Connecting to socket:', socketUrl);
 
   return io(socketUrl, {
     transports: ['websocket', 'polling'],
@@ -31,11 +30,9 @@ const createSocket = () => {
 // Socket event handlers
 const setupSocketHandlers = (socket) => {
   socket.on('connect', () => {
-    console.log('🔌 Socket connected:', socket.id);
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('🔌 Socket disconnected:', reason);
   });
 
   socket.on('connect_error', (error) => {
@@ -43,7 +40,6 @@ const setupSocketHandlers = (socket) => {
   });
 
   socket.on('welcome', (data) => {
-    console.log('🔌 Welcome message:', data);
   });
 
   socket.on('error', (error) => {

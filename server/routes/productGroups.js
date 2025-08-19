@@ -8,7 +8,6 @@ const productGroupingService = new ProductGroupingService();
 router.get('/groups', async (req, res) => {
 	try {
 		const { storeId = 'buycosari' } = req.query;
-		console.log(`📊 Fetching product groups for store: ${storeId}`);
 
 		const groups = await productGroupingService.getProductGroups(storeId);
 		res.json(groups);
@@ -22,7 +21,6 @@ router.get('/groups', async (req, res) => {
 router.get('/mappings', async (req, res) => {
 	try {
 		const { storeId = 'buycosari' } = req.query;
-		console.log(`📊 Fetching product group mappings for store: ${storeId}`);
 
 		const mappings = await productGroupingService.getProductGroupMappings(storeId);
 		res.json(mappings);
@@ -36,7 +34,6 @@ router.get('/mappings', async (req, res) => {
 router.post('/auto-group', async (req, res) => {
 	try {
 		const { storeId = 'buycosari' } = req.body;
-		console.log(`🔄 Auto-grouping products for store: ${storeId}`);
 
 		const result = await productGroupingService.autoGroupProducts(storeId);
 		res.json({
@@ -53,7 +50,6 @@ router.post('/auto-group', async (req, res) => {
 router.post('/groups', async (req, res) => {
 	try {
 		const { storeId, mainProductName, mainProductSku } = req.body;
-		console.log(`➕ Creating product group: ${mainProductName} for store: ${storeId}`);
 
 		const result = await productGroupingService.createProductGroup(storeId, mainProductName, mainProductSku);
 		res.json(result);
@@ -67,7 +63,6 @@ router.post('/groups', async (req, res) => {
 router.post('/mappings', async (req, res) => {
 	try {
 		const { storeId, mainProductSku, individualSku, individualProductTitle } = req.body;
-		console.log(`🔗 Mapping product ${individualSku} to group ${mainProductSku} for store: ${storeId}`);
 
 		const result = await productGroupingService.mapProductToGroup(
 			storeId,
@@ -92,8 +87,6 @@ router.get('/profit/:mainProductSku', async (req, res) => {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
-		console.log(`💰 Calculating profit for ${mainProductSku} from ${startDate} to ${endDate} for store: ${storeId}`);
-
 		const profit = await productGroupingService.calculateProductGroupProfit(
 			storeId,
 			mainProductSku,
@@ -113,8 +106,6 @@ router.get('/ltv/:mainProductSku', async (req, res) => {
 		const { mainProductSku } = req.params;
 		const { storeId = 'buycosari' } = req.query;
 
-		console.log(`👥 Calculating LTV for ${mainProductSku} for store: ${storeId}`);
-
 		const ltv = await productGroupingService.calculateProductGroupLTV(storeId, mainProductSku);
 		res.json(ltv);
 	} catch (error) {
@@ -131,8 +122,6 @@ router.get('/analytics', async (req, res) => {
 		if (!startDate || !endDate) {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
-
-		console.log(`📊 Getting product group analytics from ${startDate} to ${endDate} for store: ${storeId}`);
 
 		const analytics = await productGroupingService.getProductGroupAnalytics(storeId, startDate, endDate);
 		res.json(analytics);

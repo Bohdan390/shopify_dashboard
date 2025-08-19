@@ -25,7 +25,6 @@ router.post('/sync-windsor', async (req, res) => {
     }
 
     const filterText = accountName ? `account: ${accountName}` : `store: ${storeId}`;
-    console.log(`🔄 Starting Windsor.ai sync for ${filterText}...`);
 
     // Get the socket instance from the request
     const io = req.app.get('io');
@@ -45,7 +44,6 @@ router.post('/sync-windsor', async (req, res) => {
       });
     }
     
-    console.log('🔄 Recalculating ads-only analytics after Windsor.ai sync...');
     await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
     
     await common.updateSyncTracking('last_ads_sync_date', date, storeId);
@@ -184,7 +182,6 @@ router.get('/summary-stats', async (req, res) => {
           console.error('❌ Error fetching revenue stats:', revenueError);
         } else if (revenueStats && revenueStats.length > 0) {
           revenueData.totalRevenue = revenueStats[0].total_orders_price || 0;
-          console.log(`💰 Revenue data fetched: $${revenueData.totalRevenue}`);
         }
       } catch (revenueErr) {
         console.error('❌ Error in revenue calculation:', revenueErr);
@@ -218,8 +215,6 @@ router.get('/summary-stats', async (req, res) => {
       console.error('❌ Error counting summary stats:', countError);
       throw countError;
     }
-
-    console.log(`📊 Total records available: ${count || 0}`);
 
     // Fetch all data in chunks of 1000 (Supabase limit)
     let allData = [];
@@ -258,11 +253,8 @@ router.get('/summary-stats', async (req, res) => {
       }
 
       allData = allData.concat(chunkData || []);
-      console.log(`📊 Fetched chunk ${i + 1}/${totalChunks}: ${chunkData?.length || 0} records`);
     }
 
-    console.log(`📊 Summary stats fetched: ${allData.length} total records`);
-    
     // Return both ad spend data and revenue data
     res.json({ 
       data: allData,
@@ -307,8 +299,6 @@ router.get('/chart-data', async (req, res) => {
       throw countError;
     }
 
-    console.log(`📊 Total chart records available: ${count || 0}`);
-
     // Fetch all data in chunks of 1000 (Supabase limit)
     let allData = [];
     const chunkSize = 1000;
@@ -346,10 +336,7 @@ router.get('/chart-data', async (req, res) => {
       }
 
       allData = allData.concat(chunkData || []);
-      console.log(`📊 Fetched chart chunk ${i + 1}/${totalChunks}: ${chunkData?.length || 0} records`);
     }
-
-    console.log(`📊 Raw chart data fetched: ${allData.length} total records`);
 
     // Process the data into chart format on server side
     const chartData = {};
@@ -369,9 +356,6 @@ router.get('/chart-data', async (req, res) => {
 
     const processedData = Object.values(chartData).sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    console.log(`📊 Chart data processed: ${processedData.length} unique dates`);
-    console.log(`📊 Date range: ${processedData[0]?.date} to ${processedData[processedData.length - 1]?.date}`);
-
     res.json({ data: processedData });
 
   } catch (error) {
@@ -585,8 +569,6 @@ router.get('/cog', async (req, res) => {
     const hasNext = currentPage < totalPages;
     const hasPrev = currentPage > 1;
 
-    console.log(`📊 Fetched ${data?.length || 0} cost of goods records (page ${currentPage}/${totalPages}, total: ${count})`);
-    
     res.json({
       data: data || [],
       pagination: {
@@ -673,7 +655,6 @@ router.post('/cog', async (req, res) => {
       throw error;
     }
 
-    console.log(`✅ Added cost of goods entry: ${product_title} - $${calculatedTotalCost}`);
     res.json({ message: 'Cost of goods entry added successfully', data });
 
   } catch (error) {
@@ -749,7 +730,6 @@ router.put('/cog/:id', async (req, res) => {
       throw error;
     }
 
-    console.log(`✅ Updated cost of goods entry: ${product_title} - $${calculatedTotalCost}`);
     res.json({ message: 'Cost of goods entry updated successfully', data });
 
   } catch (error) {
@@ -790,7 +770,6 @@ router.delete('/cog/:id', async (req, res) => {
         ignoreDuplicates: false 
       })
     }
-    console.log(`✅ Deleted cost of goods entry with ID: ${id}`);
     res.json({ message: 'Cost of goods entry deleted successfully' });
 
   } catch (error) {
@@ -835,7 +814,6 @@ router.get('/cog/summary', async (req, res) => {
         : 0
     };
 
-    console.log(`📊 Cost of goods summary: $${summary.totalCost} total cost, ${summary.totalQuantity} total quantity`);
     res.json(summary);
 
   } catch (error) {

@@ -171,7 +171,6 @@ router.get('/summary/stats', async (req, res) => {
       avgOrderValue: stats.data[0].total_orders_price / stats.data[0].total_orders_count,
     }
     
-    console.log(data.totalOrders, "totalOrders")
     res.json({
       data: {
         totalCustomers: totalCustomers || 0,

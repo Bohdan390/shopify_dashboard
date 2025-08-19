@@ -9,9 +9,6 @@ router.post('/sync-orders', async (req, res) => {
   try {
     	const { limit = 50, syncDate, storeId = 'buycosari' } = req.body;
     
-    console.log('🔄 Starting order sync...');
-    		console.log(`📊 Parameters: limit=${limit}, syncDate=${syncDate}, storeId=${storeId}`);
-    
     // Get the socket instance from the request
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
@@ -21,7 +18,6 @@ router.post('/sync-orders', async (req, res) => {
     
     // Step 1: Sync orders from Shopify with real-time progress
     const ordersCount = await storeService.syncOrders(parseInt(limit), syncDate, socket);
-    console.log(`✅ Orders synced successfully (${ordersCount} orders)`);
     
     // Step 2: Recalculate ONLY revenue/orders (no ads, no COGS) - much faster!
     if (socket) {

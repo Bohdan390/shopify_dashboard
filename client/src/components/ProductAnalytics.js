@@ -138,10 +138,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
   };
 
   const selectMonth = (month) => {
-    console.log('selectMonth called with month:', month);
-    console.log('Current month before:', currentMonth);
     const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-    console.log('New month date:', newMonth);
     setCurrentMonth(newMonth);
     setShowMonthSelector(false);
   };
@@ -352,7 +349,6 @@ const ProductAnalytics = () => {
   // Listen for ads sync completion from GlobalStoreSelector
   useEffect(() => {
     if (adsSyncCompleted > 0) {
-      console.log('🔄 Ads sync completed, refreshing product analytics data...');
       fetchProductAnalytics();
     }
   }, [adsSyncCompleted]);

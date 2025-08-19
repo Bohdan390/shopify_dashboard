@@ -66,8 +66,6 @@ async function updateSyncTracking(fieldName, now = new Date(), storeId) {
             console.error(`❌ Error updating sync tracking for ${fieldName}:`, updateError);
             throw updateError;
         }
-
-        console.log(`✅ Updated sync tracking: ${fieldName} = ${now}`);
     } catch (error) {
         console.error(`❌ Error in updateSyncTracking for ${fieldName}:`, error);
         // Don't throw error - sync tracking failure shouldn't break the main sync
