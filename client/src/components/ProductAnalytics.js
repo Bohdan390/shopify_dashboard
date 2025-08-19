@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, DollarSign, Package, Calendar, Filter, Search, ChevronUp, ChevronDown, X, ChevronLeft, ChevronRight, Link } from 'lucide-react';
 import axios from 'axios';
 import ProductAnalyticsLoader from './loaders/ProductAnalyticsLoader';
+import ProductAnalyticsTableLoader from './loaders/ProductAnalyticsTableLoader';
 import ProductGroups from './ProductGroups';
 import BeautifulSelect from './BeautifulSelect';
 import { useStore } from '../contexts/StoreContext';
@@ -155,163 +156,164 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[80] flex items-center justify-center">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
+			<div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
+				{/* Header */}
+				<div className="flex items-center justify-between mb-4">
+					<h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+					<button
+						onClick={onClose}
+						className="text-gray-400 hover:text-gray-600 transition-colors"
+					>
+						<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
 
-        {/* Enhanced Navigation */}
-        <div className="mb-4">
-          {/* Year Navigation */}
-          <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={goToPreviousYear}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              title="Previous Year"
-            >
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setShowYearSelector(!showYearSelector)}
-              className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-            >
-              {currentMonth.getFullYear()}
-            </button>
-            <button
-              onClick={goToNextYear}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              title="Next Year"
-            >
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
-              </svg>
-            </button>
-          </div>
+				{/* Enhanced Navigation */}
+				<div className="mb-4">
+					{/* Year Navigation */}
+					<div className="flex items-center justify-between mb-2">
+						<button
+							onClick={goToPreviousYear}
+							className="p-1 hover:bg-gray-100 rounded transition-colors"
+							title="Previous Year"
+						>
+							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+							</svg>
+						</button>
+						<button
+							onClick={() => setShowYearSelector(!showYearSelector)}
+							className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+						>
+							{currentMonth.getFullYear()}
+						</button>
+						<button
+							onClick={goToNextYear}
+							className="p-1 hover:bg-gray-100 rounded transition-colors"
+							title="Next Year"
+						>
+							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
+							</svg>
+						</button>
+					</div>
 
-          {/* Year Selector Dropdown */}
-          {showYearSelector && (
-            <div className="relative year-selector">
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto">
-                <div className="grid grid-cols-3 gap-1">
-                  {Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
-                    <button
-                      key={year}
-                      onClick={() => selectYear(year)}
-                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-                        }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+					{/* Year Selector Dropdown */}
+					{showYearSelector && (
+						<div className="relative year-selector">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
+								<div className="grid grid-cols-3 gap-1">
+									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
+										<button
+											key={year}
+											onClick={() => selectYear(year)}
+											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												}`}
+										>
+											{year}
+										</button>
+									))}
+								</div>
+							</div>
+						</div>
+					)}
 
-          {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={goToPreviousMonth}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              title="Previous Month"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-500" />
-            </button>
-            <button
-              onClick={() => setShowMonthSelector(!showMonthSelector)}
-              className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors month-selector"
-            >
-              {monthNames[currentMonth.getMonth()]}
-            </button>
-            <button
-              onClick={goToNextMonth}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              title="Next Month"
-            >
-              <ChevronRight className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
+					{/* Month Navigation */}
+					<div className="flex items-center justify-between mb-4">
+						<button
+							onClick={goToPreviousMonth}
+							className="p-1 hover:bg-gray-100 rounded transition-colors"
+							title="Previous Month"
+						>
+							<ChevronLeft className="w-5 h-5 text-gray-500" />
+						</button>
+						<button
+							onClick={() => setShowMonthSelector(!showMonthSelector)}
+							className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors month-selector"
+						>
+							{monthNames[currentMonth.getMonth()]}
+						</button>
+						<button
+							onClick={goToNextMonth}
+							className="p-1 hover:bg-gray-100 rounded transition-colors"
+							title="Next Month"
+						>
+							<ChevronRight className="w-5 h-5 text-gray-500" />
+						</button>
+					</div>
 
-          {/* Month Selector Dropdown */}
-          {showMonthSelector && (
-            <div className="relative month-selector">
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20">
-                <div className="grid grid-cols-3 gap-1">
-                  {monthNames.map((month, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectMonth(index)}
-                      className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-                        }`}
-                    >
-                      {month}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+					{/* Month Selector Dropdown */}
+					{showMonthSelector && (
+						<div className="relative month-selector">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
+								<div className="grid grid-cols-3 gap-1">
+									{monthNames.map((month, index) => (
+										<button
+											key={index}
+											onClick={() => selectMonth(index)}
+											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												}`}
+										>
+											{month}
+										</button>
+									))}
+								</div>
+							</div>
+						</div>
+					)}
+				</div>
 
-        {/* Day Headers */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {dayNames.map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-              {day}
-            </div>
-          ))}
-        </div>
+				{/* Day Headers */}
+				<div className="grid grid-cols-7 gap-1 mb-2">
+					{dayNames.map(day => (
+						<div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+							{day}
+						</div>
+					))}
+				</div>
 
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {getDaysInMonth(currentMonth).map((date, index) => (
-            <button
-              key={index}
-              onClick={() => handleDateClick(date)}
-              disabled={!date}
-              className={`
+				{/* Calendar Grid */}
+				<div className="grid grid-cols-7 gap-1">
+					{getDaysInMonth(currentMonth).map((date, index) => (
+						<button
+							key={index}
+							onClick={() => handleDateClick(date)}
+							disabled={!date}
+							className={`
                 p-2 text-sm font-medium rounded-lg transition-all duration-200
                 ${!date ? 'invisible' : ''}
                 ${isToday(date) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
                 ${isSelected(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
                 ${date && !isToday(date) && !isSelected(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
               `}
-            >
-              {date ? date.getDate() : ''}
-            </button>
-          ))}
-        </div>
+						>
+							{date ? date.getDate() : ''}
+						</button>
+					))}
+				</div>
 
-        {/* Today Button */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <button
-            onClick={() => handleDateClick(new Date())}
-            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            Today
-          </button>
-        </div>
-      </div>
-    </div>
+				{/* Today Button */}
+				<div className="mt-4 pt-4 border-t border-gray-200">
+					<button
+						onClick={() => handleDateClick(new Date())}
+						className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
+					>
+						Today
+					</button>
+				</div>
+			</div>
+		</div>
   );
 };
 
 const ProductAnalytics = () => {
   const [productAnalytics, setProductAnalytics] = useState({ products: [], pagination: {} });
   const [loading, setLoading] = useState(false);
-  const { selectedStore } = useStore();
+  const [tableLoading, setTableLoading] = useState(false);
+  const { selectedStore, adsSyncCompleted } = useStore();
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -335,7 +337,7 @@ const ProductAnalytics = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Manual linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -347,9 +349,21 @@ const ProductAnalytics = () => {
   const [campaignSearchTerm, setCampaignSearchTerm] = useState(''); // Search term for campaigns in modal
   const [showProductGroupsModal, setShowProductGroupsModal] = useState(false);
 
-  const fetchProductAnalytics = async () => {
+  // Listen for ads sync completion from GlobalStoreSelector
+  useEffect(() => {
+    if (adsSyncCompleted > 0) {
+      console.log('🔄 Ads sync completed, refreshing product analytics data...');
+      fetchProductAnalytics();
+    }
+  }, [adsSyncCompleted]);
+
+  const fetchProductAnalytics = async (isTableOnly = false) => {
     try {
-      setLoading(true);
+      if (isTableOnly) {
+        setTableLoading(true);
+      } else {
+        setLoading(true);
+      }
       const params = {
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
@@ -375,11 +389,14 @@ const ProductAnalytics = () => {
       console.error('Error fetching product analytics:', error);
     } finally {
       setLoading(false);
+      setTableLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProductAnalytics();
+    // Use table-only loading for pagination and sorting changes
+    const isTableOnly = currentPage > 1 || sortBy !== 'total_revenue' || sortOrder !== 'desc';
+    fetchProductAnalytics(isTableOnly);
   }, [dateRange, sortBy, sortOrder, searchTerm, filters, currentPage, itemsPerPage, selectedStore]);
 
   const handleSort = (field) => {
@@ -389,6 +406,8 @@ const ProductAnalytics = () => {
       setSortBy(field);
       setSortOrder('desc');
     }
+    // Reset to first page when sorting
+    setCurrentPage(1);
   };
 
   const handleFilterChange = (field, value) => {
@@ -429,12 +448,12 @@ const ProductAnalytics = () => {
 
     try {
       // Fetch available campaigns
-      const campaignsResponse = await axios.get('/api/analytics/available-campaigns');
+      const campaignsResponse = await axios.get('/api/analytics/available-campaigns', { params: { storeId: selectedStore } });
       setAvailableCampaigns(campaignsResponse.data);
 
       // Fetch existing links for this product
       const linksResponse = await axios.get('/api/analytics/product-campaign-links');
-      const productLinks = linksResponse.data.filter(link => link.product_id === product.product_title);
+      const productLinks = linksResponse.data.filter(link => link.product_sku === product.product_sku);
       setLinkedCampaigns(productLinks);
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -448,8 +467,10 @@ const ProductAnalytics = () => {
       setLinkingCampaigns(prev => new Set([...prev, campaign.campaign_id]));
 
       await axios.post('/api/analytics/product-campaign-links', {
-        product_id: selectedProduct.product_title, // Use product_title as product_id
+        product_id: selectedProduct.product_id, // Use product_title as product_id
         product_title: selectedProduct.product_title,
+        store_id: selectedStore,
+        product_sku: selectedProduct.product_sku,
         campaign_id: campaign.campaign_id,
         campaign_name: campaign.campaign_name || campaign.campaign_id, // Use campaign name if available
         platform: campaign.platform
@@ -457,7 +478,7 @@ const ProductAnalytics = () => {
 
       // Refresh the links
       const linksResponse = await axios.get('/api/analytics/product-campaign-links');
-      const productLinks = linksResponse.data.filter(link => link.product_id === selectedProduct.product_title);
+      const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 
       // Refresh product analytics to show updated data
@@ -477,11 +498,14 @@ const ProductAnalytics = () => {
     try {
       setLinkingCampaigns(prev => new Set([...prev, campaignId]));
 
-      await axios.delete(`/api/analytics/product-campaign-links/${linkId}`);
+      await axios.post(`/api/analytics/product-campaign-links/${linkId}`, {
+        storeId: selectedStore,
+        productSku: selectedProduct.product_sku
+      });
 
       // Refresh the links
       const linksResponse = await axios.get('/api/analytics/product-campaign-links');
-      const productLinks = linksResponse.data.filter(link => link.product_id === selectedProduct.product_title);
+      const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 
       // Refresh product analytics to show updated data
@@ -610,8 +634,8 @@ const ProductAnalytics = () => {
 
   const SortableHeader = ({ field, children, currentSortBy, currentSortOrder }) => (
     <th
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-      onClick={() => handleSort(field)}
+      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider select-none ${!tableLoading ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-50'}`}
+      onClick={!tableLoading ? () => handleSort(field) : undefined}
     >
       <div className="flex items-center gap-2">
         {children}
@@ -704,26 +728,30 @@ const ProductAnalytics = () => {
           {/* Page Size Selector */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">Show:</span>
-            <BeautifulSelect
-              value={itemsPerPage}
-              onChange={(value) => setItemsPerPage(parseInt(value))}
-              options={[
-                { value: 25, label: '25' },
-                { value: 50, label: '50' },
-                { value: 100, label: '100' }
-              ]}
-              placeholder="Select"
-              className="w-24"
-              size="sm"
-            />
+            <div>
+              <BeautifulSelect
+                value={itemsPerPage}
+                onChange={(value) => setItemsPerPage(parseInt(value))}
+                options={[
+                  { value: 10, label: '10' },
+                  { value: 25, label: '25' },
+                  { value: 50, label: '50' },
+                  { value: 100, label: '100' }
+                ]}
+                placeholder="Select"
+                disabled={loading || tableLoading}
+                className="w-24"
+                size="sm"
+              />
+            </div>
             <span className="text-sm text-gray-500">per page</span>
           </div>
 
           {/* First page button */}
           <button
             onClick={() => setCurrentPage(1)}
-            disabled={productAnalytics.pagination.page === 1}
-            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === 1
+            disabled={productAnalytics.pagination.page === 1 || loading || tableLoading}
+            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === 1 || loading || tableLoading
               ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -735,8 +763,8 @@ const ProductAnalytics = () => {
           {/* Previous button */}
           <button
             onClick={() => setCurrentPage(productAnalytics.pagination.page - 1)}
-            disabled={!productAnalytics.pagination.hasPrevPage}
-            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasPrevPage
+            disabled={!productAnalytics.pagination.hasPrevPage || loading || tableLoading}
+            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasPrevPage && !loading && !tableLoading
               ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               : 'bg-gray-50 text-gray-400 cursor-not-allowed'
               }`}
@@ -753,9 +781,12 @@ const ProductAnalytics = () => {
                 ) : (
                   <button
                     onClick={() => setCurrentPage(page)}
+                    disabled={loading || tableLoading}
                     className={`px-3 py-1 text-sm rounded-md ${page === productAnalytics.pagination.page
                       ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : loading || tableLoading
+                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                   >
                     {page}
@@ -768,8 +799,8 @@ const ProductAnalytics = () => {
           {/* Next button */}
           <button
             onClick={() => setCurrentPage(productAnalytics.pagination.page + 1)}
-            disabled={!productAnalytics.pagination.hasNextPage}
-            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasNextPage
+            disabled={!productAnalytics.pagination.hasNextPage || loading || tableLoading}
+            className={`px-3 py-1 text-sm rounded-md ${productAnalytics.pagination.hasNextPage && !loading && !tableLoading
               ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               : 'bg-gray-50 text-gray-400 cursor-not-allowed'
               }`}
@@ -780,8 +811,8 @@ const ProductAnalytics = () => {
           {/* Last page button */}
           <button
             onClick={() => setCurrentPage(productAnalytics.pagination.totalPages)}
-            disabled={productAnalytics.pagination.page === productAnalytics.pagination.totalPages}
-            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === productAnalytics.pagination.totalPages
+            disabled={productAnalytics.pagination.page === productAnalytics.pagination.totalPages || loading || tableLoading}
+            className={`px-2 py-1 text-sm rounded-md ${productAnalytics.pagination.page === productAnalytics.pagination.totalPages || loading || tableLoading
               ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -794,6 +825,10 @@ const ProductAnalytics = () => {
     );
   };
 
+  if (loading) {
+    return <ProductAnalyticsLoader />
+  }
+  
   return (
     <div className="p-8">
       {/* Header */}
@@ -925,22 +960,25 @@ const ProductAnalytics = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 flex-1">
               {/* Search */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyPress={handleSearchKeyPress}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+              <div>
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyPress={handleSearchKeyPress}
+                    disabled={loading || tableLoading}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
-
               {/* Search Button */}
               <button
                 onClick={handleSearchSubmit}
-                className="px-4 py-2 rounded-lg border transition-colors bg-blue-600 text-white border-blue-600 hover:bg-blue-700 flex items-center gap-2"
+                disabled={loading || tableLoading}
+                className="px-4 py-2 rounded-lg border transition-colors bg-blue-600 text-white border-blue-600 hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Search className="w-4 h-4" />
                 Search
@@ -1051,7 +1089,7 @@ const ProductAnalytics = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(productAnalytics.products.reduce((sum, product) => sum + product.total_revenue, 0))}
+                  {formatCurrency(productAnalytics.totalRevenue)}
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-green-500" />
@@ -1062,7 +1100,7 @@ const ProductAnalytics = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Ad Spend</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(productAnalytics.products.reduce((sum, product) => sum + product.ad_spend, 0))}
+                  {formatCurrency(productAnalytics.totalAdSpend)}
                 </p>
               </div>
               <Package className="w-8 h-8 text-blue-500" />
@@ -1072,11 +1110,11 @@ const ProductAnalytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Profit</p>
-                <p className={`text-2xl font-bold ${productAnalytics.products.reduce((sum, product) => sum + product.profit, 0) >= 0
+                <p className={`text-2xl font-bold ${productAnalytics.totalProfit >= 0
                   ? 'text-green-600'
                   : 'text-red-600'
                   }`}>
-                  {formatCurrency(productAnalytics.products.reduce((sum, product) => sum + product.profit, 0))}
+                  {formatCurrency(productAnalytics.totalProfit)}
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-purple-500" />
@@ -1102,8 +1140,8 @@ const ProductAnalytics = () => {
           <h2 className="text-lg font-semibold text-gray-900">Product Performance</h2>
         </div>
         <PaginationControls />
-        {loading ? (
-          <ProductAnalyticsLoader />
+        {tableLoading ? (
+          <ProductAnalyticsTableLoader />
         ) : productAnalytics.products && productAnalytics.products.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -1139,7 +1177,7 @@ const ProductAnalytics = () => {
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {product.product_title}
+                        {product.sku_title}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

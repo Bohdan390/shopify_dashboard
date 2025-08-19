@@ -1,3 +1,5 @@
+const { supabase } = require("./database-supabase");
+
 function createLocalDate(dateString) {
     var date = new Date(dateString)
     var year = date.getFullYear()
@@ -8,6 +10,13 @@ function createLocalDate(dateString) {
     return new Date(year, month, day, offsetHours); // month is 0-indexed
 }
 
+function createLocalDateWithTime(dateString) {
+    var date = new Date(dateString)
+    var offsetMinutes = new Date().getTimezoneOffset()
+    var time = date.getTime() - offsetMinutes * 60 * 1000
+    return new Date(time)
+}
+
 function createDoubleLocalDate(dateString) {
     var date = new Date(dateString)
     var year = date.getFullYear()
@@ -16,7 +25,6 @@ function createDoubleLocalDate(dateString) {
     const offsetMinutes = new Date().getTimezoneOffset(); // in minutes
     const offsetHours = - (2 * offsetMinutes) / 60;
     date.setHours(date.getHours() + offsetHours);
-    console.log(date, dateString, 111)
     return date;
 }
 
@@ -26,6 +34,46 @@ function extractProductSku(productTitle) {
     return sku;
 }
 
+function diffInDays(date1, date2) {
+    const diffTime = Math.abs(date2.getTime() - date1.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function diffInMilliSeconds(date1, date2) {
+    const diffTime = Math.abs(date2.getTime() - date1.getTime());
+    return diffTime;
+}
+
+function roundPrice(price) {
+    return Number(price.toFixed(2));
+}
+
+async function updateSyncTracking(fieldName, now = new Date(), storeId) {
+    try {
+        now = now.toISOString();
+        // Try to update existing record
+        const { error: updateError } = await supabase
+            .from('sync_tracking')
+            .upsert({
+                store_id: storeId,
+                [fieldName]: now,
+                updated_at: now
+            }, {
+                onConflict: 'store_id'
+            });
+
+        if (updateError) {
+            console.error(`❌ Error updating sync tracking for ${fieldName}:`, updateError);
+            throw updateError;
+        }
+
+        console.log(`✅ Updated sync tracking: ${fieldName} = ${now}`);
+    } catch (error) {
+        console.error(`❌ Error in updateSyncTracking for ${fieldName}:`, error);
+        // Don't throw error - sync tracking failure shouldn't break the main sync
+    }
+}
+
 module.exports = {
-	createLocalDate, createDoubleLocalDate, extractProductSku
+	createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime, diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds
 }

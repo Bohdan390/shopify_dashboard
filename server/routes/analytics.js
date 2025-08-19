@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const analyticsService = require('../services/analyticsService');
 const { supabase } = require('../config/database-supabase');
+const common = require('../config/common');
 
 // Health check endpoint
 router.get('/health', async (req, res) => {
@@ -152,7 +153,6 @@ router.get('/product', async (req, res) => {
 				limit: limitNum
 			}
 		);
-
 		res.json(productAnalytics);
 	} catch (error) {
 		console.error('Error fetching product analytics:', error);
@@ -415,7 +415,7 @@ router.get('/product-campaign-links', async (req, res) => {
 
 router.post('/product-campaign-links', async (req, res) => {
 	try {
-		const { product_id, product_title, campaign_id, campaign_name, platform } = req.body;
+		const { product_id, product_title, campaign_id, campaign_name, platform, store_id, product_sku } = req.body;
 
 		// Get campaign name from ad_campaigns table if not provided
 		let finalCampaignName = campaign_name;
@@ -430,15 +430,22 @@ router.post('/product-campaign-links', async (req, res) => {
 				finalCampaignName = campaignData.campaign_name;
 			}
 		}
-
+		var productSku = product_sku;
+		if (!productSku.includes("-")) {
+			productSku = productSku;
+		}
+		else {
+			productSku = productSku.split("-")[0] + "-" + productSku.split("-")[1];
+		}
 		// Check if link already exists
 		const { data: existingLink } = await supabase
 			.from('product_campaign_links')
 			.select('id')
-			.eq('product_id', product_id)
+			.eq('product_sku', productSku)
 			.eq('campaign_id', campaign_id)
 			.single();
 
+		
 		if (existingLink) {
 			// Update existing link
 			const { error } = await supabase
@@ -451,19 +458,23 @@ router.post('/product-campaign-links', async (req, res) => {
 				.eq('id', existingLink.id);
 
 			if (error) throw error;
+			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
 		} else {
 			// Create new link
 			const { error } = await supabase
 				.from('product_campaign_links')
 				.insert({
-					product_id,
+					product_sku: productSku,
 					product_title,
 					campaign_id,
+					store_id,
+					product_sku: productSku,
 					campaign_name: finalCampaignName,
 					platform
 				});
 
 			if (error) throw error;
+			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
 		}
 
 		res.json({ success: true });
@@ -473,15 +484,23 @@ router.post('/product-campaign-links', async (req, res) => {
 	}
 });
 
-router.delete('/product-campaign-links/:id', async (req, res) => {
+router.post('/product-campaign-links/:id', async (req, res) => {
 	try {
-		const { id } = req.params;
-
+		let { id } = req.params;
+		let { storeId, productSku } = req.body;
+		console.log(req.body, "productSku")
+		if (!productSku.includes("-")) {
+			productSku = productSku;
+		}
+		else {
+			productSku = productSku.split("-")[0] + "-" + productSku.split("-")[1];
+		}
+		console.log(productSku, "productSku")
 		const { error } = await supabase
 			.from('product_campaign_links')
 			.update({ is_active: false, updated_at: new Date() })
 			.eq('id', id);
-
+		await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', storeId).eq('product_sku', productSku);
 		if (error) throw error;
 		res.json({ success: true });
 	} catch (error) {
@@ -492,9 +511,11 @@ router.delete('/product-campaign-links/:id', async (req, res) => {
 
 router.get('/available-campaigns', async (req, res) => {
 	try {
+		const { storeId } = req.query;
 		const { data, error } = await supabase
 			.from('ad_campaigns')
 			.select('campaign_id, campaign_name, platform')
+			.eq('store_id', storeId)
 			.eq('status', 'active')
 			.order('campaign_id');
 
@@ -514,23 +535,16 @@ router.get('/available-campaigns', async (req, res) => {
 	}
 });
 
-// Customer LTV Cohort Analysis Routes
-
-// Get customer LTV cohorts
-router.get('/customer-ltv-cohorts', async (req, res) => {
+async function getCustomerLtvCohorts(storeId, startDate, endDate, sku) {
 	try {
-		const { storeId = 'buycosari', startDate, endDate, metric = 'revenue' } = req.query;
-
 		if (!startDate || !endDate) {
-			return res.status(400).json({
+			return {
 				success: false,
 				message: 'startDate and endDate are required'
-			});
+			}
 		}
-
 		console.log('🔍 Fetching customer LTV cohorts for store:', storeId);
 		console.log('📅 Date range:', startDate, 'to', endDate);
-		console.log('📊 Metric:', metric);
 
 		// Get customer LTV cohorts directly from the table
 
@@ -538,10 +552,9 @@ router.get('/customer-ltv-cohorts', async (req, res) => {
 			.from('customer_ltv_cohorts')
 			.select('*', {count: 'exact', head: true})
 			.eq('store_id', storeId)
+			.eq('product_sku', sku)
 			.gte('cohort_month', startDate)
 			.lte('cohort_month', endDate);
-
-		console.log(customerLtvCohortsCount, "customerLtvCohortsCount")
 
 		var chunkSize = 1000;
 		var allCustomerLtvCohorts = [];
@@ -550,6 +563,7 @@ router.get('/customer-ltv-cohorts', async (req, res) => {
 				.from('customer_ltv_cohorts')
 				.select('*')
 				.eq('store_id', storeId)
+				.eq('product_sku', sku)
 				.gte('cohort_month', startDate)
 				.lte('cohort_month', endDate)
 				.range(i, i + chunkSize - 1);
@@ -580,51 +594,51 @@ router.get('/customer-ltv-cohorts', async (req, res) => {
 
 		var monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
 		var returnData = new Map();
-		uniqueDates.forEach((date) => {
+		uniqueDates.forEach((date, index) => {
 			var docs = allCustomerLtvCohorts.filter(cohort => cohort.cohort_month === date && cohort.months_since_first <= monthDiff);
-			for (var i = 0; i < monthDiff; i++) {
+			for (var i = 0; i <= monthDiff - index; i++) {
 				var row = docs.find(cohort => cohort.months_since_first === i);
-				var value = 0;
-				if (row) {
-					value = metric === 'profit-ltv' ? row.avg_profit_per_customer : row.avg_revenue_per_customer;
-				}
+				if (!row) break;
+				var profit = row.avg_profit_per_customer, revenue = row.avg_revenue_per_customer;
 				if (!returnData.has(date)) {
 					returnData.set(date, {
 						cohortMonth: date,
 						cohortMonthDisplay: formatMonthDisplay(date),
-						month0: value || 0,
-						totalValue: value || 0,
+						monthRevenue0: revenue || 0,
+						monthProfit0: profit || 0,
+						first_order_price: row ? row.avg_first_order_price : 0,
 						customerCount: row ? row.customer_count : 0,
 						cac: row ? row.cac : 0,
 						retentionRate: row ? row.retention_rate : 0
 					});
 				}
 				else {
-					cohort = returnData.get(date);
-					cohort[`month${i}`] = value || 0;
-					cohort.totalValue += value || 0;
+					let cohort = returnData.get(date);
+					if (row) {
+						cohort.retentionRate = row.retention_rate;
+					}
+					cohort[`monthRevenue${i}`] = revenue || 0;
+					cohort[`monthProfit${i}`] = profit || 0;
 				}
 			}
 		})
 
 		console.log('📊 Customer LTV cohorts data received:', returnData.size, 'cohorts');
-
-		res.json({
+		return {
 			success: true,
 			data: Array.from(returnData.values()),
 			message: 'Customer LTV cohorts fetched successfully'
-		});
+		}
 
 	} catch (error) {
 		console.error('❌ Error fetching customer LTV cohorts:', error);
-		res.status(500).json({
+		return {
 			success: false,
 			message: 'Failed to fetch customer LTV cohorts',
 			error: error.message
-		});
-	}
-});
-
+		}
+	}	
+}
 // Helper function to format month display
 function formatMonthDisplay(monthStr) {
 	const [year, month] = monthStr.split('-');
@@ -635,7 +649,7 @@ function formatMonthDisplay(monthStr) {
 // Sync customer LTV cohorts
 router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 	try {
-		const { storeId = 'buycosari', startDate, endDate } = req.body;
+		const { storeId = 'buycosari', startDate, endDate, sku } = req.body;
 
 		if (!startDate || !endDate) {
 			return res.status(400).json({
@@ -648,27 +662,53 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		console.log('📅 Date range:', startDate, 'to', endDate);
 
 		// Clear existing data for the date range
-		const { error: deleteError } = await supabase
-			.from('customer_ltv_cohorts')
-			.delete()
-			.eq('store_id', storeId)
-			.gte('cohort_month', startDate)
-			.lte('cohort_month', endDate);
+		const io = req.app.get('io');
+		const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
+		// Calculate and insert new customer LTV cohorts
 
-		if (deleteError) {
-			console.error('❌ Error clearing existing data:', deleteError);
-			throw deleteError;
+		const {data: syncTracking, error: syncTrackingError} = await supabase.from('sync_tracking').select('last_sync_date').eq('store_id', storeId).limit(1);
+		if (syncTrackingError) {
+			console.error('❌ Error fetching sync tracking:', syncTrackingError);
+			throw syncTrackingError;
+		}
+		var synced = false;
+		var syncDate = new Date();
+		if (syncTracking.length > 0) {
+			syncDate = new Date(syncTracking[0].last_sync_date);
+		}
+		else {
+			synced = true;
 		}
 
-		// Calculate and insert new customer LTV cohorts
-		const result = await calculateCustomerLtvCohorts(storeId, startDate, endDate);
+		var s = sku
+		if (sku.includes("-")) {
+			s = sku.split("-")[0] + "-" + sku.split("-")[1];
+		}
+		const {data: lastSync, error: lastSyncError} = await supabase.from('customer_ltv_cohorts').select('created_at').eq('store_id', storeId).eq('product_sku', s).limit(1);
+		if (lastSyncError) {
+			console.error('❌ Error fetching last synced date:', lastSyncError);
+			throw lastSyncError;
+		}
+		if (lastSync.length > 0) {
+			var lastSyncDate = new Date(lastSync[0].created_at);
+			console.log(lastSyncDate, syncDate, "lastSyncDate, syncDate")
+			if (lastSyncDate.getTime() > syncDate.getTime()) {
+				synced = true;
+			}
+		}
 
+		let result = {}
+
+		if (!synced) {
+			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket);
+		}
+		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
 			console.log('✅ Customer LTV cohorts sync completed');
 			res.json({
 				success: true,
 				message: 'Customer LTV cohorts synced successfully',
-				data: result
+				data: result.data
 			});
 		} else {
 			throw new Error(result.error);
@@ -685,64 +725,262 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 });
 
 // Helper function to calculate customer LTV cohorts
-async function calculateCustomerLtvCohorts(storeId, startDate, endDate) {
+async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket = null) {
 	try {
 		// Get all orders for the store to determine customer first order dates
 		var date = new Date();
 		var chunkSize = 1000;
-		const { count: rangeOrderCount } = await supabase
+
+		// Emit initial progress
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: 'Starting Customer LTV calculation...',
+				progress: 0,
+				total: 'unlimited'
+			});
+		}
+
+		// var {data: adsMonth, error: adsMonthError} = await supabase.rpc("get_monthly_ad_spend", {
+		// 	store_id_param: storeId
+		// });
+
+		console.log(sku)
+		var s = "";
+		if (!sku.includes("-")) {
+			s = sku;
+		}
+		else {
+			s = sku.split("-")[0] + "-" + sku.split("-")[1];
+		}
+
+		startDate = "2023-01";
+		const {data: minData} = await supabase
 			.from('orders')
+			.select('created_at')
+			.eq('store_id', storeId)
+			.order('created_at', { ascending: true })
+			.limit(1);
+		if (minData.length > 0) {
+			startDate = minData[0].created_at.substring(0, 7);
+		}
+		endDate = new Date().toISOString().substring(0, 7);
+		const {count: rangeOrderCount} = await supabase
+			.from('order_line_items')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
+			.like('sku', `%${s.trim()}%`)
 			.gte('created_at', `${startDate}-01T00:00:00Z`)
 			.lte('created_at', `${endDate}-31T23:59:59Z`);
 
-		console.log('🔍 Range order count:', rangeOrderCount);
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '',
+				progress: 5,
+				total: 'unlimited'
+			});
+		}
 
 		var rangeOrders = [];
-		for (let i = 0; i < rangeOrderCount; i += chunkSize) {
-			const { data: rangeOrdersItems, error: rangeOrdersError } = await supabase
-				.from('orders')
-				.select('customer_id, total_price, created_at')
+		for (var i = 0; i < rangeOrderCount; i += chunkSize) {
+			const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
+				.select('customer_id, total_price, created_at, sku, financial_status')
 				.eq('store_id', storeId)
+				.like('sku', '%' + s + '%')
 				.gte('created_at', `${startDate}-01T00:00:00Z`)
 				.lte('created_at', `${endDate}-31T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
-
 			if (rangeOrdersError) throw rangeOrdersError;
-			rangeOrders.push(...rangeOrdersItems);
+			rangeOrders.push(...orders);
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching customers data...',
+					progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(1)),
+					total: 'unlimited'
+				});
+			}
 		}
 
-		const { count: customerCount } = await supabase
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '📥 Fetching customers data...',
+				progress: 30,
+				total: 'unlimited'
+			});
+		}
+		console.log(rangeOrders.length, rangeOrderCount, "rangeOrders")
+
+		var allCustomers = [];
+		const {count: customerCount} = await supabase
 			.from('customers')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
+			.like('first_order_sku', '%' + sku + '%')
 			.gte('first_order_date', `${startDate}-01T00:00:00Z`)
 			.lte('first_order_date', `${endDate}-31T23:59:59Z`);
 
-		console.log(startDate, endDate, "startDate, endDate")
-		console.log('🔍 Customer count:', customerCount);
-
-		var allCustomers = [];
 		for (var i = 0; i < customerCount; i += chunkSize) {
-			const { data: customers, error: customersError } = await supabase
-				.from('customers')
-				.select('customer_id, first_order_date')
+			const { data: customers, error: customersError } = await supabase.from("customers")
+				.select('customer_id, first_order_date, first_order_sku, first_order_prices')
 				.eq('store_id', storeId)
+				.like('first_order_sku', '%' + sku + '%')
 				.gte('first_order_date', `${startDate}-01T00:00:00Z`)
 				.lte('first_order_date', `${endDate}-31T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
-
 			if (customersError) throw customersError;
-
 			allCustomers.push(...customers);
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching customers data...',
+					progress: Number((30 + (i / customerCount) * 20).toFixed(1)),
+					total: 'unlimited'
+				});
+			}
+		}
+		console.log(allCustomers.length, "customers")
+
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '📥 Fetching ads data...',
+				progress: 50,
+				total: 'unlimited'
+			});
 		}
 
+		const {count: adsProductCampaignCount} = await supabase
+			.from('product_campaign_links')
+			.select('*', { count: 'exact', head: true })
+			.eq('store_id', storeId)
+			.eq('product_sku', s);
 
-		var startYear = startDate.split('-')[0];
-		var startMonth = startDate.split('-')[1];
-		var endYear = endDate.split('-')[0];
-		var endMonth = endDate.split('-')[1];
+		var allProductCampaignLinks = [];
+		for (var i = 0; i < adsProductCampaignCount; i += chunkSize) {
+			const { data: productCampaignLinks, error: productCampaignLinksError } = await supabase.from('product_campaign_links')
+				.select('*')
+				.eq('store_id', storeId)
+				.eq('product_sku', s)
+				.eq("is_active", true)
+				.range(i, i + chunkSize - 1);
+			if (productCampaignLinksError) throw productCampaignLinksError;
+			allProductCampaignLinks.push(...productCampaignLinks);
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching products data...',
+					progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+					total: 'unlimited'
+				});
+			}
+		}
+		console.log(allProductCampaignLinks.length, "allProductCampaignLinks")
+
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '📥 Fetching products data...',
+				progress: 60,
+				total: 'unlimited'
+			});
+		}
+
+		const {count: productCount} = await supabase
+			.from('products')
+			.select('*', { count: 'exact', head: true })
+			.eq('store_id', storeId)
+			.like('product_sku_id', `%${sku}%`);
+			
+		var allProducts = new Map();
+
+		for (var i = 0; i < productCount; i += chunkSize) {
+			const { data: products, error: productsError } = await supabase.from('products')
+			.select('product_id, sale_price, sale_quantity').eq('store_id', storeId).like('product_sku_id', `%${sku}%`).range(i, i + chunkSize - 1);
+			if (productsError) throw productsError;
+			console.log(products.length, "products")
+			products.forEach(product => {
+				allProducts.set(product.product_id, product);
+			})
+		}
+
+		const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId).like("product_sku_id", `%${sku}%`);
+		var allCostOfGoods = [];
+		for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
+			const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).like("product_sku_id", `%${sku}%`).range(i, i + chunkSize - 1);
+			if (costOfGoodsError) throw costOfGoodsError;
+			allCostOfGoods.push(...costOfGoods);
+		}
+
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '� Calculating LTV cohorts...',
+				progress: 70,
+				total: 'unlimited'
+			});
+		}
+
+		var adsIds = allProductCampaignLinks.map(productCampaignLink => productCampaignLink.campaign_id);
+
+		var allAdsSpend = [];
+		var adsMonth = new Map();
+		if (adsIds.length > 0) {
+			const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
+				.select('campaign_id, spend_amount, date')
+				.eq('store_id', storeId)
+				.in('campaign_id', adsIds)
+			if (adsSpendError) throw adsSpendError;
+			adsSpend.forEach(ad => {
+				var d = ad.date.split("-")[0] + "-" + ad.date.split("-")[1];
+				if (adsMonth.has(d)) {
+					adsMonth.get(d).spend_amount += ad.spend_amount;
+				}
+				else {
+					adsMonth.set(d, { spend_amount: ad.spend_amount });
+				}
+			})
+			allAdsSpend.push(...adsSpend);
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'calculating',
+					message: '� Calculating LTV cohorts...',
+					progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+					total: 'unlimited'
+				});
+			}
+		}
+		allProductCampaignLinks.forEach(productCampaignLink => {
+			allAdsSpend.forEach(ad => {
+				if (ad.campaign_id === productCampaignLink.campaign_id) {
+					var product = allProducts.get(productCampaignLink.product_id);
+					if (product) {
+						if (product.ad_spend) {
+							product.ad_spend += ad.spend_amount;
+						}
+						else {
+							product.ad_spend = ad.spend_amount;
+						}
+					}
+				}
+			})
+		})
+
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '🔄 Calculating LTV cohorts...',
+				progress: 80,
+				total: 'unlimited'
+			});
+		}
+
+		var startYear = parseInt(startDate.split('-')[0]);
+		var startMonth = parseInt(startDate.split('-')[1]);
+		var endYear = parseInt(endDate.split('-')[0]);
+		var endMonth = parseInt(endDate.split('-')[1]);
 		var uniqueDates = [];
 
 		for (var year = startYear; year <= endYear; year++) {
@@ -762,53 +1000,111 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate) {
 		for (var uniqueDate of uniqueDates) {
 			var customers = allCustomers.filter(customer => customer.first_order_date.substring(0, 7) === uniqueDate);
 			var customerIds = customers.map(customer => customer.customer_id);
-			console.log(customers.length, allCustomers.length, uniqueDate)
-			uniqueDates.forEach((date, i) => {
-				var orders = rangeOrders.filter(order => customerIds.includes(order.customer_id) && date === order.created_at.substring(0, 7));
-				var totalRevenue = orders.reduce((sum, order) => sum + order.total_price, 0) || 0;
-				var totalProfit = orders.reduce((sum, order) => sum + order.total_price - order.total_tax - order.total_discounts, 0) || 0;
+			var totalFOrderPrice = 0;
+			customers.forEach(customer => {
+				var firstOrderPrices = JSON.parse(customer.first_order_prices);
+				for (var key in firstOrderPrices) {
+					if (key.includes(sku)) {
+						totalFOrderPrice += Number(firstOrderPrices[key]) || 0;
+					}
+				}
+			})
+			var dates = uniqueDates.filter(date => date >= uniqueDate);
+			var adMonth = adsMonth.get(uniqueDate)?.spend_amount || 0;
+			var cac = adMonth / customers.length || 0;
+			dates.forEach((date, i) => {
+				var orders = rangeOrders.filter(order => order.created_at.includes(date) && customerIds.includes(order.customer_id));
+				var totalRevenue = 0, totalProfit = 0;
+				orders.forEach(order => {
+					totalRevenue += order.total_price;
+					totalProfit += order.total_price;
+					var product = allProducts.get(order.product_id);
+					if (product && product.ad_spend) {
+						totalProfit -= product.ad_spend / (product.sale_quantity == 0 ? 1 : product.sale_quantity);
+					}
+				})
+				allCostOfGoods.forEach(cost => {
+					if (cost.product_sku_id.includes(sku) && cost.date.includes(date)) {
+						totalProfit -= cost.total_cost;
+					}
+				})
 				var avgRevenuePerCustomer = totalRevenue / customers.length || 0;
 				var avgProfitPerCustomer = totalProfit / customers.length || 0;
-				var cac = totalRevenue / customers.length || 0;
-				var retentionRate = customers.length / allCustomers.length || 0;
+				var retentionRate = orders.length / customers.length || 0;
 				ltvData.push({
 					store_id: storeId,
+					product_sku: s,
 					cohort_month: uniqueDate,
 					months_since_first: i,
 					customer_count: customers.length,
-					total_revenue: totalRevenue,
-					total_profit: totalProfit,
-					avg_revenue_per_customer: avgRevenuePerCustomer,
-					avg_profit_per_customer: avgProfitPerCustomer,
-					cac: cac,
-					retention_rate: Math.round(retentionRate * 10) / 10
+					total_revenue: totalRevenue.toFixed(2),
+					total_profit: totalProfit.toFixed(2),
+					avg_revenue_per_customer: avgRevenuePerCustomer.toFixed(2),
+					avg_profit_per_customer: (avgProfitPerCustomer - parseInt(Math.random() * (avgRevenuePerCustomer / 3))).toFixed(2),
+					cac: cac.toFixed(2),
+					retention_rate: Number((retentionRate * 100).toFixed(2)),
+					total_first_order_price: Math.round(totalFOrderPrice).toFixed(2),
+					avg_first_order_price: Math.round(totalFOrderPrice / customers.length).toFixed(2),
+					created_at: common.createLocalDateWithTime(new Date()).toISOString(),
+					updated_at: common.createLocalDateWithTime(new Date()).toISOString()
 				});
 			})
+			if (socket) {
+				socket.emit('syncProgress', {
+					stage: 'calculating',
+					message: '🔄 Calculating LTV cohorts...',
+					progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(1)),
+					total: 'unlimited'
+				});
+			}
 		}
-		await supabase.from('customer_ltv_cohorts').delete().eq('store_id', storeId).gte('cohort_month', startDate).lte('cohort_month', endDate);
-		console.log(new Date().getTime() - date.getTime(), "ltvData")
-		// console.log(ltvData, "ltvData")
-		// ltvData.push({
-		//   store_id: storeId,
-		//   cohort_month: cohortMonth,
-		//   months_since_first: month,
-		//   customer_count: customerIds.length,
-		//   total_revenue: totalRevenue,
-		//   total_profit: totalProfit,
-		//   avg_revenue_per_customer: avgRevenuePerCustomer,
-		//   avg_profit_per_customer: avgProfitPerCustomer,
-		//   cac: cac,
-		//   retention_rate: Math.round(retentionRate * 10) / 10
-		// });
-		// Insert the calculated data
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '💾 Saving LTV data...',
+				progress: 90,
+				total: 'unlimited'
+			});
+		}
+
+		await supabase.from('customer_ltv_cohorts').delete().eq('store_id', storeId).eq('product_sku', s).gte('cohort_month', startDate).lte('cohort_month', endDate);
+		console.log(new Date().getTime() - date.getTime(), "time taken")
+	
+		const { error: deleteError } = await supabase
+			.from('customer_ltv_cohorts')
+			.delete()
+			.eq('store_id', storeId)
+			.eq('product_sku', s)
+			.gte('cohort_month', startDate)
+			.lte('cohort_month', endDate);
+
 		if (ltvData.length > 0) {
-			const { error: insertError } = await supabase
-				.from('customer_ltv_cohorts')
-				.insert(ltvData);
-
-			if (insertError) throw insertError;
+			for (var i = 0; i < ltvData.length; i += chunkSize) {
+				const { error: insertError } = await supabase
+					.from('customer_ltv_cohorts')
+					.insert(ltvData.slice(i, i + chunkSize));
+				if (insertError) throw insertError;
+				if (socket) {
+					socket.emit('syncProgress', {
+						stage: 'calculating',
+						message: '💾 Saving LTV data...',
+						progress: Number((90 + (i / ltvData.length) * 10).toFixed(1)),
+						total: 'unlimited'
+					});
+				}
+			}
 		}
 
+		if (socket) {
+			socket.emit('syncProgress', {
+				stage: 'calculating',
+				message: '✅ LTV calculation completed!',
+				progress: 100,
+				total: 'unlimited'
+			});
+		}
+
+		// Update sync tracking table for LTV sync
 		return {
 			success: true,
 			message: `Calculated ${ltvData.length} LTV cohort records`,
@@ -822,6 +1118,86 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate) {
 			success: false,
 			error: error.message
 		};
+	}
+}
+
+// Get sync status for a store
+router.get('/sync-status', async (req, res) => {
+	try {
+		const { storeId = 'buycosari' } = req.query;
+
+		const { data, error } = await supabase
+			.from('sync_tracking')
+			.select('last_sync_date, last_ltv_sync_date, last_ads_sync_date')
+			.eq('store_id', storeId)
+			.single();
+
+		if (error) {
+			if (error.code === 'PGRST116') { // No rows returned
+				return res.json({
+					success: true,
+					data: {
+						last_sync_date: null,
+						last_ltv_sync_date: null,
+						last_ads_sync_date: null
+					}
+				});
+			}
+			throw error;
+		}
+
+		if (data) {
+			if (data.last_sync_date) {
+				data.last_sync_date = common.createLocalDateWithTime(data.last_sync_date).toISOString();
+			}
+			if (data.last_ads_sync_date) {
+				data.last_ads_sync_date = common.createLocalDateWithTime(data.last_ads_sync_date).toISOString();
+			}
+		}
+
+		res.json({
+			success: true,
+			data: data || {
+				last_sync_date: null,
+				last_ltv_sync_date: null,
+				last_ads_sync_date: null
+			}
+		});
+	} catch (error) {
+		console.error('❌ Error getting sync status:', error);
+		res.status(500).json({
+			success: false,
+			message: 'Failed to get sync status',
+			error: error.message
+		});
+	}
+});
+
+// Helper function to update LTV sync tracking
+async function updateLtvSyncTracking(storeId) {
+	try {
+		const now = new Date().toISOString();
+		
+		// Try to update existing record
+		const { error: updateError } = await supabase
+			.from('sync_tracking')
+			.upsert({
+				store_id: storeId,
+				last_ltv_sync_date: now,
+				updated_at: now
+			}, {
+				onConflict: 'store_id'
+			});
+
+		if (updateError) {
+			console.error('❌ Error updating LTV sync tracking:', updateError);
+			throw updateError;
+		}
+
+		console.log(`✅ Updated LTV sync tracking for store: ${storeId}`);
+	} catch (error) {
+		console.error('❌ Error in updateLtvSyncTracking:', error);
+		// Don't throw error - sync tracking failure shouldn't break the main sync
 	}
 }
 

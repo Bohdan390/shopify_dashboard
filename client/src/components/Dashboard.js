@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-	DollarSign,
-	TrendingUp,
-	TrendingDown,
-	ShoppingCart,
+	Calendar,
+	Filter,
 	RefreshCw,
 	ChevronLeft,
 	ChevronRight
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import {
+	LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
+	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart
+} from 'recharts';
 import axios from 'axios';
 import io from 'socket.io-client';
 import BeautifulSelect from './BeautifulSelect';
 import DashboardLoader from './loaders/DashboardLoader';
+import ChartsAndTableLoader from './loaders/ChartsAndTableLoader';
+import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
 
 // Custom Calendar Component
@@ -215,7 +218,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 					{/* Year Selector Dropdown */}
 					{showYearSelector && (
 						<div className="relative year-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
 								<div className="grid grid-cols-3 gap-1">
 									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
 										<button
@@ -259,15 +262,14 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 					{/* Month Selector Dropdown */}
 					{showMonthSelector && (
 						<div className="relative month-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
 								<div className="grid grid-cols-3 gap-1">
 									{monthNames.map((month, index) => (
 										<button
 											key={index}
 											onClick={() => selectMonth(index)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${
-												index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-											}`}
+											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												}`}
 										>
 											{month}
 										</button>
@@ -321,9 +323,13 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	);
 };
 
+let dailyLoading = false;
 const Dashboard = () => {
+	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
 	const [dashboardData, setDashboardData] = useState(null);
 	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
+	const [chartsLoading, setChartsLoading] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [syncStep, setSyncStep] = useState('');
 	const [syncSuccess, setSyncSuccess] = useState(false);
@@ -331,6 +337,7 @@ const Dashboard = () => {
 	const [showSyncModal, setShowSyncModal] = useState(false);
 	const [period, setPeriod] = useState(30);
 	const [showCustomDateRange, setShowCustomDateRange] = useState(false);
+	const [showDatePresets, setShowDatePresets] = useState(false);
 	const [dateRange, setDateRange] = useState(() => {
 		const today = new Date();
 		const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -373,14 +380,12 @@ const Dashboard = () => {
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [recalcProgress, setRecalcProgress] = useState(null);
 
-	// Store context
-	const { selectedStore } = useStore();
 
 
 	const handleDateRangeChange = async () => {
 		if (dateRange.startDate && dateRange.endDate) {
 			try {
-				setLoading(true);
+				setChartsLoading(true);
 
 				// Fetch both analytics and summary data
 				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
@@ -434,7 +439,7 @@ const Dashboard = () => {
 				alert(`Error: ${errorMessage}`);
 				setDashboardData({ summary: {}, analytics: [] });
 			} finally {
-				setLoading(false);
+				setChartsLoading(false);
 			}
 		} else {
 			console.log('Please select both start and end dates');
@@ -535,22 +540,50 @@ const Dashboard = () => {
 		};
 	}, []);
 
-	const fetchDashboardData = useCallback(async () => {
+	// Listen for sync completion from GlobalStoreSelector and refresh dashboard data
+	useEffect(() => {
+		if (syncCompleted > 0 || adsSyncCompleted > 0) {
+			console.log('🔄 Sync completed, refreshing dashboard data...');
+			// Refresh dashboard data
+			if (dateRange.startDate && dateRange.endDate) {
+				handleDateRangeChange();
+			} else {
+				fetchDashboardData();
+			}
+		}
+	}, [syncCompleted, adsSyncCompleted]);
+
+	const fetchDashboardData = useCallback(async (showRefreshing = false) => {
+		if (dailyLoading) return;
+		dailyLoading = true;
 		try {
 			// Don't run this function during sync operations
 			if (syncProgress && syncProgress.stage !== 'completed') {
 				return;
 			}
-			
+
 			if (showCustomDateRange) return;
+
+		if (showRefreshing) {
+			setRefreshing(true);
+		} else if (chartsLoading) {
+			// If charts are already loading from date changes, don't set full page loading
+			console.log('📊 Charts already loading, skipping full page loading');
+		} else {
 			setLoading(true);
+		}
+
 			let url;
 
 			if (showCustomDateRange) {
 				// Only fetch custom range data if both dates are set
 				if (!dateRange.startDate || !dateRange.endDate) {
 					console.log('Custom date range not fully set, skipping fetch');
-					setLoading(false);
+					if (showRefreshing) {
+						setRefreshing(false);
+					} else {
+						setLoading(false);
+					}
 					return;
 				}
 				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
@@ -560,12 +593,27 @@ const Dashboard = () => {
 
 			const response = await axios.get(url);
 			setDashboardData(response.data);
+
+			// Show success toast for manual refresh
 		} catch (error) {
 			console.error('Error fetching dashboard data:', error);
 			// Set empty data to prevent undefined errors
 			setDashboardData({ summary: {}, analytics: [] });
+
+			// Show error toast for manual refresh
+			if (showRefreshing && window.showToast) {
+				window.showToast.error('Update Failed', 'Failed to refresh dashboard data');
+			}
 		} finally {
-			setLoading(false);
+			dailyLoading = false;
+			if (showRefreshing) {
+				setRefreshing(false);
+			} else if (chartsLoading) {
+				// Don't change chartsLoading here, it's managed by handleDateRangeChange
+				console.log('📊 Charts loading state preserved');
+			} else {
+				setLoading(false);
+			}
 		}
 	}, [period, showCustomDateRange, selectedStore, syncProgress]);
 
@@ -574,6 +622,38 @@ const Dashboard = () => {
 	useEffect(() => {
 		fetchDashboardData();
 	}, [fetchDashboardData]);
+
+	// Listen for sync completion from GlobalStoreSelector
+	useEffect(() => {
+		if (syncCompleted > 0) {
+			console.log('🔄 Sync completed, refreshing dashboard data...');
+			fetchDashboardData();
+		}
+	}, [syncCompleted, fetchDashboardData]);
+
+	// Listen for ads sync completion from GlobalStoreSelector
+	useEffect(() => {
+		if (adsSyncCompleted > 0) {
+			console.log('🔄 Ads sync completed, refreshing dashboard data...');
+			fetchDashboardData();
+		}
+	}, [adsSyncCompleted, fetchDashboardData]);
+
+	// Watch for date range changes and fetch data automatically
+	useEffect(() => {
+		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
+			console.log('📅 Date range changed, fetching new data...');
+			handleDateRangeChange();
+		}
+	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
+
+	// Watch for date range changes and fetch data automatically
+	useEffect(() => {
+		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
+			console.log('📅 Date range changed, fetching new data...');
+			handleDateRangeChange();
+		}
+	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
 
 
 
@@ -627,6 +707,17 @@ const Dashboard = () => {
 		return () => document.removeEventListener('mousedown', handleClickOutside);
 	}, [showRecalcModal]);
 
+	useEffect(() => {
+		const handleClickOutside = (event) => {
+			if (showDatePresets && !event.target.closest('.date-presets-container')) {
+				setShowDatePresets(false);
+			}
+		};
+
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [showDatePresets]);
+	
 	const recalculateAnalytics = async () => {
 		if (!recalcDate) {
 			alert('Please select a date for recalculation');
@@ -916,12 +1007,62 @@ const Dashboard = () => {
 	// Get aggregated chart data and add total ad spend
 	const chartData = aggregateChartData(analytics || []).map(item => ({
 		...item,
-		total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)
+		total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
+		profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))
 	}));
 
-	if (loading) {
+	if (loading && !refreshing) {
 		return <DashboardLoader />;
 	}
+
+	const handleDatePreset = (preset) => {
+		const today = new Date();
+		let startDate = new Date();
+
+		switch (preset) {
+			case 'today':
+				startDate = today;
+				break;
+			case 'yesterday':
+				startDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+				break;
+			case 'last7days':
+				startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+				break;
+			case 'last30days':
+				startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+				break;
+			case 'last90days':
+				startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+				break;
+			case 'thisMonth':
+				startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+				break;
+			case 'lastMonth':
+				startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+				const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+				setDateRange({
+					startDate: startDate.toISOString().split('T')[0],
+					endDate: lastMonthEnd.toISOString().split('T')[0]
+				});
+				setShowDatePresets(false);
+				// Fetch data for last month
+				setChartsLoading(true);
+				setTimeout(() => fetchDashboardData(), 100);
+				return;
+			default:
+				return;
+		}
+
+		setDateRange({
+			startDate: startDate.toISOString().split('T')[0],
+			endDate: today.toISOString().split('T')[0]
+		});
+		setShowDatePresets(false);
+		// Fetch data for the selected preset
+		setChartsLoading(true);
+		setTimeout(() => fetchDashboardData(), 100);
+	};
 
 	return (
 		<div className="p-8 relative">
@@ -1002,21 +1143,6 @@ const Dashboard = () => {
 				</div>
 				<div className="flex gap-4" style={{ display: "flex", alignItems: "center" }}>
 					{/* Period Selector */}
-					{!showCustomDateRange && (
-						<BeautifulSelect
-							value={period}
-							onChange={setPeriod}
-							options={[
-								{ value: 7, label: 'Last 7 days' },
-								{ value: 30, label: 'Last 30 days' },
-								{ value: 90, label: 'Last 90 days' }
-							]}
-							placeholder="Select period"
-							className="w-40"
-							size="md"
-						/>
-					)}
-
 					{/* Custom Date Range */}
 					{showCustomDateRange && (
 						<div className="flex flex-col gap-2">
@@ -1033,7 +1159,7 @@ const Dashboard = () => {
 										</svg>
 									</button>
 								</div>
-								<span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
+								<span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
 								<div className="flex flex-col">
 									<label className="text-xs text-gray-600 mb-1">End Date</label>
 									<button
@@ -1063,84 +1189,173 @@ const Dashboard = () => {
 						</div>
 					)}
 
-					{/* Toggle Date Range Mode */}
-					<button
-						style={{ height: 40 }}
-						onClick={() => {
-							const newMode = !showCustomDateRange;
-							setShowCustomDateRange(newMode);
-						}}
-						className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 text-sm"
-					>
-						{showCustomDateRange ? 'Quick Periods' : 'Custom Range'}
-					</button>
 
 					{/* Recalculate Analytics Button */}
-					<div className="flex flex-col gap-2">
-						<button
-							style={{ height: 40 }}
-							onClick={openRecalcModal}
-							className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 flex items-center gap-2 text-sm"
-							disabled={syncing}
-						>
-							<RefreshCw className="w-4 h-4" />
-							Recalculate Analytics
-						</button>
 
-
-					</div>
-
-					{/* Sync Orders Button */}
-					<button
-						style={{ height: 40 }}
-						onClick={openSyncModal}
-						className="btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
-						disabled={syncing}
-					>
-						{syncing ? (
-							<RefreshCw className="w-4 h-4 animate-spin" />
-						) : (
-							<RefreshCw className="w-4 h-4" />
-						)}
-						{syncing ? 'Syncing...' : 'Sync Orders'}
-					</button>
 				</div>
 			</div>
 
+			<div className="card mb-6">
+				<div className="flex flex-col gap-2">
+					<div className="flex gap-2">
+						<div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1">Start Date</label>
+							<button
+								onClick={() => setShowStartCalendar(true)}
+								className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
+							>
+								<span>{dateRange.startDate || 'Select start date'}</span>
+								<Calendar className="w-4 h-4 text-gray-400 ml-2" />
+							</button>
+						</div>
+						<span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
+						<div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1">End Date</label>
+							<button
+								onClick={() => setShowEndCalendar(true)}
+								className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
+							>
+								<span>{dateRange.endDate || 'Select end date'}</span>
+								<Calendar className="w-4 h-4 text-gray-400 ml-2" />
+							</button>
+						</div>
+
+						{/* Quick Filters Button */}
+						<div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1">Quick Filters</label>
+							<div className="relative date-presets-container">
+								<button
+									onClick={() => setShowDatePresets(!showDatePresets)}
+									className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+								>
+									<Filter className="w-4 h-4" />
+									Presets
+								</button>
+
+								{showDatePresets && (
+									<div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+										<div className="py-1">
+											<button onClick={() => handleDatePreset('today')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Today</button>
+											<button onClick={() => handleDatePreset('yesterday')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Yesterday</button>
+											<button onClick={() => handleDatePreset('last7days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 7 Days</button>
+											<button onClick={() => handleDatePreset('last30days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 30 Days</button>
+											<button onClick={() => handleDatePreset('last90days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 90 Days</button>
+											<button onClick={() => handleDatePreset('thisMonth')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">This Month</button>
+											<button onClick={() => handleDatePreset('lastMonth')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last Month</button>
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+						<div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1 opacity-0">Q</label>
+							<button
+								style={{ height: 40 }}
+								onClick={openRecalcModal}
+								className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 flex items-center gap-2 text-sm"
+								disabled={syncing}
+							>
+								<RefreshCw className="w-4 h-4" />
+								Recalculate Analytics
+							</button>
 
 
-			{/* Charts */}
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+						</div>
+
+
+						<div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1 opacity-0">Q</label>
+							<button
+								style={{ height: 40 }}
+								onClick={openSyncModal}
+								className="btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
+								disabled={syncing}
+							>
+								{syncing ? (
+									<RefreshCw className="w-4 h-4 animate-spin" />
+								) : (
+									<RefreshCw className="w-4 h-4" />
+								)}
+								{syncing ? 'Syncing...' : 'Sync Orders'}
+						</button>
+						</div>
+						
+					</div>
+
+					{/* Date Range Display */}
+					<div className="text-xs text-gray-500">
+						Selected: {dateRange.startDate} to {dateRange.endDate}
+					</div>
+				</div>
+			</div>
+
+			{/* Charts and Table Loading State */}
+			{chartsLoading ? (
+				<ChartsAndTableLoader />
+			) : (
+				<>
+					{/* Charts */}
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 				{/* Revenue & Profit Chart */}
 				<div className="card">
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Revenue & Ad Spend Trend</h3>
 						{chartData.length < (analytics?.length || 0) && (
 							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days (hover for date ranges)
+								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days
 							</div>
 						)}
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
-						<LineChart data={chartData}>
-							<CartesianGrid strokeDasharray="3 3" />
+						<ComposedChart data={chartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
 							<XAxis
 								dataKey="date"
 								tickFormatter={(value) => formatChartDate(value, chartData.length)}
 								angle={chartData.length > 20 ? -45 : 0}
 								textAnchor={chartData.length > 20 ? "end" : "middle"}
 								height={chartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
 							/>
-							<YAxis />
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+							/>
 							<Tooltip
-								formatter={(value) => formatCurrency(value)}
+								formatter={(value, name) => [formatCurrency(value), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
 									}
-									return new Date(label).toLocaleDateString();
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
 								}}
 							/>
+							<Legend />
+							<ReferenceLine y={0} stroke="#666" />
+
+							{/* Area chart for ad spend background */}
+							<Area
+								type="monotone"
+								dataKey="total_ad_spend"
+								stroke="#ef4444"
+								fill="#fef2f2"
+								fillOpacity={0.3}
+								name="Ad Spend Area"
+								hide={true}
+							/>
+
+							{/* Line charts */}
 							<Line
 								type="monotone"
 								dataKey="revenue"
@@ -1148,6 +1363,8 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Revenue"
 								dot={chartData.length <= 50}
+								activeDot={{ r: 6, stroke: '#1d4ed8', strokeWidth: 2 }}
+								animationDuration={1000}
 							/>
 							<Line
 								type="monotone"
@@ -1156,8 +1373,18 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Ad Spend"
 								dot={chartData.length <= 50}
+								activeDot={{ r: 6, stroke: '#dc2626', strokeWidth: 2 }}
+								animationDuration={1000}
 							/>
-						</LineChart>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#8884d8"
+								tickFormatter={(value) => formatChartDate(value, chartData.length)}
+							/>
+						</ComposedChart>
 					</ResponsiveContainer>
 				</div>
 
@@ -1167,41 +1394,221 @@ const Dashboard = () => {
 						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Breakdown</h3>
 						{chartData.length < (analytics?.length || 0) && (
 							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days (hover for date ranges)
+								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days
 							</div>
 						)}
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
 						<BarChart data={chartData}>
-							<CartesianGrid strokeDasharray="3 3" />
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
 							<XAxis
 								dataKey="date"
 								tickFormatter={(value) => formatChartDate(value, chartData.length)}
 								angle={chartData.length > 20 ? -45 : 0}
 								textAnchor={chartData.length > 20 ? "end" : "middle"}
 								height={chartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
 							/>
-							<YAxis />
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+							/>
 							<Tooltip
-								formatter={(value) => formatCurrency(value)}
+								formatter={(value, name) => [formatCurrency(value), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
 									}
-									return new Date(label).toLocaleDateString();
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
 								}}
 							/>
-							<Bar dataKey="google_ads_spend" fill="#f59e0b" name="Google Ads" />
-							<Bar dataKey="facebook_ads_spend" fill="#3b82f6" name="Facebook Ads" />
+							<Legend />
+							<Bar
+								dataKey="google_ads_spend"
+								fill="#f59e0b"
+								name="Google Ads"
+								radius={[4, 4, 0, 0]}
+								animationDuration={1000}
+								onMouseEnter={(data, index) => {
+									// Enhanced hover effect
+									console.log('Google Ads hover:', data);
+								}}
+							/>
+							<Bar
+								dataKey="facebook_ads_spend"
+								fill="#3b82f6"
+								name="Facebook Ads"
+								radius={[4, 4, 0, 0]}
+								animationDuration={1000}
+								onMouseEnter={(data, index) => {
+									// Enhanced hover effect
+									console.log('Facebook Ads hover:', data);
+								}}
+							/>
 						</BarChart>
 					</ResponsiveContainer>
 				</div>
 			</div>
 
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+				{/* Ad Spend Distribution Pie Chart */}
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">Profit Trend Analysis</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							📈 {summary?.totalProfit >= 0 ? 'Profitable' : 'Loss'} Period
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<AreaChart data={chartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+							<XAxis
+								dataKey="date"
+								tickFormatter={(value) => formatChartDate(value, chartData.length)}
+								angle={chartData.length > 20 ? -45 : 0}
+								textAnchor={chartData.length > 20 ? "end" : "middle"}
+								height={chartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
+							/>
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+							/>
+							<Tooltip
+								formatter={(value, name) => [formatCurrency(value), name]}
+								labelFormatter={(label, payload) => {
+									if (payload && payload[0] && payload[0].payload.dateRange) {
+										return payload[0].payload.dateRange;
+									}
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+							<ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+
+							<Area
+								type="monotone"
+								dataKey="profit"
+								stroke="#10b981"
+								fill="#d1fae5"
+								fillOpacity={0.6}
+								name="Profit"
+								animationDuration={1000}
+								onMouseEnter={(data, index) => {
+									// Enhanced hover effect
+									console.log('Profit hover:', data);
+								}}
+							/>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#10b981"
+								tickFormatter={(value) => formatChartDate(value, chartData.length)}
+							/>
+						</AreaChart>
+					</ResponsiveContainer>
+				</div>
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							💰 Total: {formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0))}
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<PieChart>
+							<Pie
+								data={[
+									{
+										name: 'Google Ads',
+										value: summary?.totalGoogleAds || 0,
+										color: '#f59e0b'
+									},
+									{
+										name: 'Facebook Ads',
+										value: summary?.totalFacebookAds || 0,
+										color: '#3b82f6'
+									}
+								]}
+								cx="50%"
+								cy="50%"
+								outerRadius={80}
+								dataKey="value"
+								label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+								labelLine={false}
+								animationDuration={1000}
+								onMouseEnter={(entry, index) => {
+									// Enhanced hover effect
+									console.log('Pie chart hover:', entry);
+								}}
+							>
+								{[
+									{ name: 'Google Ads', value: summary?.totalGoogleAds || 0, color: '#f59e0b' },
+									{ name: 'Facebook Ads', value: summary?.totalFacebookAds || 0, color: '#3b82f6' }
+								].map((entry, index) => (
+									<Cell
+										key={`cell-${index}`}
+										fill={entry.color}
+										stroke="#fff"
+										strokeWidth={2}
+									/>
+								))}
+							</Pie>
+							<Tooltip
+								formatter={(value) => formatCurrency(value)}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+						</PieChart>
+					</ResponsiveContainer>
+				</div>
+
+				{/* Profit Trend Area Chart */}
+
+			</div>
+				</>
+			)}
 			{/* Analytics Summary */}
 			<div className="mt-8">
 				<div className="card">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">Analytics Summary</h3>
+					<div className="flex items-center justify-between mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">Analytics Summary</h3>
+						{refreshing && (
+							<div className="flex items-center gap-2 text-sm text-blue-600">
+								<LoadingSpinner size="sm" variant="spinner" />
+								<span>Updating...</span>
+							</div>
+						)}
+					</div>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 						{/* Performance Overview */}
 						<div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
@@ -1209,21 +1616,37 @@ const Dashboard = () => {
 							<div className="space-y-2 text-sm">
 								<div className="flex justify-between">
 									<span className="text-blue-700">Total Revenue</span>
-									<span className="font-semibold text-blue-900">{formatCurrency(summary?.totalRevenue || 0)}</span>
+									{refreshing ? (
+										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
+									) : (
+										<span className="font-semibold text-blue-900">{formatCurrency(summary?.totalRevenue || 0)}</span>
+									)}
 								</div>
 								<div className="flex justify-between">
 									<span className="text-blue-700">Total Orders</span>
-									<span className="font-semibold text-blue-900">{summary?.totalOrders || 0}</span>
+									{refreshing ? (
+										<div className="h-4 bg-blue-200 rounded w-16 animate-pulse"></div>
+									) : (
+										<span className="font-semibold text-blue-900">{summary?.totalOrders || 0}</span>
+									)}
 								</div>
 								<div className="flex justify-between">
 									<span className="text-blue-700">Paid Orders</span>
-									<span className="font-semibold text-blue-900">{summary?.paidOrders || 0}</span>
+									{refreshing ? (
+										<div className="h-4 bg-blue-200 rounded w-16 animate-pulse"></div>
+									) : (
+										<span className="font-semibold text-blue-900">{summary?.paidOrders || 0}</span>
+									)}
 								</div>
 								<div className="flex justify-between">
 									<span className="text-blue-700">Total Profit</span>
-									<span className={`font-semibold ${(summary?.totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-										{formatCurrency(summary?.totalProfit || 0)}
-									</span>
+									{refreshing ? (
+										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
+									) : (
+										<span className={`font-semibold ${(summary?.totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+											{formatCurrency(summary?.totalProfit || 0)}
+										</span>
+									)}
 								</div>
 								<div className="flex justify-between">
 									<span className="text-blue-700">Profit Margin</span>
@@ -1806,6 +2229,8 @@ const Dashboard = () => {
 				selectedDate={recalcDate}
 				label="Select Recalculation Date"
 			/>
+
+			{/* Additional Interactive Charts */}
 		</div>
 	);
 };

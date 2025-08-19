@@ -11,6 +11,7 @@ import axios from 'axios';
 import BeautifulSelect from './BeautifulSelect';
 import { io } from 'socket.io-client';
 import AdSpendLoader from './loaders/AdSpendLoader';
+import AdSpendTableLoader from './loaders/AdSpendTableLoader';
 import { useStore } from '../contexts/StoreContext';
 
 // Custom Calendar Component
@@ -162,7 +163,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 bg-black bg-opacity-50 z-[80] flex items-center justify-center">
+		<div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
 			<div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
 				{/* Header */}
 				<div className="flex items-center justify-between mb-4">
@@ -192,7 +193,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 						</button>
 						<button
 							onClick={() => setShowYearSelector(!showYearSelector)}
-							className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors year-selector"
+							className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
 						>
 							{currentMonth.getFullYear()}
 						</button>
@@ -202,10 +203,30 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 							title="Next Year"
 						>
 							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
 							</svg>
 						</button>
 					</div>
+
+					{/* Year Selector Dropdown */}
+					{showYearSelector && (
+						<div className="relative year-selector">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
+								<div className="grid grid-cols-3 gap-1">
+									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
+										<button
+											key={year}
+											onClick={() => selectYear(year)}
+											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												}`}
+										>
+											{year}
+										</button>
+									))}
+								</div>
+							</div>
+						</div>
+					)}
 
 					{/* Month Navigation */}
 					<div className="flex items-center justify-between mb-4">
@@ -234,15 +255,14 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 					{/* Month Selector Dropdown */}
 					{showMonthSelector && (
 						<div className="relative month-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20">
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
 								<div className="grid grid-cols-3 gap-1">
 									{monthNames.map((month, index) => (
 										<button
 											key={index}
 											onClick={() => selectMonth(index)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${
-												index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-											}`}
+											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												}`}
 										>
 											{month}
 										</button>
@@ -251,69 +271,44 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 							</div>
 						</div>
 					)}
-
-					{/* Year Selector */}
-					{showYearSelector && (
-						<div className="absolute top-8 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 year-selector">
-							<div className="grid grid-cols-3 gap-1">
-								{Array.from({ length: 12 }, (_, i) => currentMonth.getFullYear() - 6 + i).map((year) => (
-									<button
-										key={year}
-										onClick={() => selectYear(year)}
-										className={`px-2 py-1 text-sm rounded hover:bg-gray-100 ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700' : ''
-											}`}
-									>
-										{year}
-									</button>
-								))}
-							</div>
-						</div>
-					)}
 				</div>
 
-				{/* Calendar Grid */}
-				<div className="grid grid-cols-7 gap-1 mb-4">
-					{dayNames.map((day) => (
-						<div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
+				{/* Day Headers */}
+				<div className="grid grid-cols-7 gap-1 mb-2">
+					{dayNames.map(day => (
+						<div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
 							{day}
 						</div>
 					))}
+				</div>
+
+				{/* Calendar Grid */}
+				<div className="grid grid-cols-7 gap-1">
 					{getDaysInMonth(currentMonth).map((date, index) => (
 						<button
 							key={index}
 							onClick={() => handleDateClick(date)}
 							disabled={!date}
-							className={`p-2 text-sm rounded-lg transition-colors ${!date
-									? 'invisible'
-									: isToday(date)
-										? 'bg-blue-100 text-blue-700 font-semibold'
-										: isSelected(date)
-											? 'bg-blue-600 text-white font-semibold'
-											: 'hover:bg-gray-100 text-gray-700'
-								}`}
+							className={`
+                p-2 text-sm font-medium rounded-lg transition-all duration-200
+                ${!date ? 'invisible' : ''}
+                ${isToday(date) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
+                ${isSelected(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
+                ${date && !isToday(date) && !isSelected(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
+              `}
 						>
 							{date ? date.getDate() : ''}
 						</button>
 					))}
 				</div>
 
-				{/* Quick Actions */}
-				<div className="flex gap-2">
+				{/* Today Button */}
+				<div className="mt-4 pt-4 border-t border-gray-200">
 					<button
-						onClick={() => {
-							const today = new Date();
-							onDateSelect(formatDate(today));
-							onClose();
-						}}
-						className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+						onClick={() => handleDateClick(new Date())}
+						className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
 					>
 						Today
-					</button>
-					<button
-						onClick={onClose}
-						className="flex-1 px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-					>
-						Cancel
 					</button>
 				</div>
 			</div>
@@ -322,7 +317,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const AdSpend = () => {
-	const { selectedStore } = useStore();
+	const { selectedStore, adsSyncCompleted } = useStore();
 	const [adSpendData, setAdSpendData] = useState([]);
 	const [campaigns, setCampaigns] = useState([]);
 	const [stores, setStores] = useState([]);
@@ -447,6 +442,22 @@ const AdSpend = () => {
 		}, 100);
 	}, [dateRange, filters, selectedStore, syncProgress]);
 
+	// Listen for ads sync completion from GlobalStoreSelector
+	useEffect(() => {
+		if (adsSyncCompleted > 0) {
+			console.log('🔄 Ads sync completed, refreshing all AdSpend data...');
+			// Reset pagination to first page
+			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
+			// Refresh all data
+			fetchAdSpendData();
+			fetchCampaigns();
+			fetchStores();
+			fetchProducts();
+			fetchSummaryStats();
+			fetchChartData();
+		}
+	}, [adsSyncCompleted]);
+
 	// Separate effect for pagination changes (only affects table, not chart)
 	useEffect(() => {
 		// Only fetch table data when pagination changes, not chart data
@@ -563,6 +574,81 @@ const AdSpend = () => {
 		}
 	};
 
+	// Calculate optimal number of data points based on date range
+	const getOptimalDataPoints = () => {
+		const startDate = new Date(dateRange.startDate);
+		const endDate = new Date(dateRange.endDate);
+		const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+		
+		// For very short ranges (1-7 days), show individual days
+		if (daysDiff <= 7) return 50;
+		// For short ranges (8-30 days), show individual days
+		if (daysDiff <= 30) return 50;
+		// For medium ranges (31-90 days), limit to 60 points
+		if (daysDiff <= 90) return 60;
+		// For long ranges (91+ days), limit to 50 points
+		return 50;
+	};
+
+	// Smart data aggregation for charts - similar to Dashboard
+	const aggregateChartData = (data, maxPoints = null) => {
+		// Use optimal data points if not specified
+		const optimalPoints = maxPoints || getOptimalDataPoints();
+		
+		// Only aggregate if there are too many days for comfortable viewing
+		if (!data || data.length <= optimalPoints) return data;
+
+		const daysDiff = Math.ceil(data.length / optimalPoints);
+		const aggregated = [];
+
+		for (let i = 0; i < data.length; i += daysDiff) {
+			const chunk = data.slice(i, i + daysDiff);
+			
+			// Create date range label
+			const startDate = new Date(chunk[0].date);
+			const endDate = new Date(chunk[chunk.length - 1].date);
+			const dateRangeLabel = startDate.getTime() === endDate.getTime()
+				? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+				: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+			const aggregatedPoint = {
+				date: chunk[0].date,
+				dateRange: dateRangeLabel,
+				daysCount: chunk.length,
+				facebook: chunk.reduce((sum, item) => sum + (item.facebook || 0), 0),
+				google: chunk.reduce((sum, item) => sum + (item.google || 0), 0),
+				total: chunk.reduce((sum, item) => sum + (item.facebook || 0) + (item.google || 0), 0)
+			};
+			aggregated.push(aggregatedPoint);
+		}
+
+		return aggregated;
+	};
+
+	// Smart date formatting for chart labels
+	const formatChartDate = (dateString, dataLength) => {
+		const date = new Date(dateString);
+
+		// For many data points, show shorter format
+		if (dataLength > 50) {
+			return date.toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric'
+			});
+		} else if (dataLength > 30) {
+			return date.toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric'
+			});
+		} else {
+			return date.toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric',
+				year: 'numeric'
+			});
+		}
+	};
+
 	// Separate function to fetch chart data - completely independent of pagination
 	const fetchChartData = async () => {
 		try {
@@ -602,7 +688,24 @@ const AdSpend = () => {
 				console.log('⚠️ Insufficient chart data points');
 			}
 
-			setChartData(data);
+			// Apply smart data aggregation if needed
+			const optimalPoints = getOptimalDataPoints();
+			console.log(`📊 Date range: ${dateRange.startDate} to ${dateRange.endDate} (${Math.ceil((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24))} days)`);
+			console.log(`📊 Optimal data points: ${optimalPoints}`);
+			console.log(`📊 Raw data points: ${data.length}`);
+			
+			const processedData = aggregateChartData(data);
+			console.log('📊 Chart data after aggregation:', processedData.length, 'points');
+			
+			if (processedData.length < data.length) {
+				console.log('📊 Data was aggregated for better chart viewing');
+				const sampleAggregated = processedData.find(item => item.dateRange);
+				if (sampleAggregated) {
+					console.log('📊 Sample aggregated point:', sampleAggregated);
+				}
+			}
+
+			setChartData(processedData);
 		} catch (error) {
 			console.error('❌ Error fetching chart data:', error);
 			setChartData([]);
@@ -1183,17 +1286,69 @@ const AdSpend = () => {
 					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
 						{/* Spend Over Time */}
 						<div className="bg-white p-6 rounded-lg shadow-sm border">
-							<h3 className="text-lg font-semibold text-gray-900 mb-4">Spend Over Time</h3>
+							<div className="flex justify-between items-center mb-4">
+								<h3 className="text-lg font-semibold text-gray-900">Spend Over Time</h3>
+								{chartData.length > 0 && chartData.some(item => item.dateRange) && (
+									<div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+										📊 Data grouped for better viewing ({chartData.length} points)
+									</div>
+								)}
+							</div>
 							{getChartData().length > 0 ? (
 								<ResponsiveContainer width="100%" height={300}>
 									<LineChart data={getChartData()}>
-										<CartesianGrid strokeDasharray="3 3" />
-										<XAxis dataKey="date" />
-										<YAxis />
-										<Tooltip formatter={(value) => formatCurrency(value)} />
+										<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+										<XAxis 
+											dataKey="date" 
+											tick={{ fontSize: 12 }}
+											tickFormatter={(value) => {
+												return formatChartDate(value, getChartData().length);
+											}}
+											angle={getChartData().length > 20 ? -45 : 0}
+											textAnchor={getChartData().length > 20 ? "end" : "middle"}
+											height={getChartData().length > 20 ? 80 : 60}
+										/>
+										<YAxis 
+											tick={{ fontSize: 12 }}
+											tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+										/>
+										<Tooltip 
+											formatter={(value, name) => [formatCurrency(value), name]}
+											labelFormatter={(label, payload) => {
+												if (payload && payload[0] && payload[0].payload.dateRange) {
+													return `${payload[0].payload.dateRange} (${payload[0].payload.daysCount} days)`;
+												}
+												return new Date(label).toLocaleDateString('en-US', {
+													weekday: 'long',
+													year: 'numeric',
+													month: 'long',
+													day: 'numeric'
+												});
+											}}
+											contentStyle={{
+												backgroundColor: 'rgba(255, 255, 255, 0.95)',
+												border: '1px solid #e5e7eb',
+												borderRadius: '8px',
+												boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+											}}
+										/>
 										<Legend />
-										<Line type="monotone" dataKey="facebook" stroke="#1877F2" name="Facebook" strokeWidth={2} />
-										<Line type="monotone" dataKey="google" stroke="#EA4335" name="Google" strokeWidth={2} />
+										<Line 
+											type="monotone" 
+											dataKey="facebook" 
+											stroke="#1877F2" 
+											name="Facebook" 
+											strokeWidth={2}
+											animationDuration={1000}
+										/>
+										<Line 
+											type="monotone" 
+											dataKey="google" 
+											stroke="#EA4335" 
+											name="Google" 
+											strokeWidth={2}
+											animationDuration={1000}
+										/>
 									</LineChart>
 								</ResponsiveContainer>
 							) : (
@@ -1240,161 +1395,162 @@ const AdSpend = () => {
 						<PaginationControls />
 
 						<div className="overflow-x-auto relative">
-							{loading && (
-								<div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
-									<div className="flex items-center space-x-2">
-										<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-										<span className="text-gray-600">Loading...</span>
-									</div>
-								</div>
-							)}
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
-									<tr>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('date')}
-										>
-											<div className="flex items-center gap-2">
-												Date
-												{getSortIcon('date')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('campaign_id')}
-										>
-											<div className="flex items-center gap-2">
-												Campaign
-												{getSortIcon('campaign_id')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('platform')}
-										>
-											<div className="flex items-center gap-2">
-												Platform
-												{getSortIcon('platform')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('store_id')}
-										>
-											<div className="flex items-center gap-2">
-												Store
-												{getSortIcon('store_id')}
-											</div>
-										</th>
-										{/* <th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('product_id')}
-										>
-											<div className="flex items-center gap-2">
-												Product
-												{getSortIcon('product_id')}
-											</div>
-										</th> */}
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('spend_amount')}
-										>
-											<div className="flex items-center gap-2">
-												Spend
-												{getSortIcon('spend_amount')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('impressions')}
-										>
-											<div className="flex items-center gap-2">
-												Impressions
-												{getSortIcon('impressions')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('clicks')}
-										>
-											<div className="flex items-center gap-2">
-												Clicks
-												{getSortIcon('clicks')}
-											</div>
-										</th>
-										<th
-											className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-											onClick={() => handleSort('conversions')}
-										>
-											<div className="flex items-center gap-2">
-												Conversions
-												{getSortIcon('conversions')}
-											</div>
-										</th>
-									</tr>
-								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
-									{adSpendData.length === 0 ? (
+							{loading ? (
+								<AdSpendTableLoader />
+							) : (
+								<table className="min-w-full divide-y divide-gray-200">
+									<thead className="bg-gray-50">
 										<tr>
-											<td colSpan="9" className="px-6 py-8 text-center text-gray-500">
-												<div className="flex flex-col items-center">
-													<div className="text-4xl mb-2">📊</div>
-													<div className="text-lg font-medium mb-2">No ad spend data found</div>
-													<div className="text-sm text-gray-400 mb-4">
-														Try syncing ads data or adjusting your date range and filters
-													</div>
-													<button
-														onClick={() => syncAds('all')}
-														className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-													>
-														<RefreshCw className="w-4 h-4 mr-2 inline" />
-														Sync Ads Data
-													</button>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('date')}
+											>
+												<div className="flex items-center gap-2">
+													Date
+													{getSortIcon('date')}
 												</div>
-											</td>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('campaign_id')}
+											>
+												<div className="flex items-center gap-2">
+													Campaign
+													{getSortIcon('campaign_id')}
+												</div>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('platform')}
+											>
+												<div className="flex items-center gap-2">
+													Platform
+													{getSortIcon('platform')}
+												</div>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('store_id')}
+											>
+												<div className="flex items-center gap-2">
+													Store
+													{getSortIcon('store_id')}
+												</div>
+											</th>
+											{/* <th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('product_id')}
+											>
+												<div className="flex items-center gap-2">
+													Product
+													{getSortIcon('product_id')}
+												</div>
+											</th> */}
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('spend_amount')}
+											>
+												<div className="flex items-center gap-2">
+													Spend
+													{getSortIcon('spend_amount')}
+												</div>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('impressions')}
+											>
+												<div className="flex items-center gap-2">
+													Impressions
+													{getSortIcon('impressions')}
+												</div>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('clicks')}
+											>
+												<div className="flex items-center gap-2">
+													Clicks
+													{getSortIcon('clicks')}
+												</div>
+											</th>
+											<th
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleSort('conversions')}
+											>
+												<div className="flex items-center gap-2">
+													Conversions
+													{getSortIcon('conversions')}
+												</div>
+											</th>
 										</tr>
-									) : (
-										adSpendData.map((item, index) => (
-											<tr key={index}>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{new Date(item.date).toLocaleDateString()}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-													{item.campaign_id}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.platform === 'facebook'
-														? 'bg-[#1877F2] bg-opacity-10 text-[#1877F2]'
-														: 'bg-[#EA4335] bg-opacity-10 text-[#EA4335]'
-													}`}>
-														{item.platform === 'facebook' ? <Facebook className="w-3 h-3 mr-1" /> : <Chrome className="w-3 h-3 mr-1" />}
-														{item.platform}
-													</span>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{item.store_id || '-'}
-												</td>
-												{/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{item.product_id || '-'}
-												</td> */}
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{formatCurrency(item.spend_amount)}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{formatNumber(item.impressions)}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{formatNumber(item.clicks)}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-													{formatNumber(item.conversions)}
+									</thead>
+									<tbody className="bg-white divide-y divide-gray-200">
+										{adSpendData.length === 0 ? (
+											<tr>
+												<td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+													<div className="flex flex-col items-center">
+														<div className="text-4xl mb-2">📊</div>
+														<div className="text-lg font-medium mb-2">No ad spend data found</div>
+														<div className="text-sm text-gray-400 mb-4">
+															Try syncing ads data or adjusting your date range and filters
+														</div>
+														<button
+															onClick={() => syncAds('all')}
+															className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+														>
+															<RefreshCw className="w-4 h-4 mr-2 inline" />
+															Sync Ads Data
+														</button>
+													</div>
 												</td>
 											</tr>
-										))
-									)}
-								</tbody>
-							</table>
+										) : (
+											adSpendData.map((item, index) => (
+												<tr key={index} className="hover:bg-gray-50">
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{new Date(item.date).toLocaleDateString()}
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.campaign_id}
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap">
+														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+															item.platform === 'facebook' 
+																? 'bg-blue-100 text-blue-800' 
+																: 'bg-green-100 text-green-800'
+														}`}>
+															{item.platform === 'facebook' ? (
+																<Facebook className="w-3 h-3 mr-1" />
+															) : (
+																<Chrome className="w-3 h-3 mr-1" />
+															)}
+															{item.platform}
+														</span>
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.store_id}
+													</td>
+													{/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.product_id || 'N/A'}
+													</td> */}
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														${parseFloat(item.spend_amount).toFixed(2)}
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.impressions?.toLocaleString() || 'N/A'}
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.clicks?.toLocaleString() || 'N/A'}
+													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+														{item.conversions?.toLocaleString() || 'N/A'}
+													</td>
+												</tr>
+											))
+										)}
+									</tbody>
+								</table>
+							)}
 						</div>
 
 						{/* Bottom Pagination */}

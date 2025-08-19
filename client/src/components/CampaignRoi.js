@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { useStore } from '../contexts/StoreContext';
 
 const CampaignRoi = () => {
+  const { adsSyncCompleted } = useStore();
   const [roiData, setRoiData] = useState([]);
   const [summaryData, setSummaryData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -77,6 +79,18 @@ const CampaignRoi = () => {
       setLoading(false);
     }
   };
+
+  // Listen for ads sync completion from GlobalStoreSelector
+  useEffect(() => {
+    if (adsSyncCompleted > 0) {
+      console.log('🔄 Ads sync completed, refreshing campaign ROI data...');
+      if (activeTab === 'summary') {
+        fetchCampaignRoiSummary();
+      } else {
+        fetchCampaignRoiRange();
+      }
+    }
+  }, [adsSyncCompleted, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'summary') {

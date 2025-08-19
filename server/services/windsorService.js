@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const common = require("../config/common")
 require('dotenv').config();
 
 class WindsorService {
@@ -46,11 +47,19 @@ class WindsorService {
         query = {select_accounts: "google_ads__102-337-4754"}
       }
       // facebook__2024454474573344
+      console.log(startDate, endDate);
+      if (common.createLocalDateWithTime(startDate).getTime() > new Date().getTime()) {
+        startDate = new Date().toISOString().split("T")[0]
+      }
+      if (startDate === endDate) {
+        query = {...query, date_from: startDate}
+      }
+      else {
+        query = {...query, date_from: startDate, date_to: endDate}
+      }
       const response = await axios.get(`${this.baseURL}/all`, {
         params: {
           api_key: this.apiKey,
-          date_from: startDate,
-          date_to: endDate,
           ...query,
           fields: 'account_name,campaign,clicks,datasource,date,source,spend',
           _renderer: 'json'
@@ -58,8 +67,22 @@ class WindsorService {
       });
 
       if (response.data && response.data.data) {
-        console.log(`✅ Fetched ${response.data.data.length} records from Windsor.ai`);
-        return this.processWindsorData(response.data.data, dataSource);
+        var data = response.data.data
+        if (storeId == "gamoseries") {
+          data = data.filter(item => item.campaign && item.campaign.toLowerCase().includes("gamoseries"));
+        }
+        var campaignNames = data.map(item => item.campaign);
+
+        const {data: campaignLinks} = await this.supabase.from("product_campaign_links").select("campaign_name, product_sku").in("campaign_name", campaignNames);
+        if (campaignLinks.length > 0) {
+          var productSkus = campaignLinks.map(item => item.product_sku);
+          if (productSkus.length > 0) {
+            await this.supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', storeId).in('product_sku', productSkus);
+          }
+        }
+
+        console.log(`✅ Fetched ${data.length} records from Windsor.ai`);
+        return this.processWindsorData(data, dataSource);
       } else {
         console.log('⚠️  No data returned from Windsor.ai');
         return [];

@@ -49,6 +49,7 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 // Routes
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/shopify', require('./routes/shopify'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/ads', require('./routes/ads'));
