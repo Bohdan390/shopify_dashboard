@@ -43,7 +43,7 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="w-64 bg-white shadow-lg flex flex-col">
+    <div className="w-64 bg-white shadow-lg flex flex-col" style={{height: "100vh", overflow: "auto"}}>
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <h1 className="text-xl font-bold text-gray-900">Shopify Dashboard</h1>

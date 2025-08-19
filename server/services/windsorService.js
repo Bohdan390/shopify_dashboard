@@ -27,7 +27,7 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = {select_accounts: "google_ads__912-676-2735"}
+        query = {select_accounts: "google_ads__912-676-2735,facebook__2024454474573344"}
       }
       else if (storeId == "buycosari") {
         query = {select_accounts: "google_ads__102-337-4754"}
@@ -45,14 +45,19 @@ class WindsorService {
         query = {select_accounts: "google_ads__102-337-4754"}
       }
       // facebook__2024454474573344
-      if (common.createLocalDateWithTime(startDate).getTime() > new Date().getTime()) {
-        startDate = new Date().toISOString().split("T")[0]
-      }
-      if (startDate === endDate) {
-        query = {...query, date_from: startDate}
+      if (common.diffInMonths(common.createLocalDateWithTime(startDate), common.createLocalDateWithTime(new Date())) < 36) {
+        if (common.createLocalDateWithTime(startDate).getTime() > new Date().getTime()) {
+          startDate = new Date().toISOString().split("T")[0]
+        }
+        if (startDate === endDate) {
+          query = {...query, date_from: startDate}
+        }
+        else {
+          query = {...query, date_from: startDate, date_to: endDate}
+        }
       }
       else {
-        query = {...query, date_from: startDate, date_to: endDate}
+        startDate = new Date(new Date().getFullYear(), new Date().getMonth() - 35, 1).toISOString().split("T")[0]
       }
       const response = await axios.get(`${this.baseURL}/all`, {
         params: {

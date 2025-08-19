@@ -44,6 +44,11 @@ function diffInMilliSeconds(date1, date2) {
     return diffTime;
 }
 
+function diffInMonths(date1, date2) {
+    const diffTime = Math.abs(date2.getTime() - date1.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30.44));
+}
+
 function roundPrice(price) {
     return Number(price.toFixed(2));
 }
@@ -73,5 +78,5 @@ async function updateSyncTracking(fieldName, now = new Date(), storeId) {
 }
 
 module.exports = {
-	createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime, diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds
+    createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime, diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths
 }
