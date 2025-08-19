@@ -7,11 +7,11 @@ import {
 	ChevronRight
 } from 'lucide-react';
 import {
-	LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
+	Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
 	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart
 } from 'recharts';
 import axios from 'axios';
-import { createSocket, setupSocketHandlers } from '../config/socket';
+import { useSocket } from '../contexts/SocketContext';
 import BeautifulSelect from './BeautifulSelect';
 import DashboardLoader from './loaders/DashboardLoader';
 import ChartsAndTableLoader from './loaders/ChartsAndTableLoader';
@@ -136,14 +136,6 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 
 	const goToNextYear = () => {
 		setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
-	};
-
-	const goToPreviousQuarter = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 3, 1));
-	};
-
-	const goToNextQuarter = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 3, 1));
 	};
 
 	const selectYear = (year) => {
@@ -322,6 +314,16 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 
 let dailyLoading = false;
 const Dashboard = () => {
+	const formatLocalDate = (date) => {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	};
+
+	const period = 30;
+	const showCustomDateRange = false;
+
 	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
 	const [dashboardData, setDashboardData] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -332,19 +334,10 @@ const Dashboard = () => {
 	const [syncSuccess, setSyncSuccess] = useState(false);
 	const [syncDate, setSyncDate] = useState('');
 	const [showSyncModal, setShowSyncModal] = useState(false);
-	const [period, setPeriod] = useState(30);
-	const [showCustomDateRange, setShowCustomDateRange] = useState(false);
 	const [showDatePresets, setShowDatePresets] = useState(false);
 	const [dateRange, setDateRange] = useState(() => {
 		const today = new Date();
 		const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-		const formatLocalDate = (date) => {
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, '0');
-			const day = String(date.getDate()).padStart(2, '0');
-			return `${year}-${month}-${day}`;
-		};
 
 		return {
 			startDate: formatLocalDate(thirtyDaysAgo),
@@ -360,8 +353,6 @@ const Dashboard = () => {
 		pageSize: 10,
 		totalPages: 1
 	});
-	const [showCustomRangePopup, setShowCustomRangePopup] = useState(false);
-
 	// Custom calendar states
 	const [showStartCalendar, setShowStartCalendar] = useState(false);
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
@@ -373,7 +364,7 @@ const Dashboard = () => {
 	const [showRecalcCalendar, setShowRecalcCalendar] = useState(false);
 
 	// WebSocket states
-	const [socket, setSocket] = useState(null);
+	const { socket } = useSocket();
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [recalcProgress, setRecalcProgress] = useState(null);
 
@@ -402,8 +393,6 @@ const Dashboard = () => {
 				});
 
 				// Close the popup after successful data fetch
-				setShowCustomRangePopup(false);
-
 
 			} catch (error) {
 				console.error('❌ Error fetching custom date range data:', error);
@@ -427,15 +416,11 @@ const Dashboard = () => {
 		}
 	};
 
-	// WebSocket connection setup
+	// WebSocket event handlers
 	useEffect(() => {
-		const newSocket = createSocket();
-		setupSocketHandlers(newSocket);
+		if (!socket) return;
 
-		newSocket.on('connect', () => {
-		});
-
-		newSocket.on('syncProgress', (data) => {
+		socket.on('syncProgress', (data) => {
 			setSyncProgress(data);
 			console.log(data)
 
@@ -468,7 +453,7 @@ const Dashboard = () => {
 			}
 		});
 
-		newSocket.on('recalcProgress', (data) => {
+		socket.on('recalcProgress', (data) => {
 			setRecalcProgress(data);
 
 			// Update sync step based on progress
@@ -499,15 +484,14 @@ const Dashboard = () => {
 			}
 		});
 
-		newSocket.on('disconnect', () => {
-		});
-
-		setSocket(newSocket);
-
+		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
-			newSocket.close();
+			if (socket) {
+				socket.off('syncProgress');
+				socket.off('recalcProgress');
+			}
 		};
-	}, []);
+	}, [socket]);
 
 	// Listen for sync completion from GlobalStoreSelector and refresh dashboard data
 	useEffect(() => {
@@ -979,8 +963,8 @@ const Dashboard = () => {
 				startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
 				const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
 				setDateRange({
-					startDate: startDate.toISOString().split('T')[0],
-					endDate: lastMonthEnd.toISOString().split('T')[0]
+					startDate: formatLocalDate(startDate),
+					endDate: formatLocalDate(lastMonthEnd)
 				});
 				setShowDatePresets(false);
 				// Fetch data for last month
@@ -992,8 +976,8 @@ const Dashboard = () => {
 		}
 
 		setDateRange({
-			startDate: startDate.toISOString().split('T')[0],
-			endDate: today.toISOString().split('T')[0]
+			startDate: formatLocalDate(startDate),
+			endDate: formatLocalDate(today)
 		});
 		setShowDatePresets(false);
 		// Fetch data for the selected preset
@@ -1300,7 +1284,7 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Revenue"
 								dot={chartData.length <= 50}
-								activeDot={{ r: 4, stroke: '#1d4ed8', strokeWidth: 2 }}
+								activeDot={{ r: 6 }}
 								animationDuration={1000}
 							/>
 							<Line
@@ -1310,7 +1294,7 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Ad Spend"
 								dot={chartData.length <= 50}
-								activeDot={{ r: 4, stroke: '#dc2626', strokeWidth: 2 }}
+								activeDot={{ r: 6 }}
 								animationDuration={1000}
 							/>
 
@@ -1478,14 +1462,14 @@ const Dashboard = () => {
 							<Pie
 								data={[
 									{
-										name: 'Google Ads',
-										value: summary?.totalGoogleAds || 0,
-										color: '#f59e0b'
-									},
-									{
 										name: 'Facebook Ads',
 										value: summary?.totalFacebookAds || 0,
 										color: '#3b82f6'
+									},
+									{
+										name: 'Google Ads',
+										value: summary?.totalGoogleAds || 0,
+										color: '#f59e0b'
 									}
 								]}
 								cx="50%"
@@ -1500,8 +1484,8 @@ const Dashboard = () => {
 								}}
 							>
 								{[
-									{ name: 'Google Ads', value: summary?.totalGoogleAds || 0, color: '#f59e0b' },
-									{ name: 'Facebook Ads', value: summary?.totalFacebookAds || 0, color: '#3b82f6' }
+									{ name: 'Facebook Ads', value: summary?.totalFacebookAds || 0, color: '#3b82f6' },
+									{ name: 'Google Ads', value: summary?.totalGoogleAds || 0, color: '#f59e0b' }
 								].map((entry, index) => (
 									<Cell
 										key={`cell-${index}`}

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import BeautifulSelect from './BeautifulSelect';
-import { createSocket, setupSocketHandlers } from '../config/socket';
+import { useSocket } from '../contexts/SocketContext';
 import AdSpendLoader from './loaders/AdSpendLoader';
 import AdSpendTableLoader from './loaders/AdSpendTableLoader';
 import { useStore } from '../contexts/StoreContext';
@@ -314,17 +314,25 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const AdSpend = () => {
+	const formatLocalDate = (date) => {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	};
+
 	const { selectedStore, adsSyncCompleted } = useStore();
 	const [adSpendData, setAdSpendData] = useState([]);
-	const [campaigns, setCampaigns] = useState([]);
-	const [stores, setStores] = useState([]);
-	const [products, setProducts] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [syncProgress, setSyncProgress] = useState(null);
-	const [socket, setSocket] = useState(null);
-	const [dateRange, setDateRange] = useState({
-		startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-		endDate: new Date().toISOString().split('T')[0]
+	const [dateRange, setDateRange] = useState(() => {
+		const today = new Date();
+		const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+		return {
+			startDate: formatLocalDate(thirtyDaysAgo),
+			endDate: formatLocalDate(today)
+		};
 	});
 	const [filters, setFilters] = useState({
 		platform: '',
@@ -362,15 +370,14 @@ const AdSpend = () => {
 	const [showStartCalendar, setShowStartCalendar] = useState(false);
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
-	// WebSocket connection setup
+	// Get socket from context
+	const { socket } = useSocket();
+
+	// WebSocket event handlers
 	useEffect(() => {
-		const newSocket = createSocket();
-		setupSocketHandlers(newSocket);
+		if (!socket) return;
 
-		newSocket.on('connect', () => {
-		});
-
-		newSocket.on('adsSyncProgress', (data) => {
+		socket.on('adsSyncProgress', (data) => {
 			setSyncProgress(data);
 
 			// Handle completion - check for both 'completed' and 'analytics_completed' stages
@@ -384,7 +391,6 @@ const AdSpend = () => {
 				// Refresh data after successful sync
 				setTimeout(() => {
 					fetchAdSpendData();
-					fetchCampaigns();
 					fetchSummaryStats();
 					fetchChartData();
 					setSyncProgress(null);
@@ -394,15 +400,13 @@ const AdSpend = () => {
 			}
 		});
 
-		newSocket.on('disconnect', () => {
-		});
-
-		setSocket(newSocket);
-
+		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
-			newSocket.close();
+			if (socket) {
+				socket.off('adsSyncProgress');
+			}
 		};
-	}, []);
+	}, [socket]);
 
 	// Close date presets dropdown when clicking outside
 	useEffect(() => {
@@ -426,8 +430,6 @@ const AdSpend = () => {
 		// Reset to first page when filters change
 		setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 		fetchAdSpendData();
-		fetchCampaigns();
-		fetchProducts();
 
 		// Fetch summary stats and chart data with a slight delay to ensure fresh data
 		setTimeout(() => {
@@ -443,8 +445,6 @@ const AdSpend = () => {
 			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 			// Refresh all data
 			fetchAdSpendData();
-			fetchCampaigns();
-			fetchProducts();
 			fetchSummaryStats();
 			fetchChartData();
 		}
@@ -485,8 +485,8 @@ const AdSpend = () => {
 				startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
 				const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
 				setDateRange({
-					startDate: startDate.toISOString().split('T')[0],
-					endDate: lastMonthEnd.toISOString().split('T')[0]
+					startDate: formatLocalDate(startDate),
+					endDate: formatLocalDate(lastMonthEnd)
 				});
 				setShowDatePresets(false);
 				return;
@@ -495,8 +495,8 @@ const AdSpend = () => {
 		}
 
 		setDateRange({
-			startDate: startDate.toISOString().split('T')[0],
-			endDate: today.toISOString().split('T')[0]
+			startDate: formatLocalDate(startDate),
+			endDate: formatLocalDate(today)
 		});
 		setShowDatePresets(false);
 	};
@@ -678,29 +678,6 @@ const AdSpend = () => {
 		}
 	};
 
-	const fetchCampaigns = async () => {
-		try {
-			const response = await axios.get('/api/ads/campaigns');
-			const data = response.data.data || [];
-			setCampaigns(data);
-		} catch (error) {
-			console.error('❌ Error fetching campaigns:', error);
-			setCampaigns([]);
-		}
-	};
-
-	const fetchProducts = async () => {
-		try {
-			const response = await axios.get('/api/ads/products');
-			const data = response.data.data || [];
-			setProducts(data);
-		} catch (error) {
-			console.error('❌ Error fetching products:', error);
-			// Set empty array to prevent errors
-			setProducts([]);
-		}
-	};
-
 	const syncAds = async (platform = 'all') => {
 		try {
 			setSyncProgress({ stage: 'starting', message: `Starting Windsor.ai sync for ${selectedStore}...`, progress: 0 });
@@ -811,7 +788,7 @@ const AdSpend = () => {
 	const getPlatformData = () => {
 		return [
 			{ name: 'Facebook', value: summaryStats.facebookSpend, color: '#1877F2' },
-			{ name: 'Google', value: summaryStats.googleSpend, color: '#EA4335' }
+			{ name: 'Google', value: summaryStats.googleSpend, color: '#f59e0b' }
 		];
 	};
 
@@ -1174,10 +1151,10 @@ const AdSpend = () => {
 
 						<div className="bg-white p-6 rounded-lg shadow-sm border">
 							<div className="flex items-center">
-								<Chrome className="w-8 h-8 text-[#EA4335]" />
+								<Chrome className="w-8 h-8 text-[#f59e0b]" />
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Google Spend</p>
-									<p className="text-2xl font-bold text-[#EA4335]">
+									<p className="text-2xl font-bold text-[#f59e0b]">
 										{formatCurrency(summaryStats.googleSpend)}
 									</p>
 								</div>
@@ -1281,16 +1258,16 @@ const AdSpend = () => {
 											name="Facebook" 
 											strokeWidth={2}
 											animationDuration={1000}
-											activeDot={{ r: 4, stroke: '#1877F2', strokeWidth: 2 }}
+											activeDot={{ r: 6  }}
 										/>
 										<Line 
 											type="monotone" 
 											dataKey="google" 
-											stroke="#EA4335" 
+											stroke="#f59e0b" 
 											name="Google" 
 											strokeWidth={2}
 											animationDuration={1000}
-											activeDot={{ r: 4, stroke: '#EA4335', strokeWidth: 2 }}
+											activeDot={{ r: 6  }}
 										/>
 									</LineChart>
 								</ResponsiveContainer>
@@ -1307,7 +1284,12 @@ const AdSpend = () => {
 
 						{/* Platform Distribution */}
 						<div className="bg-white p-6 rounded-lg shadow-sm border">
-							<h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Distribution</h3>
+							<div className="flex justify-between items-center mb-4">
+								<h3 className="text-lg font-semibold text-gray-900">Platform Distribution</h3>
+								<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+									💰 Total: {formatCurrency(summaryStats.totalSpend)}
+								</div>
+							</div>
 							<ResponsiveContainer width="100%" height={300}>
 								<PieChart>
 									<Pie
@@ -1316,13 +1298,32 @@ const AdSpend = () => {
 										cy="50%"
 										outerRadius={80}
 										dataKey="value"
-										label={({ name, value }) => `${name}: ${formatCurrency(value)}`}
+										label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+										labelLine={false}
+										animationDuration={1000}
+										onMouseEnter={(entry, index) => {
+											// Enhanced hover effect
+										}}
 									>
 										{getPlatformData().map((entry, index) => (
-											<Cell key={`cell-${index}`} fill={entry.color} />
+											<Cell
+												key={`cell-${index}`}
+												fill={entry.color}
+												stroke="#fff"
+												strokeWidth={2}
+											/>
 										))}
 									</Pie>
-									<Tooltip formatter={(value) => formatCurrency(value)} />
+									<Tooltip
+										formatter={(value) => formatCurrency(value)}
+										contentStyle={{
+											backgroundColor: 'rgba(255, 255, 255, 0.95)',
+											border: '1px solid #e5e7eb',
+											borderRadius: '8px',
+											boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+										}}
+									/>
+									<Legend />
 								</PieChart>
 							</ResponsiveContainer>
 						</div>
@@ -1460,7 +1461,7 @@ const AdSpend = () => {
 														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
 															item.platform === 'facebook' 
 																? 'bg-blue-100 text-blue-800' 
-																: 'bg-green-100 text-green-800'
+																: 'bg-amber-100 text-amber-800'
 														}`}>
 															{item.platform === 'facebook' ? (
 																<Facebook className="w-3 h-3 mr-1" />

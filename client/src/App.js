@@ -4,7 +4,6 @@ import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
 import AdSpend from './components/AdSpend';
 import CostOfGoods from './components/CostOfGoods';
-import CampaignRoi from './components/CampaignRoi';
 import ProductAnalytics from './components/ProductAnalytics';
 import ProductTrendsChart from './components/ProductTrendsChart';
 import Customers from './components/Customers';
@@ -14,6 +13,7 @@ import ToastContainer from './components/ToastContainer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { StoreProvider, useStore } from './contexts/StoreContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { SocketProvider } from './contexts/SocketContext';
 import './App.css';
 
 // Protected Route component for Product Trends
@@ -38,7 +38,6 @@ function AppRoutes() {
         <Route path="/orders" element={<Orders />} />
         <Route path="/ad-spend" element={<AdSpend />} />
         <Route path="/cost-of-goods" element={<CostOfGoods />} />
-        <Route path="/campaign-roi" element={<CampaignRoi />} />
         <Route path="/product-analytics" element={<ProductAnalytics />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer-ltv" element={<CustomerLTV />} />
@@ -53,20 +52,22 @@ function App() {
   return (
     <AuthProvider>
       <StoreProvider>
-        <Router
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
-          <div className="flex h-screen bg-gray-50">
-            <Sidebar />
-            <div className="flex-1 overflow-auto">
-              <AppRoutes />
+        <SocketProvider>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            <div className="flex h-screen bg-gray-50">
+              <Sidebar />
+              <div className="flex-1 overflow-auto">
+                <AppRoutes />
+              </div>
+              <ToastContainer />
             </div>
-            <ToastContainer />
-          </div>
-        </Router>
+          </Router>
+        </SocketProvider>
       </StoreProvider>
     </AuthProvider>
   );

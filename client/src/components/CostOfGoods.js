@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Edit, Trash2, Calendar, Filter, ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Package, Plus, Edit, Trash2, Calendar, Filter, ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import CostOfGoodsLoader from './loaders/CostOfGoodsLoader';
 import LoadingSpinner from './LoadingSpinner';
@@ -253,14 +252,6 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
     setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
   };
 
-  const goToPreviousQuarter = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 3, 1));
-  };
-
-  const goToNextQuarter = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 3, 1));
-  };
-
   const selectYear = (year) => {
     setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
     setShowYearSelector(false);
@@ -436,6 +427,13 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const CostOfGoods = () => {
+  const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
   const [costOfGoods, setCostOfGoods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -455,9 +453,14 @@ const CostOfGoods = () => {
     totalCost: '',
     date: new Date().toISOString().split('T')[0]
   });
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+  const [dateRange, setDateRange] = useState(() => {
+		const today = new Date();
+		const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+		return {
+			startDate: formatLocalDate(thirtyDaysAgo),
+			endDate: formatLocalDate(today)
+		};
   });
   const [showDatePresets, setShowDatePresets] = useState(false);
   const [showStartCalendar, setShowStartCalendar] = useState(false);
@@ -587,8 +590,8 @@ const CostOfGoods = () => {
         startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
         setDateRange({
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: lastMonthEnd.toISOString().split('T')[0]
+          startDate: formatLocalDate(startDate),
+          endDate: formatLocalDate(lastMonthEnd)
         });
         setShowDatePresets(false);
         return;
@@ -597,8 +600,8 @@ const CostOfGoods = () => {
     }
 
     setDateRange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: today.toISOString().split('T')[0]
+      startDate: formatLocalDate(startDate),
+      endDate: formatLocalDate(today)
     });
     setShowDatePresets(false);
   };
@@ -641,7 +644,7 @@ const CostOfGoods = () => {
         costPerUnit: '',
         quantity: '',
         totalCost: '',
-        date: new Date().toISOString().split('T')[0]
+        date: formatLocalDate(new Date())
       });
       setShowForm(false);
       setEditingEntry(null);

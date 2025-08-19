@@ -1,74 +1,38 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { createSocket, setupSocketHandlers } from '../config/socket';
+import { useSocket } from '../contexts/SocketContext';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import SearchableSelect from './SearchableSelect';
 import CustomerLTVLoader from './loaders/CustomerLTVLoader';
 import {
-    Users,
     DollarSign,
-    ShoppingCart,
-    Mail,
-    Phone,
-    MapPin,
-    Search,
-    Eye,
     Calendar,
     TrendingUp,
-    RefreshCw,
-    BarChart3,
     Grid,
-    BarChart,
-    Download
 } from 'lucide-react';
 let isLtvLoading = false
 const CustomerLTV = () => {
 	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
-    const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [summaryStats, setSummaryStats] = useState({});
-    const [searchEmail, setSearchEmail] = useState('');
-    const [pagination, setPagination] = useState({
-        currentPage: 1,
-        pageSize: 10,
-        totalPages: 1,
-        totalItems: 0
-    });
-    const [sortConfig, setSortConfig] = useState({
-        field: 'total_orders_price',
-        direction: 'desc'
-    });
     // Customer LTV State
     const [ltvData, setLtvData] = useState([]);
     const [ltvLoading, setLtvLoading] = useState(false);
-    const [ltvError, setLtvError] = useState(null);
     const [ltvMetric, setLtvMetric] = useState('ltv'); // 'ltv' or 'profit-ltv'
     const [ltvStartYear, setLtvStartYear] = useState(new Date().getFullYear());
     const [ltvEndYear, setLtvEndYear] = useState(new Date().getFullYear());
     const [ltvStartMonth, setLtvStartMonth] = useState(1);
     const [ltvEndMonth, setLtvEndMonth] = useState(new Date().getMonth() + 1);
-    const [ltvSearchTerm, setLtvSearchTerm] = useState('');
     const [ltvViewMode, setLtvViewMode] = useState('table');
 
     // Product SKU State
     const [productSkus, setProductSkus] = useState([]);
-    const [productSkusError, setProductSkusError] = useState(null);
 
     // Individual Product LTV State
     const [selectedProductSku, setSelectedProductSku] = useState('');
-    const [individualProductLtv, setIndividualProductLtv] = useState([]);
-    const [individualProductLtvLoading, setIndividualProductLtvLoading] = useState(false);
-    const [individualProductLtvError, setIndividualProductLtvError] = useState(null);
 
     // LTV Sync Modal State
-    const [showLtvSyncModal, setShowLtvSyncModal] = useState(false);
-    const [ltvSyncLoading, setLtvSyncLoading] = useState(false);
     const [ltvSyncSuccess, setLtvSyncSuccess] = useState(false);
-    const [ltvSyncModalStartYear, setLtvSyncModalStartYear] = useState(new Date().getFullYear());
-    const [ltvSyncModalEndYear, setLtvSyncModalEndYear] = useState(new Date().getFullYear());
-    const [ltvSyncModalStartMonth, setLtvSyncModalStartMonth] = useState(1);
-    const [ltvSyncModalEndMonth, setLtvSyncModalEndMonth] = useState(12);
 
     // LTV Sync Progress Modal State
     const [ltvSyncProgress, setLtvSyncProgress] = useState({
@@ -169,11 +133,6 @@ const CustomerLTV = () => {
     // Handle product selection for individual LTV analysis
     const handleProductSelection = (productSku) => {
         setSelectedProductSku(productSku);
-        if (productSku) {
-            setSelectedProductSku(productSku);
-        } else {
-            setIndividualProductLtv([]);
-        }
     };
 
     // Handle LTV month range changes
@@ -215,19 +174,7 @@ const CustomerLTV = () => {
 
     // Filter LTV data based on search term
     const getFilteredLtvData = () => {
-        if (!ltvSearchTerm.trim()) return ltvData;
-        return ltvData.filter(cohort =>
-            cohort.cohortMonth.toLowerCase().includes(ltvSearchTerm.toLowerCase())
-        );
-    };
-    // Get month range display for sync modal
-    const getLtvSyncModalMonthRangeDisplay = () => {
-        if (ltvSyncModalStartMonth === ltvSyncModalEndMonth && ltvSyncModalStartYear === ltvSyncModalEndYear) {
-            return `${monthOptions.find(m => m.value === ltvSyncModalStartMonth)?.label} ${ltvSyncModalStartYear}`;
-        }
-        const startLabel = monthOptions.find(m => m.value === ltvSyncModalStartMonth)?.label;
-        const endLabel = monthOptions.find(m => m.value === ltvSyncModalEndMonth)?.label;
-        return `${startLabel} ${ltvSyncModalStartYear} - ${endLabel} ${ltvSyncModalEndYear}`;
+        return ltvData
     };
 
     // Get the actual number of months in the selected date range
@@ -261,19 +208,14 @@ const CustomerLTV = () => {
             return () => clearTimeout(timer);
         }
     }, [ltvSyncSuccess]);
-    // WebSocket progress handling for LTV sync
-    const [socket, setSocket] = useState(null);
+    // Get socket from context
+    const { socket } = useSocket();
 
-    	useEffect(() => {
-		const newSocket = createSocket();
-		setupSocketHandlers(newSocket);
+    // WebSocket event handlers
+    useEffect(() => {
+        if (!socket) return;
 
-        newSocket.on('connect', () => {
-            setSocket(newSocket);
-        });
-
-        newSocket.on('syncProgress', (data) => {
-            console.log(data)
+        socket.on('syncProgress', (data) => {
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
@@ -300,20 +242,17 @@ const CustomerLTV = () => {
             }
         });
 
-        newSocket.on('disconnect', () => {
-            setSocket(null);
-        });
-
+        // Cleanup event listeners when component unmounts or socket changes
         return () => {
-            newSocket.close();
+            if (socket) {
+                socket.off('syncProgress');
+            }
         };
-    }, []);
+    }, [socket]);
 
     // Fetch product SKUs
     const fetchProductSkus = async () => {
         try {
-            setProductSkusError(null);
-
             const response = await axios.get('/api/customers/products-sku', {
                 params: {
                     storeId: selectedStore || 'buycosari'
@@ -330,7 +269,6 @@ const CustomerLTV = () => {
             }
         } catch (error) {
             console.error('❌ Error fetching product SKUs:', error);
-            setProductSkusError('Failed to fetch product SKUs');
             setProductSkus([]);
         } finally {
             setLoading(false);
@@ -347,11 +285,6 @@ const CustomerLTV = () => {
                 sku: selectedProductSku,
                 storeId: selectedStore,
             });
-
-            if (searchEmail) {
-                params.append('searchEmail', searchEmail);
-            }
-
 
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 10 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 10 ? ltvEndMonth : "0" + ltvEndMonth);
@@ -528,13 +461,6 @@ const CustomerLTV = () => {
                         </div>
                     )}
 
-                    {/* LTV Error Message */}
-                    {ltvError && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                            {ltvError}
-                        </div>
-                    )}
-
                     {/* LTV Data Table */}
                     {ltvLoading ? (
                         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ position: 'relative' }}>
@@ -601,15 +527,6 @@ const CustomerLTV = () => {
                                             className={`p-2 rounded ${ltvViewMode === 'table' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
                                         >
                                             <Grid className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => setLtvViewMode('chart')}
-                                            className={`p-2 rounded ${ltvViewMode === 'chart' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            <BarChart className="w-4 h-4" />
-                                        </button>
-                                        <button className="p-2 text-gray-400 hover:text-gray-600">
-                                            <Download className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
@@ -722,7 +639,6 @@ const CustomerLTV = () => {
                             <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
                                 <div className="text-sm text-gray-600">
                                     Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
-                                    {ltvSearchTerm && ` matching "${ltvSearchTerm}"`}
                                 </div>
                             </div>
                         </div>

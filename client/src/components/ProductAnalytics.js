@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, DollarSign, Package, Calendar, Filter, Search, ChevronUp, ChevronDown, X, ChevronLeft, ChevronRight, Link } from 'lucide-react';
+import { TrendingUp, DollarSign, Package, Calendar, Filter, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import ProductAnalyticsLoader from './loaders/ProductAnalyticsLoader';
 import ProductAnalyticsTableLoader from './loaders/ProductAnalyticsTableLoader';
@@ -122,14 +122,6 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 
   const goToNextYear = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
-  };
-
-  const goToPreviousQuarter = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 3, 1));
-  };
-
-  const goToNextQuarter = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 3, 1));
   };
 
   const selectYear = (year) => {
@@ -307,13 +299,25 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const ProductAnalytics = () => {
+  const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
   const [productAnalytics, setProductAnalytics] = useState({ products: [], pagination: {} });
   const [loading, setLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
   const { selectedStore, adsSyncCompleted } = useStore();
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+  const [dateRange, setDateRange] = useState(() => {
+		const today = new Date();
+		const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+		return {
+			startDate: formatLocalDate(thirtyDaysAgo),
+			endDate: formatLocalDate(today)
+		};
   });
   const [showDatePresets, setShowDatePresets] = useState(false);
   const [showStartCalendar, setShowStartCalendar] = useState(false);
@@ -347,12 +351,7 @@ const ProductAnalytics = () => {
   const [showProductGroupsModal, setShowProductGroupsModal] = useState(false);
 
   // Listen for ads sync completion from GlobalStoreSelector
-  useEffect(() => {
-    if (adsSyncCompleted > 0) {
-      fetchProductAnalytics();
-    }
-  }, [adsSyncCompleted]);
-
+  
   const fetchProductAnalytics = async (isTableOnly = false) => {
     try {
       if (isTableOnly) {
@@ -600,8 +599,8 @@ const ProductAnalytics = () => {
         startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
         setDateRange({
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: lastMonthEnd.toISOString().split('T')[0]
+          startDate: formatLocalDate(startDate),
+          endDate: formatLocalDate(lastMonthEnd)
         });
         setShowDatePresets(false);
         return;
@@ -610,8 +609,8 @@ const ProductAnalytics = () => {
     }
 
     setDateRange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: today.toISOString().split('T')[0]
+      startDate: formatLocalDate(startDate),
+      endDate: formatLocalDate(today)
     });
     setShowDatePresets(false);
   };

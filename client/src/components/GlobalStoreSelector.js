@@ -3,19 +3,17 @@ import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import { CheckCircle, AlertCircle, Info, Clock, RefreshCw } from 'lucide-react';
 import axios from 'axios';
-import { createSocket, setupSocketHandlers } from '../config/socket';
+import { useSocket } from '../contexts/SocketContext';
 
 const GlobalStoreSelector = () => {
-	const { selectedStore, setSelectedStore, notifySyncComplete, notifyAdsSyncComplete } = useStore();
+	const { selectedStore, setSelectedStore } = useStore();
 	const [syncInfo, setSyncInfo] = useState(null);
 	const [loading, setLoading] = useState(false);
 	const [syncingOrders, setSyncingOrders] = useState(false);
 	const [syncingAds, setSyncingAds] = useState(false);
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [syncStep, setSyncStep] = useState('');
-	const [syncSuccess, setSyncSuccess] = useState(false);
 	const [syncType, setSyncType] = useState(''); // 'orders' or 'ads'
-	const [socket, setSocket] = useState(null);
 
 	const storeOptions = [
 		{ value: 'buycosari', label: 'Buycosari.com' },
@@ -26,31 +24,29 @@ const GlobalStoreSelector = () => {
 		{ value: 'cosara', label: 'Cosara.com' },
 	];
 
-	// WebSocket connection setup
+	// Get socket from context
+	const { socket } = useSocket();
+
+	// WebSocket event handlers
 	useEffect(() => {
-		const newSocket = createSocket();
-		setupSocketHandlers(newSocket);
+		if (!socket) return;
 
-		newSocket.on('connect', () => {
-		});
-
-		newSocket.on('syncProgress', (data) => {
+		socket.on('syncProgress', (data) => {
 			updateSyncProgress(data);
 		});
 
-		newSocket.on('adsSyncProgress', (data) => {
+		socket.on('adsSyncProgress', (data) => {
 			updateSyncProgress(data);
 		});
 
-		newSocket.on('disconnect', () => {
-		});
-
-		setSocket(newSocket);
-
+		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
-			newSocket.close();
+			if (socket) {
+				socket.off('syncProgress');
+				socket.off('adsSyncProgress');
+			}
 		};
-	}, []);
+	}, [socket]);
 
 	const updateSyncProgress = (data) => {
 		setSyncProgress(data);
@@ -281,20 +277,7 @@ const GlobalStoreSelector = () => {
 			{(syncingOrders || syncingAds) && (
 				<div className="fixed inset-0 bg-white bg-opacity-100 z-[60] flex items-center justify-center">
 					<div className="text-center mx-4">
-						{syncSuccess ? (
-							<div className="text-green-600">
-								<div className="w-12 h-12 mx-auto mb-4 text-4xl">✓</div>
-								<h3 className="text-lg font-semibold mb-2">Sync Complete!</h3>
-								<p className="text-gray-600">
-									{syncType === 'orders' 
-										? 'Orders synced and analytics updated' 
-										: syncProgress?.campaignsSaved 
-											? `${syncProgress.campaignsSaved} campaigns and ${syncProgress.adSpendRecordsSaved} records synced`
-											: 'Ads data synced successfully'
-									}
-								</p>
-							</div>
-						) : (
+						
 							<>
 								<RefreshCw className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
 								<h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -351,7 +334,6 @@ const GlobalStoreSelector = () => {
 								)}
 								<p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
 							</>
-						)}
 					</div>
 				</div>
 			)}

@@ -5,19 +5,16 @@ import {
   ShoppingCart, 
   DollarSign, 
   Package,
-  TrendingUp,
   Package2,
   Users,
   LogOut
 } from 'lucide-react';
 import GlobalStoreSelector from './GlobalStoreSelector';
-import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
   const location = useLocation();
-  const { selectedStore } = useStore();
-  const { logout, sessionExpiry } = useAuth();
+  const { logout } = useAuth();
 
   const navigation = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
@@ -30,17 +27,6 @@ const Sidebar = () => {
     // Only show Product Trends for meonutrition store
     // ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
   ];
-
-  const formatTimeRemaining = () => {
-    if (!sessionExpiry) return '';
-    const now = new Date().getTime();
-    const remaining = sessionExpiry - now;
-    if (remaining <= 0) return 'Expired';
-    
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${minutes}m`;
-  };
 
   return (
     <div className="w-64 bg-white shadow-lg flex flex-col" style={{height: "100vh", overflow: "auto"}}>
