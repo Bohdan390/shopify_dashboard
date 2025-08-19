@@ -1,0 +1,55 @@
+name: shopify-dashboard
+services:
+  - name: shopify-dashboard-backend
+    source_dir: /
+    github:
+      repo: your-username/your-repo-name
+      branch: main
+    run_command: npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    build_command: |
+      npm ci
+      cd client && npm ci
+      cd client && npm run build
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: ${SUPABASE_URL}
+      - key: SUPABASE_ANON_KEY
+        value: ${SUPABASE_ANON_KEY}
+      # Shopify API Configuration - Multiple Stores
+      - key: SHOPIFY_API_VERSION
+        value: "2024-04"
+      # Store 1: Buycosari
+      - key: COSARI_ACCESS_TOKEN
+        value: ${COSARI_ACCESS_TOKEN}
+      # Store 2: Meonutrition
+      - key: MEONUTRITION_ACCESS_TOKEN
+        value: ${MEONUTRITION_ACCESS_TOKEN}
+      # Store 3: Nomobark
+      - key: NOMOBARK_ACCESS_TOKEN
+        value: ${NOMOBARK_ACCESS_TOKEN}
+      # Store 4: Dermao
+      - key: DERMAO_ACCESS_TOKEN
+        value: ${DERMAO_ACCESS_TOKEN}
+      # Store 5: Gamoseries
+      - key: GAMOSERIES_ACCESS_TOKEN
+        value: ${GAMOSERIES_ACCESS_TOKEN}
+      # Store 6: Cosara
+      - key: COSARA_ACCESS_TOKEN
+        value: ${COSARA_ACCESS_TOKEN}
+      # Windsor.ai API Configuration
+      - key: WINDSOR_API_KEY
+        value: ${WINDSOR_API_KEY}
+      # JWT Secret
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+      # Frontend API URL
+      - key: REACT_APP_API_URL
+        value: ${REACT_APP_API_URL}

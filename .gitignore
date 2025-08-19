@@ -111,8 +111,3 @@ Thumbs.db
 # Docker
 .dockerignore
 
-# Deployment
-.do/
-deploy.sh
-nginx.conf
-ssl/
