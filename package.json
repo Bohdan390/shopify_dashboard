@@ -11,10 +11,10 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build",
+    "build": "npm ci && cd client && npm ci && npm run build",
     "start": "node server/index.js",
     "test": "echo \"No tests specified\" && exit 0",
-    "postinstall": "echo \"Installation completed successfully\"",
+    "postinstall": "cd client && npm ci",
     "install-all": "npm install && cd client && npm install",
     "test-shopify": "node test-shopify-connection.js",
     "init-supabase": "node init-supabase.js"
