@@ -10,6 +10,12 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Configure server timeouts for long-running operations
+server.timeout = 36000000; // 10 hours (in milliseconds)
+server.keepAliveTimeout = 65000; // 65 seconds
+server.headersTimeout = 66000; // 66 seconds
+
 const io = socketIo(server, {
   cors: {
     origin: "http://localhost:3000",
@@ -25,7 +31,15 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Set timeout for all requests
+app.use((req, res, next) => {
+  req.setTimeout(36000000); // 10 hours
+  res.setTimeout(36000000); // 10 hours
+  next();
+});
 
 // Rate limiting - DISABLED for development
 // const limiter = rateLimit({

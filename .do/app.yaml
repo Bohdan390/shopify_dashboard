@@ -10,6 +10,15 @@ services:
     instance_count: 1
     instance_size_slug: basic-xxs
     build_command: npm run build
+    # Timeout configurations for long-running sync operations
+    timeout_seconds: 36000  # 10 hours timeout
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 30
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 5
     envs:
       - key: NODE_ENV
         value: production
