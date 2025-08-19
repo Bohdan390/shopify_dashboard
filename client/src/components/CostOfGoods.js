@@ -68,9 +68,6 @@ const ProductAutocomplete = ({
     setShowDropdown(false);
     
     // Show success message when product is selected
-    if (window.showToast) {
-      window.showToast.success('Product Selected', `Selected: ${product.product_title || 'No Title'} (ID: ${product.product_id})`);
-    }
   };
 
   const handleFocus = () => {
@@ -598,10 +595,6 @@ const CostOfGoods = () => {
           endDate: lastMonthEnd.toISOString().split('T')[0]
         });
         setShowDatePresets(false);
-        
-        if (window.showToast) {
-          window.showToast.success('Date Range Updated', `Date range set to ${preset}`);
-        }
         return;
       default:
         return;
@@ -612,24 +605,14 @@ const CostOfGoods = () => {
       endDate: today.toISOString().split('T')[0]
     });
     setShowDatePresets(false);
-
-    if (window.showToast) {
-      window.showToast.success('Date Range Updated', `Date range set to ${preset}`);
-    }
   };
 
   const handleStartDateSelect = (date) => {
     setDateRange(prev => ({ ...prev, startDate: date }));
-    if (window.showToast) {
-      window.showToast.info('Date Selected', `Start date set to ${date}`);
-    }
   };
 
   const handleEndDateSelect = (date) => {
     setDateRange(prev => ({ ...prev, endDate: date }));
-    if (window.showToast) {
-      window.showToast.info('Date Selected', `End date set to ${date}`);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -651,17 +634,9 @@ const CostOfGoods = () => {
       if (editingEntry) {
         // Update existing entry
         await axios.put(`/api/ads/cog/${editingEntry.id}`, apiData);
-        
-        if (window.showToast) {
-          window.showToast.success('Entry Updated', 'Cost of goods entry updated successfully');
-        }
       } else {
         // Add new entry
         await axios.post('/api/ads/cog', apiData);
-        
-        if (window.showToast) {
-          window.showToast.success('Entry Added', 'New cost of goods entry added successfully');
-        }
       }
 
       setFormData({
@@ -708,10 +683,6 @@ const CostOfGoods = () => {
       setDeletingEntry(entry.id);
       await axios.delete(`/api/ads/cog/${entry.id}`);
       
-      if (window.showToast) {
-        window.showToast.success('Entry Deleted', 'Cost of goods entry deleted successfully');
-      }
-      
       fetchCostOfGoods();
     } catch (error) {
       console.error('Error deleting cost of goods:', error);
@@ -735,10 +706,6 @@ const CostOfGoods = () => {
       totalCost: '',
       date: new Date().toISOString().split('T')[0]
     });
-    
-    if (window.showToast) {
-      window.showToast.info('Cancelled', 'Operation cancelled');
-    }
   };
 
   const formatCurrency = (amount) => {
