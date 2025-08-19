@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SHOPIFY_API_VERSION=${SHOPIFY_API_VERSION}
+      - COSARI_ACCESS_TOKEN=${COSARI_ACCESS_TOKEN}
+      - MEONUTRITION_ACCESS_TOKEN=${MEONUTRITION_ACCESS_TOKEN}
+      - NOMOBARK_ACCESS_TOKEN=${NOMOBARK_ACCESS_TOKEN}
+      - DERMAO_ACCESS_TOKEN=${DERMAO_ACCESS_TOKEN}
+      - GAMOSERIES_ACCESS_TOKEN=${GAMOSERIES_ACCESS_TOKEN}
+      - COSARA_ACCESS_TOKEN=${COSARA_ACCESS_TOKEN}
+      - WINDSOR_API_KEY=${WINDSOR_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    env_file:
+      - .env.local
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-shopify_dashboard}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data: 

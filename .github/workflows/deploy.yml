@@ -1,0 +1,63 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd client && npm ci
+    
+    - name: Run tests
+      run: |
+        npm test
+        cd client && npm test
+    
+    - name: Build client
+      run: cd client && npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to Digital Ocean App Platform
+      uses: digitalocean/app_action@main
+      with:
+        app_name: shopify-dashboard
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        images: '[{"name":"shopify-dashboard","dockerfile_path":"./Dockerfile.prod"}]'
+    
+    - name: Deploy to Digital Ocean Droplet (Alternative)
+      if: false  # Set to true if using Droplet deployment
+      run: |
+        echo "Deploying to Digital Ocean Droplet..."
+        # Add your deployment commands here
+        # Example: rsync, scp, or API calls
+
+# Required Secrets for this workflow:
+# DIGITALOCEAN_ACCESS_TOKEN - Your Digital Ocean API token
+# 
+# For Digital Ocean App Platform, also set these environment variables:
+# SUPABASE_URL, SUPABASE_ANON_KEY, WINDSOR_API_KEY, JWT_SECRET, REACT_APP_API_URL
+# COSARI_ACCESS_TOKEN, MEONUTRITION_ACCESS_TOKEN, NOMOBARK_ACCESS_TOKEN
+# DERMAO_ACCESS_TOKEN, GAMOSERIES_ACCESS_TOKEN, COSARA_ACCESS_TOKEN
