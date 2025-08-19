@@ -9,18 +9,7 @@ services:
     environment_slug: node-js
     instance_count: 1
     instance_size_slug: basic-xxs
-    build_command: |
-      echo "Starting build process..."
-      npm ci
-      echo "Installing client dependencies..."
-      cd client && npm ci
-      echo "Checking node_modules structure..."
-      ls -la node_modules/.bin/ | head -10
-      echo "Building React app..."
-      ./node_modules/.bin/react-scripts build
-      echo "Build completed successfully"
-      cd ..
-      echo "All done!"
+    build_command: npm run build
     envs:
       - key: NODE_ENV
         value: production
