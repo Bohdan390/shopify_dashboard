@@ -497,10 +497,6 @@ const Orders = () => {
 		
 		setSearchLoading(true);
 		fetchOrders(1, false, true).finally(() => setSearchLoading(false));
-		
-		if (window.showToast) {
-			window.showToast.info('Searching', `Searching for orders matching "${searchTerm}"`);
-		}
 	};
 
 	const handleKeyPress = (e) => {
@@ -629,10 +625,6 @@ const Orders = () => {
 				setSearchLoading(true);
 				await fetchOrders(1, false, true);
 				await fetchOverallStats();
-				
-				if (window.showToast) {
-					window.showToast.success('Date Range Applied', `Showing orders from ${dateRange.startDate} to ${dateRange.endDate}`);
-				}
 			} catch (error) {
 				console.error('Error fetching orders with date range:', error);
 				if (window.showToast) {
