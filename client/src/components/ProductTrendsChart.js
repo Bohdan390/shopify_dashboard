@@ -84,8 +84,6 @@ const ProductTrendsChart = () => {
 
 		try {
 			const monthRange = getMonthRangeForAPI();
-			console.log('🔍 Fetching individual product analytics for:', selectedStore);
-			console.log('📅 Date range:', monthRange[0], 'to', monthRange[monthRange.length - 1]);
 			
 			const response = await axios.get('/api/analytics/product-cohort-analytics', {
 				params: {
@@ -97,8 +95,6 @@ const ProductTrendsChart = () => {
 				}
 			});
 
-			console.log('📊 Individual product analytics data received:', response.data);
-			
 			if (response.data.success && response.data.data) {
 				setProductData(response.data.data);
 			} else {
@@ -240,8 +236,6 @@ const ProductTrendsChart = () => {
 		try {
 			const startDate = `${syncModalStartYear}-${syncModalStartMonth.toString().padStart(2, '0')}`;
 			const endDate = `${syncModalEndYear}-${syncModalEndMonth.toString().padStart(2, '0')}`;
-
-			console.log('🔄 Syncing product trends for date range:', startDate, 'to', endDate);
 			
 			const response = await axios.post('/api/analytics/recalculate-product-trends', {
 				startDate,
@@ -250,7 +244,6 @@ const ProductTrendsChart = () => {
 			});
 
 			if (response.data.success) {
-				console.log('✅ Product trends sync completed successfully');
 				setShowSyncModal(false);
 				setSyncSuccess(true);
 				await fetchProductAnalytics();

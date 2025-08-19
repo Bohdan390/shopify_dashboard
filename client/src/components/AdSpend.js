@@ -145,10 +145,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	};
 
 	const selectMonth = (month) => {
-		console.log('selectMonth called with month:', month);
-		console.log('Current month before:', currentMonth);
 		const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-		console.log('New month date:', newMonth);
 		setCurrentMonth(newMonth);
 		setShowMonthSelector(false);
 	};
@@ -371,11 +368,9 @@ const AdSpend = () => {
 		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
-			console.log('🔌 Connected to WebSocket server (AdSpend)');
 		});
 
 		newSocket.on('adsSyncProgress', (data) => {
-			console.log('📊 Ads sync progress:', data);
 			setSyncProgress(data);
 
 			// Handle completion - check for both 'completed' and 'analytics_completed' stages
@@ -400,7 +395,6 @@ const AdSpend = () => {
 		});
 
 		newSocket.on('disconnect', () => {
-			console.log('🔌 Disconnected from WebSocket server (AdSpend)');
 		});
 
 		setSocket(newSocket);
@@ -446,7 +440,6 @@ const AdSpend = () => {
 	// Listen for ads sync completion from GlobalStoreSelector
 	useEffect(() => {
 		if (adsSyncCompleted > 0) {
-			console.log('🔄 Ads sync completed, refreshing all AdSpend data...');
 			// Reset pagination to first page
 			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 			// Refresh all data
@@ -536,9 +529,6 @@ const AdSpend = () => {
 			const { data, revenue } = response.data;
 
 			if (data && Array.isArray(data)) {
-				console.log('📊 Summary stats data received:', data.length, 'records');
-				console.log('💰 Revenue data received:', revenue);
-				
 				// Calculate summary stats including revenue for ROAS
 				const stats = data.reduce((acc, item) => {
 					const spend = parseFloat(item.spend_amount) || 0;
@@ -567,7 +557,6 @@ const AdSpend = () => {
 				// Calculate ROAS using actual revenue data (not conversions)
 				stats.roas = stats.totalSpend > 0 ? (stats.totalRevenue / stats.totalSpend) : 0;
 
-				console.log('💰 Calculated stats with revenue:', stats);
 				setSummaryStats(stats);
 			}
 		} catch (error) {
@@ -659,7 +648,6 @@ const AdSpend = () => {
 				store_id: selectedStore,
 			});
 
-			console.log(selectedStore, 33333)
 			// Add filters but exclude pagination
 			Object.keys(filters).forEach(key => {
 				if (key !== 'page' && key !== 'pageSize') {
@@ -667,43 +655,22 @@ const AdSpend = () => {
 				}
 			});
 
-			console.log('🔍 Fetching chart data for date range:', dateRange.startDate, 'to', dateRange.endDate, 'store:', selectedStore);
 
 			const response = await axios.get(`/api/ads/chart-data?${params}`);
 			const data = response.data.data || [];
 
-			console.log('📊 Chart data received:', data.length, 'processed records');
-			console.log('📊 Sample data:', data.slice(0, 3));
-
 			if (data.length === 0) {
-				console.log('⚠️ No data found for chart');
 				setChartData([]);
 				return;
 			}
 
-			console.log('📈 Chart data ready:', data.length, 'unique dates');
-			console.log('📈 Date range in chart:', data[0]?.date, 'to', data[data.length - 1]?.date);
-
-			// Validate chart data
-			if (data.length < 2) {
-				console.log('⚠️ Insufficient chart data points');
-			}
-
 			// Apply smart data aggregation if needed
 			const optimalPoints = getOptimalDataPoints();
-			console.log(`📊 Date range: ${dateRange.startDate} to ${dateRange.endDate} (${Math.ceil((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24))} days)`);
-			console.log(`📊 Optimal data points: ${optimalPoints}`);
-			console.log(`📊 Raw data points: ${data.length}`);
 			
 			const processedData = aggregateChartData(data);
-			console.log('📊 Chart data after aggregation:', processedData.length, 'points');
 			
 			if (processedData.length < data.length) {
-				console.log('📊 Data was aggregated for better chart viewing');
 				const sampleAggregated = processedData.find(item => item.dateRange);
-				if (sampleAggregated) {
-					console.log('📊 Sample aggregated point:', sampleAggregated);
-				}
 			}
 
 			setChartData(processedData);
@@ -715,10 +682,8 @@ const AdSpend = () => {
 
 	const fetchCampaigns = async () => {
 		try {
-			console.log('🔍 Fetching campaigns...');
 			const response = await axios.get('/api/ads/campaigns');
 			const data = response.data.data || [];
-			console.log('📊 Campaigns received:', data.length, 'campaigns');
 			setCampaigns(data);
 		} catch (error) {
 			console.error('❌ Error fetching campaigns:', error);
@@ -728,10 +693,8 @@ const AdSpend = () => {
 
 	const fetchStores = async () => {
 		try {
-			console.log('🔍 Fetching stores...');
 			const response = await axios.get('/api/ads/stores');
 			const data = response.data.data || [];
-			console.log('📊 Stores received:', data.length, 'stores');
 			setStores(data);
 		} catch (error) {
 			console.error('❌ Error fetching stores:', error);
@@ -742,10 +705,8 @@ const AdSpend = () => {
 
 	const fetchProducts = async () => {
 		try {
-			console.log('🔍 Fetching products...');
 			const response = await axios.get('/api/ads/products');
 			const data = response.data.data || [];
-			console.log('📊 Products received:', data.length, 'products');
 			setProducts(data);
 		} catch (error) {
 			console.error('❌ Error fetching products:', error);
@@ -821,13 +782,8 @@ const AdSpend = () => {
 				...filters
 			});
 
-			console.log('🔍 Fetching ad spend data with params:', params.toString());
-
 			const response = await axios.get(`/api/ads/spend-detailed?${params}`);
 			const { data, pagination } = response.data;
-			
-			console.log('📊 Ad spend data received:', data?.length || 0, 'records');
-			console.log('📊 Pagination:', pagination);
 			
 			setAdSpendData(data || []);
 
@@ -1341,6 +1297,7 @@ const AdSpend = () => {
 											name="Facebook" 
 											strokeWidth={2}
 											animationDuration={1000}
+											activeDot={{ r: 4, stroke: '#1877F2', strokeWidth: 2 }}
 										/>
 										<Line 
 											type="monotone" 
@@ -1349,6 +1306,7 @@ const AdSpend = () => {
 											name="Google" 
 											strokeWidth={2}
 											animationDuration={1000}
+											activeDot={{ r: 4, stroke: '#EA4335', strokeWidth: 2 }}
 										/>
 									</LineChart>
 								</ResponsiveContainer>

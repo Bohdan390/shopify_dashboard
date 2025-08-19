@@ -3,8 +3,6 @@ const { supabase } = require('../config/database-supabase');
 class CampaignRoiService {
   async calculateCampaignRoi(date) {
     try {
-      console.log(`📊 Calculating campaign ROI for ${date}...`);
-      
       // Use the database function to calculate campaign ROI
       const { data, error } = await supabase
         .rpc('calculate_campaign_roi', { target_date: date });
@@ -14,7 +12,6 @@ class CampaignRoiService {
         throw error;
       }
 
-      console.log(`✅ Calculated ROI for ${data.length} campaigns`);
       return data;
     } catch (error) {
       console.error('Error calculating campaign ROI:', error);
@@ -24,7 +21,6 @@ class CampaignRoiService {
 
   async saveCampaignRoi(date, socket = null) {
     try {
-      console.log(`💾 Saving campaign ROI data for ${date}...`);
       
       if (socket) {
         socket.emit('roiProgress', {
@@ -90,7 +86,6 @@ class CampaignRoiService {
         });
       }
 
-      console.log(`✅ Successfully saved ${roiRecords.length} campaign ROI records for ${date}`);
       return roiRecords;
     } catch (error) {
       console.error('Error saving campaign ROI:', error);
@@ -110,7 +105,6 @@ class CampaignRoiService {
 
   async getCampaignRoiRange(startDate, endDate) {
     try {
-      console.log(`📊 Fetching campaign ROI range: ${startDate} to ${endDate}`);
       
       const { data, error } = await supabase
         .from('campaign_roi')
@@ -125,7 +119,6 @@ class CampaignRoiService {
         throw error;
       }
 
-      console.log(`📊 Found ${data.length} campaign ROI records`);
       return data;
     } catch (error) {
       console.error('Error getting campaign ROI range:', error);
@@ -135,7 +128,6 @@ class CampaignRoiService {
 
   async getCampaignRoiSummary(startDate, endDate) {
     try {
-      console.log(`📊 Getting campaign ROI summary for ${startDate} to ${endDate}`);
       
       const { data, error } = await supabase
         .from('campaign_roi')
@@ -181,7 +173,6 @@ class CampaignRoiService {
       });
 
       const summaryArray = Object.values(campaignSummary);
-      console.log(`📊 Generated summary for ${summaryArray.length} campaigns`);
       
       return summaryArray;
     } catch (error) {
@@ -192,7 +183,6 @@ class CampaignRoiService {
 
   async recalculateAllCampaignRoi(socket = null) {
     try {
-      console.log('🔄 Recalculating all campaign ROI...');
       
       if (socket) {
         socket.emit('roiProgress', {
@@ -224,7 +214,6 @@ class CampaignRoiService {
 
       let processedDates = 0;
       for (const date of uniqueDates) {
-        console.log(`🔄 Calculating campaign ROI for ${date}... (${processedDates + 1}/${uniqueDates.length})`);
         
         if (socket) {
           const progress = 10 + Math.floor((processedDates / uniqueDates.length) * 80);
@@ -250,7 +239,6 @@ class CampaignRoiService {
         });
       }
 
-      console.log('✅ Campaign ROI recalculation completed');
     } catch (error) {
       console.error('❌ Error recalculating campaign ROI:', error);
       

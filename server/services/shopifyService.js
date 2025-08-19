@@ -54,14 +54,10 @@ class ShopifyService {
 		}
 
 		this.baseURL = `https://${config.shopUrl}/admin/api/${config.apiVersion}`;
-		console.log(config.accessToken, this.storeId, 123);
 		this.headers = {
 			'X-Shopify-Access-Token': config.accessToken,
 			'Content-Type': 'application/json'
 		};
-
-		console.log(`🏪 Initialized Shopify service for store: ${this.storeId}`);
-		console.log(`🔗 Base URL: ${this.baseURL}`);
 	}
 
 	async fetchOrders(limit = 50, since_id = null, syncDate = null, socket = null) {
@@ -69,10 +65,6 @@ class ShopifyService {
 			let allOrders = [], orders = [];
 			let totalFetched = 0;
 			let pageCount = 0;
-
-			if (syncDate) {
-				console.log('Sync date provided:', syncDate);
-			}
 			if (this.storeId == "buycosari") {
 				if (new Date(syncDate) < new Date("2023-10-30")) {
 					syncDate = "2023-10-30";
@@ -107,7 +99,6 @@ class ShopifyService {
 			var now = common.createLocalDateWithTime(new Date());
 			var totalDiff = common.diffInMilliSeconds(now, common.createLocalDateWithTime(syncDate));
 			var lastDate;
-			console.log("Total diff:", totalDiff);
 			while (true) {
 				pageCount++;
 				let url = `${this.baseURL}/orders.json?limit=${limit}&status=any`;
@@ -115,7 +106,6 @@ class ShopifyService {
 				if (nextPage && pageInfo) {
 					// Don't double-encode the page_info - it's already properly encoded
 					url = `${this.baseURL}/orders.json?limit=${limit}&page_info=${pageInfo}`;
-					console.log("Using pagination URL:", url);
 				} else if (syncDate) {
 					url += `&updated_at_min=${syncDate}`;
 				}
@@ -135,7 +125,6 @@ class ShopifyService {
 					}
 					lastDate = minDate;
 					var diff = totalDiff - common.diffInMilliSeconds(minDate, now);
-					console.log(minDate, lastDate, diff, totalDiff, syncDate, 123);
 					if (diff < 0) diff = 0;
 					if (socket) {
 						let progress = Number((100 / totalDiff * diff).toFixed(1));
@@ -158,8 +147,6 @@ class ShopifyService {
 					// Extract page_info from the nextUrl
 					const urlObj = new URL(nextUrl);
 					pageInfo = urlObj.searchParams.get('page_info');
-
-					console.log("Next page_info:", pageInfo);
 					nextPage = true;
 				} else {
 					nextPage = false;
@@ -168,18 +155,14 @@ class ShopifyService {
 				allOrders = allOrders.concat(orders);
 				totalFetched += orders.length;
 
-				console.log(`📦 Fetched ${orders.length} orders (total: ${totalFetched})`);
-
 				// No max orders limit - fetch all available orders
 
 				// If we got fewer orders than the limit, we've reached the end
 				if (orders.length < limit) {
-					console.log('📭 Reached end of orders');
 					break;
 				}
 
 				if (!nextPage) {
-					console.log('📭 No more pages to fetch');
 					break;
 				}
 
@@ -196,7 +179,6 @@ class ShopifyService {
 					current: totalFetched
 				});
 			}
-			console.log(`✅ Total orders fetched: ${allOrders.length}`);
 
 			return allOrders;
 		} catch (error) {
@@ -212,7 +194,6 @@ class ShopifyService {
 
 	async saveOrdersToDatabase(orders, socket = null) {
 		try {
-			console.log(`🔄 Preparing to save ${orders.length} orders to database...`);
 
 			if (socket) {
 				socket.emit('syncProgress', {
@@ -260,7 +241,6 @@ class ShopifyService {
 					order.line_items.forEach(lineItem => {
 						// Skip line items without product_id
 						if (!lineItem.product_id) {
-							console.log(`⚠️  Skipping line item without product_id: ${lineItem.id}`);
 							return;
 						}
 						const productId = lineItem.product_id.toString();
@@ -417,8 +397,6 @@ class ShopifyService {
 			const startTime = Date.now();
 
 			if (lineItemsData.length > 0) {
-				console.log(`💾 Saving ${lineItemsData.length} line items...`);
-
 				if (socket) {
 					socket.emit('syncProgress', {
 						stage: 'saving',
@@ -435,15 +413,12 @@ class ShopifyService {
 
 				if (lineItemsData.length > LINE_ITEMS_BATCH_SIZE) {
 					const totalLineItemChunks = Math.ceil(lineItemsData.length / LINE_ITEMS_BATCH_SIZE);
-					console.log(`📦 Processing ${lineItemsData.length} line items in ${totalLineItemChunks} chunks of ${LINE_ITEMS_BATCH_SIZE}...`);
 
 					for (let i = 0; i < lineItemsData.length; i += LINE_ITEMS_BATCH_SIZE) {
 						const chunk = lineItemsData.slice(i, i + LINE_ITEMS_BATCH_SIZE);
 						const currentChunk = Math.floor(i / LINE_ITEMS_BATCH_SIZE) + 1;
 						const progress = Math.round(((i + chunk.length) / lineItemsData.length) * 100);
 						
-						console.log(`🔄 Processing chunk ${currentChunk}/${totalLineItemChunks} (${progress}% - ${i + chunk.length}/${lineItemsData.length} items)...`);
-
 						// Emit progress to frontend for each chunk
 						if (socket) {
 							socket.emit('syncProgress', {
@@ -468,7 +443,6 @@ class ShopifyService {
 						}
 
 						totalLineItemsSaved += chunk.length;
-						console.log(`✅ Chunk ${currentChunk}/${totalLineItemChunks} completed. Progress: ${totalLineItemsSaved}/${lineItemsData.length} items saved`);
 					}
 				} else {
 					const { error: lineItemsError } = await supabase
@@ -486,7 +460,6 @@ class ShopifyService {
 					totalLineItemsSaved = lineItemsData.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalLineItemsSaved} line items to database`);
 			}
 
 			if (socket) {
@@ -516,7 +489,6 @@ class ShopifyService {
 			}
 			// Save unique products to products table
 			if (uniqueProducts.size > 0) {
-				console.log(`📦 Saving ${uniqueProducts.size} unique products to products table...`);
 				
 				const productsArray = Array.from(uniqueProducts.values());
 				
@@ -530,7 +502,6 @@ class ShopifyService {
 					for (let i = 0; i < productsArray.length; i += BATCH_SIZE) {
 						const chunk = productsArray.slice(i, i + BATCH_SIZE);
 						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
-						console.log(`🔄 Processing products chunk ${currentChunk}/${totalChunks} (${chunk.length} products)...`);
 
 						const { error: productsError } = await supabase
 							.from('products')
@@ -555,7 +526,6 @@ class ShopifyService {
 						}
 
 						totalProductsSaved += chunk.length;
-						console.log(`✅ Products chunk ${currentChunk} completed. Total saved: ${totalProductsSaved}/${productsArray.length}`);
 					}
 				} else {
 					const { error: productsError } = await supabase
@@ -573,7 +543,6 @@ class ShopifyService {
 					totalProductsSaved = productsArray.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalProductsSaved} products to products table`);
 			}
 
 			if (socket) {
@@ -588,7 +557,6 @@ class ShopifyService {
 			// Save unique customers to customers table
 			const BATCH_SIZE = 1000;
 			if (uniqueCustomers.size > 0) {
-				console.log(`👥 Saving ${uniqueCustomers.size} unique customers to customers table...`);
 				
 				const customersArray = Array.from(uniqueCustomers.values());
 				
@@ -597,13 +565,11 @@ class ShopifyService {
 
 				if (customersArray.length > BATCH_SIZE) {
 					const totalChunks = Math.ceil(customersArray.length / BATCH_SIZE);
-					console.log(`📊 Processing ${customersArray.length} customers in ${totalChunks} chunks of ${BATCH_SIZE}...`);
 
 					for (let i = 0; i < customersArray.length; i += BATCH_SIZE) {
 						const chunk = customersArray.slice(i, i + BATCH_SIZE);
 						const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
 						const progress = Math.round(((i + chunk.length) / customersArray.length) * 100);
-						console.log(`🔄 Processing customers chunk (${currentChunk}/${totalChunks}) - ${chunk.length} customers...`);
 
 						// Emit progress to frontend for each customers chunk
 						if (socket) {
@@ -629,10 +595,8 @@ class ShopifyService {
 						}
 
 						totalCustomersSaved += chunk.length;
-						console.log(`✅ Customers chunk (${currentChunk}/${totalChunks}) completed. Progress: ${totalCustomersSaved}/${customersArray.length} customers saved`);
 					}
 				} else {
-					console.log(`📊 Processing ${customersArray.length} customers in single batch...`);
 					const { error: customersError } = await supabase
 						.from('customers')
 						.upsert(customersArray, { 
@@ -648,7 +612,6 @@ class ShopifyService {
 					totalCustomersSaved = customersArray.length;
 				}
 
-				console.log(`✅ Successfully saved ${totalCustomersSaved} customers to customers table`);
 			}
 
 
@@ -666,12 +629,10 @@ class ShopifyService {
 
 			if (orderDataArray.length > BATCH_SIZE) {
 				const totalChunks = Math.ceil(orderDataArray.length / BATCH_SIZE);
-				console.log(`📦 Large dataset detected (${orderDataArray.length} orders). Processing in ${totalChunks} chunks of ${BATCH_SIZE}...`);
 
 				for (let i = 0; i < orderDataArray.length; i += BATCH_SIZE) {
 					const chunk = orderDataArray.slice(i, i + BATCH_SIZE);
 					const currentChunk = Math.floor(i / BATCH_SIZE) + 1;
-					console.log(`🔄 Processing orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`);
 
 					if (socket) {
 						const progress = 70 + Math.floor((currentChunk / totalChunks) * 30); // Progress from 25% to 85%
@@ -697,7 +658,6 @@ class ShopifyService {
 					}
 
 					totalSaved += chunk.length;
-					console.log(`✅ Orders chunk (${currentChunk}/${totalChunks}) completed. Progress: ${totalSaved}/${orderDataArray.length} orders saved`);
 				}
 			} else {
 				// Single batch operation for smaller datasets
@@ -728,8 +688,6 @@ class ShopifyService {
 			const endTime = Date.now();
 			const duration = endTime - startTime;
 
-			console.log(`✅ Successfully saved ${totalSaved} orders, ${lineItemsData.length} line items, and ${uniqueCustomers.size} customers to database`);
-			console.log(`⏱️  Upsert operation completed in ${duration}ms (${Math.round(totalSaved / (duration / 1000))} orders/second)`);
 			return { 
 				count: totalSaved, 
 				lineItemsCount: lineItemsData.length,
@@ -776,8 +734,6 @@ class ShopifyService {
 
 	async syncOrders(limit = 50, syncDate = null, socket = null) {
 		try {
-			console.log('🔄 Starting order sync...');
-			console.log(`📊 Fetching all orders (${limit} per page)`);
 
 			// Emit initial progress
 			if (socket) {
@@ -790,7 +746,6 @@ class ShopifyService {
 			}
 
 			if (syncDate) {
-				console.log(`🗓️  Sync date specified: ${syncDate}`);
 				if (socket) {
 					socket.emit('syncProgress', {
 						stage: 'deleting',
@@ -799,7 +754,6 @@ class ShopifyService {
 						total: 'unlimited'
 					});
 				}
-				console.log('🗑️  Deleting existing analytics from sync date onwards...');
 			}
 
 			var date = new Date();
@@ -837,7 +791,6 @@ class ShopifyService {
 				});
 			}
 
-			console.log('✅ Order sync completed');
 			
 			// Update sync tracking table
 			await common.updateSyncTracking('last_sync_date', date, this.storeId);
@@ -862,7 +815,6 @@ class ShopifyService {
 
 	async deleteOrdersFromDate(syncDate) {
 		try {
-			console.log(`🗑️  Attempting to delete orders from ${syncDate} onwards...`);
 
 			const { error } = await supabase
 				.from('orders')
@@ -879,7 +831,6 @@ class ShopifyService {
 				throw error;
 			}
 
-			console.log(`🗑️  Deleted orders from ${syncDate} onwards`);
 		} catch (error) {
 			console.error('❌ Error deleting orders from date:', {
 				message: error.message,
@@ -924,7 +875,6 @@ class ShopifyService {
 						
 						// Only update if the new order date is earlier
 						if (newDate < existingDate) {
-							console.log(`🔄 Updating first_order_date for customer ${customer.customer_id} from ${existingDate.toISOString()} to ${newDate.toISOString()}`);
 							customer.first_order_date = newDate.toISOString();
 						} else {
 							// Keep the existing first_order_date
@@ -949,7 +899,6 @@ class ShopifyService {
 				throw upsertError;
 			}
 
-			console.log(`✅ Successfully processed ${customers.length} customers with first_order_date logic`);
 		} catch (error) {
 			console.error('❌ Error processing customer chunk:', error);
 			throw error;

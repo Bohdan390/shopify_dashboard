@@ -267,10 +267,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
   };
 
   const selectMonth = (month) => {
-    console.log('selectMonth called with month:', month);
-    console.log('Current month before:', currentMonth);
     const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-    console.log('New month date:', newMonth);
     setCurrentMonth(newMonth);
     setShowMonthSelector(false);
   };
@@ -484,7 +481,6 @@ const CostOfGoods = () => {
   // Listen for sync completion from GlobalStoreSelector and refresh data
   useEffect(() => {
     if (syncCompleted > 0 || adsSyncCompleted > 0) {
-      console.log('🔄 Sync completed, refreshing CostOfGoods data...');
       fetchCostOfGoods(1, true);
     }
   }, [syncCompleted, adsSyncCompleted]);
@@ -832,10 +828,6 @@ const CostOfGoods = () => {
 
   // Pagination component
   const PaginationControls = () => {
-    console.log('🔍 PaginationControls called:', {
-      costOfGoodsLength: costOfGoods?.length,
-      pagination: pagination
-    });
     
     // Always show pagination when there's data, even if only 1 page
     if (!costOfGoods || costOfGoods.length === 0) return null;

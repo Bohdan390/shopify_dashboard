@@ -32,21 +32,17 @@ const GlobalStoreSelector = () => {
 		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
-			console.log('🔌 Connected to WebSocket server');
 		});
 
 		newSocket.on('syncProgress', (data) => {
-			console.log('📊 Sync progress:', data);
 			updateSyncProgress(data);
 		});
 
 		newSocket.on('adsSyncProgress', (data) => {
-			console.log('📊 Ads sync progress:', data);
 			updateSyncProgress(data);
 		});
 
 		newSocket.on('disconnect', () => {
-			console.log('🔌 Disconnected from WebSocket server');
 		});
 
 		setSocket(newSocket);
@@ -168,7 +164,6 @@ const GlobalStoreSelector = () => {
 			setSyncType('orders');
 			setSyncProgress(null); // Clear previous progress
 			setSyncStep('Starting orders sync...');
-			console.log('🔄 Syncing orders from Shopify...');
 
 			// Pass socket ID for real-time progress updates
 			const response = await axios.post('/api/shopify/sync-orders', {
@@ -177,7 +172,6 @@ const GlobalStoreSelector = () => {
 				socketId: socket?.id, // Pass socket ID for WebSocket communication
 				storeId: selectedStore // Pass selected store ID
 			});
-			console.log('✅ Orders synced successfully');
 
 			// Progress updates will come via WebSocket
 			// The syncStep will be updated by the WebSocket progress handler
@@ -204,15 +198,12 @@ const GlobalStoreSelector = () => {
 			setSyncType('ads');
 			setSyncProgress(null);
 			setSyncStep('Starting ads sync...');
-			console.log('🔄 Syncing ads from Google Ads...');
 
 			const response = await axios.post('/api/ads/sync-windsor', {
 				startDate: syncInfo.lastAdsSyncDate,
 				storeId: selectedStore,
 				socketId: socket?.id // Pass socket ID for real-time progress
 			});
-
-			console.log('✅ Ads sync initiated successfully');
 
 			// Progress updates will come via WebSocket
 			// The syncStep will be updated by the WebSocket progress handler

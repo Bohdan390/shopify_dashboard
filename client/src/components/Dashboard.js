@@ -152,10 +152,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 	};
 
 	const selectMonth = (month) => {
-		console.log('selectMonth called with month:', month);
-		console.log('Current month before:', currentMonth);
 		const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-		console.log('New month date:', newMonth);
 		setCurrentMonth(newMonth);
 		setShowMonthSelector(false);
 	};
@@ -391,28 +388,13 @@ const Dashboard = () => {
 				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
 				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
 
-				console.log('📅 Fetching custom range data for:', dateRange.startDate, 'to', dateRange.endDate, 'store:', selectedStore);
-				console.log('📅 Date types:', typeof dateRange.startDate, typeof dateRange.endDate);
-				console.log('📅 Start date object:', new Date(dateRange.startDate).toISOString());
-				console.log('📅 End date object:', new Date(dateRange.endDate).toISOString());
-
 				const [analyticsResponse, summaryResponse] = await Promise.all([
 					axios.get(analyticsUrl),
 					axios.get(summaryUrl)
 				]);
-
-				console.log('Custom range analytics response:', analyticsResponse.data);
-				console.log('Custom range summary response:', summaryResponse.data);
-
 				// Ensure we have valid data
 				const analyticsData = Array.isArray(analyticsResponse.data) ? analyticsResponse.data : [];
 				const summaryData = summaryResponse.data || {};
-
-				console.log('📊 Processed analytics data length:', analyticsData.length);
-				console.log('📊 First date in data:', analyticsData[0]?.date);
-				console.log('📊 Last date in data:', analyticsData[analyticsData.length - 1]?.date);
-				console.log('📊 All dates in data:', analyticsData.map(item => item.date));
-				console.log('📊 Processed summary data:', summaryData);
 
 				setDashboardData({
 					analytics: analyticsData,
@@ -442,7 +424,6 @@ const Dashboard = () => {
 				setChartsLoading(false);
 			}
 		} else {
-			console.log('Please select both start and end dates');
 		}
 	};
 
@@ -460,11 +441,9 @@ const Dashboard = () => {
 		setupSocketHandlers(newSocket);
 
 		newSocket.on('connect', () => {
-			console.log('🔌 Connected to WebSocket server');
 		});
 
 		newSocket.on('syncProgress', (data) => {
-			console.log('📊 Sync progress:', data);
 			setSyncProgress(data);
 
 			// Close sync modal immediately when sync starts
@@ -496,7 +475,6 @@ const Dashboard = () => {
 		});
 
 		newSocket.on('recalcProgress', (data) => {
-			console.log('📊 Recalc progress:', data);
 			setRecalcProgress(data);
 
 			// Update sync step based on progress
@@ -531,7 +509,6 @@ const Dashboard = () => {
 		});
 
 		newSocket.on('disconnect', () => {
-			console.log('🔌 Disconnected from WebSocket server');
 		});
 
 		setSocket(newSocket);
@@ -544,7 +521,6 @@ const Dashboard = () => {
 	// Listen for sync completion from GlobalStoreSelector and refresh dashboard data
 	useEffect(() => {
 		if (syncCompleted > 0 || adsSyncCompleted > 0) {
-			console.log('🔄 Sync completed, refreshing dashboard data...');
 			// Refresh dashboard data
 			if (dateRange.startDate && dateRange.endDate) {
 				handleDateRangeChange();
@@ -569,7 +545,6 @@ const Dashboard = () => {
 			setRefreshing(true);
 		} else if (chartsLoading) {
 			// If charts are already loading from date changes, don't set full page loading
-			console.log('📊 Charts already loading, skipping full page loading');
 		} else {
 			setLoading(true);
 		}
@@ -579,7 +554,6 @@ const Dashboard = () => {
 			if (showCustomDateRange) {
 				// Only fetch custom range data if both dates are set
 				if (!dateRange.startDate || !dateRange.endDate) {
-					console.log('Custom date range not fully set, skipping fetch');
 					if (showRefreshing) {
 						setRefreshing(false);
 					} else {
@@ -611,7 +585,6 @@ const Dashboard = () => {
 				setRefreshing(false);
 			} else if (chartsLoading) {
 				// Don't change chartsLoading here, it's managed by handleDateRangeChange
-				console.log('📊 Charts loading state preserved');
 			} else {
 				setLoading(false);
 			}
@@ -627,7 +600,6 @@ const Dashboard = () => {
 	// Listen for sync completion from GlobalStoreSelector
 	useEffect(() => {
 		if (syncCompleted > 0) {
-			console.log('🔄 Sync completed, refreshing dashboard data...');
 			fetchDashboardData();
 		}
 	}, [syncCompleted, fetchDashboardData]);
@@ -635,7 +607,6 @@ const Dashboard = () => {
 	// Listen for ads sync completion from GlobalStoreSelector
 	useEffect(() => {
 		if (adsSyncCompleted > 0) {
-			console.log('🔄 Ads sync completed, refreshing dashboard data...');
 			fetchDashboardData();
 		}
 	}, [adsSyncCompleted, fetchDashboardData]);
@@ -643,7 +614,6 @@ const Dashboard = () => {
 	// Watch for date range changes and fetch data automatically
 	useEffect(() => {
 		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
-			console.log('📅 Date range changed, fetching new data...');
 			handleDateRangeChange();
 		}
 	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
@@ -651,7 +621,6 @@ const Dashboard = () => {
 	// Watch for date range changes and fetch data automatically
 	useEffect(() => {
 		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
-			console.log('📅 Date range changed, fetching new data...');
 			handleDateRangeChange();
 		}
 	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
@@ -729,7 +698,6 @@ const Dashboard = () => {
 			setSyncing(true);
 			setRecalcProgress(null); // Clear previous progress
 			setSyncStep('Starting analytics recalculation...');
-			console.log('🔄 Recalculating analytics from', recalcDate);
 
 			// Pass socket ID for real-time progress updates
 			await axios.post('/api/analytics/recalculate', {
@@ -762,8 +730,6 @@ const Dashboard = () => {
 			setSyncing(true);
 			setSyncProgress(null); // Clear previous progress
 			setSyncStep('Starting sync...');
-			console.log('🔄 Syncing orders from Shopify...');
-
 			// Pass socket ID for real-time progress updates
 			const response = await axios.post('/api/shopify/sync-orders', {
 				syncDate: syncDate,
@@ -771,7 +737,6 @@ const Dashboard = () => {
 				socketId: socket?.id, // Pass socket ID for WebSocket communication
 				storeId: selectedStore // Pass selected store ID
 			});
-			console.log('✅ Orders synced successfully');
 
 			// Progress updates will come via WebSocket
 			// The syncStep will be updated by the WebSocket progress handler
@@ -1364,7 +1329,7 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Revenue"
 								dot={chartData.length <= 50}
-								activeDot={{ r: 6, stroke: '#1d4ed8', strokeWidth: 2 }}
+								activeDot={{ r: 4, stroke: '#1d4ed8', strokeWidth: 2 }}
 								animationDuration={1000}
 							/>
 							<Line
@@ -1374,7 +1339,7 @@ const Dashboard = () => {
 								strokeWidth={2}
 								name="Ad Spend"
 								dot={chartData.length <= 50}
-								activeDot={{ r: 6, stroke: '#dc2626', strokeWidth: 2 }}
+								activeDot={{ r: 4, stroke: '#dc2626', strokeWidth: 2 }}
 								animationDuration={1000}
 							/>
 
@@ -1443,7 +1408,6 @@ const Dashboard = () => {
 								animationDuration={1000}
 								onMouseEnter={(data, index) => {
 									// Enhanced hover effect
-									console.log('Google Ads hover:', data);
 								}}
 							/>
 							<Bar
@@ -1454,7 +1418,6 @@ const Dashboard = () => {
 								animationDuration={1000}
 								onMouseEnter={(data, index) => {
 									// Enhanced hover effect
-									console.log('Facebook Ads hover:', data);
 								}}
 							/>
 						</BarChart>
@@ -1519,7 +1482,6 @@ const Dashboard = () => {
 								animationDuration={1000}
 								onMouseEnter={(data, index) => {
 									// Enhanced hover effect
-									console.log('Profit hover:', data);
 								}}
 							/>
 
@@ -1564,7 +1526,6 @@ const Dashboard = () => {
 								animationDuration={1000}
 								onMouseEnter={(entry, index) => {
 									// Enhanced hover effect
-									console.log('Pie chart hover:', entry);
 								}}
 							>
 								{[
@@ -2028,7 +1989,6 @@ const Dashboard = () => {
 						isOpen={showStartCalendar}
 						onClose={() => setShowStartCalendar(false)}
 						onDateSelect={(date) => {
-							console.log('Start date selected:', date);
 							setDateRange(prev => ({ ...prev, startDate: date }));
 						}}
 						selectedDate={dateRange.startDate}
@@ -2039,7 +1999,6 @@ const Dashboard = () => {
 						isOpen={showEndCalendar}
 						onClose={() => setShowEndCalendar(false)}
 						onDateSelect={(date) => {
-							console.log('End date selected:', date);
 							setDateRange(prev => ({ ...prev, endDate: date }));
 						}}
 						selectedDate={dateRange.endDate}
@@ -2050,7 +2009,6 @@ const Dashboard = () => {
 						isOpen={showSyncCalendar}
 						onClose={() => setShowSyncCalendar(false)}
 						onDateSelect={(date) => {
-							console.log('Sync date selected:', date);
 							setSyncDate(date);
 						}}
 						selectedDate={syncDate}
@@ -2224,7 +2182,6 @@ const Dashboard = () => {
 				isOpen={showRecalcCalendar}
 				onClose={() => setShowRecalcCalendar(false)}
 				onDateSelect={(date) => {
-					console.log('Recalc date selected:', date);
 					setRecalcDate(date);
 				}}
 				selectedDate={recalcDate}

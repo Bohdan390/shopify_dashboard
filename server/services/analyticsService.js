@@ -13,7 +13,6 @@ const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
 				throw error;
 			}
 
-			console.log(`🔄 Retrying in ${delay}ms... (${attempt}/${maxRetries})`);
 			await new Promise(resolve => setTimeout(resolve, delay));
 			delay *= 2; // Exponential backoff
 		}
@@ -23,9 +22,6 @@ const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
 class AnalyticsService {
 	async calculateDailyAnalytics(date, storeId = 'buycosari') {
 		try {
-			console.log(`  📊 Calculating analytics for ${date}...`);
-
-			console.log('Calculating analytics for ' + date + ' for store ' + storeId, 123123123);
 			// Get revenue for the date
 			const { data: revenueData, error: revenueError } = await supabase
 				.from('orders')
@@ -37,8 +33,6 @@ class AnalyticsService {
 
 			if (revenueError) throw revenueError;
 			const revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
-
-			console.log(`    💰 Found ${revenueData.length} paid orders with revenue $${revenue}`);
 
 			// Get Google Ads spend
 			const { data: googleAdsData, error: googleAdsError } = await supabase
@@ -113,7 +107,6 @@ class AnalyticsService {
 					throw insertError;
 				}
 
-				console.log(`✅ Analytics updated for ${date}`);
 			} catch (error) {
 				console.error(`❌ Error updating analytics for ${date}:`, error);
 				throw error;
@@ -136,8 +129,6 @@ class AnalyticsService {
 
 	async getAnalyticsRange(startDate, endDate, storeId = 'buycosari') {
 		try {
-			console.log(`📊 Fetching analytics range: ${startDate} to ${endDate} for store: ${storeId}`);
-
 			return await retryOperation(async () => {
 
 				const { data, error } = await supabase
@@ -153,12 +144,8 @@ class AnalyticsService {
 					throw error;
 				}
 
-				console.log(`📊 Found ${data.length} analytics records in database`);
-
 				// Generate complete date range with $0 values for missing days
 				const completeData = this.generateCompleteDateRange(startDate, endDate, data);
-
-				console.log(`📊 Generated ${completeData.length} complete date entries (including missing days)`);
 
 				return completeData;
 			});
@@ -220,8 +207,6 @@ class AnalyticsService {
 
 	async getSummaryStats(startDate, endDate, storeId = 'buycosari') {
 		try {
-			console.log(`🔍 Getting summary stats for ${startDate} to ${endDate} for store: ${storeId}`);
-
 			return await retryOperation(async () => {
 				// Get analytics data with chunking
 				let allAnalyticsData = [];
@@ -246,7 +231,6 @@ class AnalyticsService {
 					if (analyticsChunk && analyticsChunk.length > 0) {
 						allAnalyticsData = allAnalyticsData.concat(analyticsChunk);
 						offset += chunkSize;
-						console.log(`📊 Fetched analytics chunk: ${analyticsChunk.length} records (offset: ${offset - chunkSize})`);
 					} else {
 						hasMoreData = false;
 					}
@@ -292,7 +276,6 @@ class AnalyticsService {
 					? (summary.totalProfit / summary.totalRevenue) * 100
 					: 0;
 
-				console.log('✅ Summary stats calculated successfully (with chunking)');
 				return summary;
 			});
 		} catch (error) {
@@ -309,8 +292,6 @@ class AnalyticsService {
 
 	async recalculateAllAnalytics(socket = null) {
 		try {
-			console.log('🔄 Recalculating all analytics...');
-
 			if (socket) {
 				socket.emit('recalcProgress', {
 					stage: 'starting',
@@ -354,8 +335,6 @@ class AnalyticsService {
 
 			for (let i = 0; i < uniqueDates.length; i++) {
 				const date = uniqueDates[i];
-				console.log(`🔄 Calculating analytics for ${date}... (${i + 1}/${uniqueDates.length})`);
-
 				if (socket) {
 					const progress = 10 + Math.floor((i / uniqueDates.length) * 80); // Progress from 10% to 90%
 					socket.emit('recalcProgress', {
@@ -380,7 +359,6 @@ class AnalyticsService {
 				});
 			}
 
-			console.log('✅ Analytics recalculation completed');
 		} catch (error) {
 			console.error('❌ Error recalculating analytics:', error);
 
@@ -400,7 +378,6 @@ class AnalyticsService {
 
 	async recalculateAnalyticsFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari') {
 		try {
-			console.log(`🔄 Recalculating analytics from ${syncDate} onwards...`);
 			if (socket) {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 				const initialProgress = isStandaloneRecalc ? 0 : 95;
@@ -438,7 +415,6 @@ class AnalyticsService {
 			if (maxDateError) throw maxDateError;
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
-				console.log('📭 No orders found from sync date, skipping analytics recalculation');
 				if (socket) {
 					socket.emit('recalcProgress', {
 						stage: 'completed',
@@ -463,8 +439,6 @@ class AnalyticsService {
 
 			for (let i = 0; i < allDates.length; i++) {
 				const date = allDates[i];
-				console.log(`🔄 Calculating analytics for ${date}... (${i + 1}/${allDates.length})`);
-
 				if (socket) {
 					const progress = isStandaloneRecalc
 						? Math.floor(((i + 1) / allDates.length) * 100) // Progress from 0% to 100% for standalone
@@ -497,7 +471,6 @@ class AnalyticsService {
 				});
 			}
 
-			console.log('✅ Analytics recalculation from sync date completed');
 		} catch (error) {
 			console.error('❌ Error recalculating analytics from sync date:', error);
 
@@ -525,8 +498,6 @@ class AnalyticsService {
 			sortOrder = 'desc'
 		} = options;
 
-		console.log(`📊 Calculating monthly product SKU analytics for ${storeId} from ${startDate} to ${endDate}`);
-
 		// Use the retryOperation helper for database resilience
 		return retryOperation(async () => {
 			try {
@@ -543,15 +514,12 @@ class AnalyticsService {
 				if (productTrendsError) throw productTrendsError;
 
 				if (!productTrends || productTrends.length === 0) {
-					console.log('📭 No product trends data found for the specified date range');
 					return {
 						success: true,
 						data: {},
 						message: 'No product trends data found for the specified date range'
 					};
 				}
-
-				console.log(`✅ Found ${productTrends.length} product trends records`);
 
 				// Group data by product SKU
 				const groupedBySku = {};
@@ -588,8 +556,6 @@ class AnalyticsService {
 					sortedData[sku] = groupedBySku[sku];
 				});
 
-				console.log(`✅ Processed ${Object.keys(sortedData).length} product SKUs`);
-
 				return {
 					success: true,
 					data: sortedData,
@@ -607,7 +573,6 @@ class AnalyticsService {
 	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari') {
 		try {
 			syncDate = common.createLocalDate(syncDate).toISOString().split('T')[0];
-			console.log(`🔄 Recalculating ORDERS ONLY from ${syncDate} onwards for store: ${storeId}`);
 			let initialProgress = 0;
 			if (socket) {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
@@ -645,7 +610,6 @@ class AnalyticsService {
 			if (maxDateError) throw maxDateError;
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
-				console.log('📭 No orders found from sync date, skipping orders recalculation');
 				if (socket) {
 					const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 					socket.emit(eventType, {
@@ -667,8 +631,6 @@ class AnalyticsService {
 				allDates.push(currentDate.toISOString().split('T')[0]);
 				currentDate.setDate(currentDate.getDate() + 1);
 			}
-
-			console.log(`📊 Processing ${allDates.length} days for orders-only recalculation`);
 
 			// Process each date - ORDERS ONLY (no ads, no COGS)
 			let processedCount = 0;
@@ -705,7 +667,6 @@ class AnalyticsService {
 						existingGoogleAds = parseFloat(existingAnalytics.google_ads_spend) || 0;
 						existingFacebookAds = parseFloat(existingAnalytics.facebook_ads_spend) || 0;
 						existingCOGS = parseFloat(existingAnalytics.cost_of_goods) || 0;
-						console.log(`    📊 Found existing analytics: ads $${existingGoogleAds + existingFacebookAds}, COGS $${existingCOGS}`);
 					}
 
 					const totalAdSpend = existingGoogleAds + existingFacebookAds;
@@ -748,15 +709,11 @@ class AnalyticsService {
 						});
 					}
 
-					console.log(`✅ Orders-only analytics updated for ${date}: $${revenue.toFixed(2)} revenue, $${profit.toFixed(2)} profit`);
-
 				} catch (dateError) {
 					console.error(`❌ Error processing orders for ${date}:`, dateError);
 					// Continue with next date instead of failing completely
 				}
 			}
-
-			console.log(`✅ Orders-only recalculation completed: ${processedCount}/${allDates.length} days processed`);
 
 			if (socket) {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
@@ -799,8 +756,6 @@ class AnalyticsService {
 
 	// Product Analytics - Match campaigns to products based on order line items
 	async calculateProductAnalytics(startDate, endDate, options = {}) {
-		console.log(startDate + 'T00:00:00', endDate + 'T23:59:59.999')
-		
 		const {
 			storeId = 'buycosari',
 			sortBy = 'total_revenue',
@@ -977,8 +932,6 @@ class AnalyticsService {
 
 	async calculateAdsOnlyAnalytics(date, storeId = 'buycosari') {
 		try {
-			console.log(`  📊 Calculating ads-only analytics for ${date} (store: ${storeId})...`);
-
 			// Get Google Ads spend
 			const { data: adsData, error: adsError } = await supabase
 				.from('ad_spend_detailed')
@@ -997,7 +950,6 @@ class AnalyticsService {
 					faceBookAdsData.push(ad);
 				}
 			});
-			console.log(adsData[0].platform, googleAdsData.length, faceBookAdsData.length, 555555)
 			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
@@ -1005,8 +957,6 @@ class AnalyticsService {
 			// Calculate total ad spend
 			let totalAdSpend = googleAdsSpend + facebookAdsSpend;
 			totalAdSpend = common.roundPrice(totalAdSpend);
-
-			console.log(`    💰 Found Google Ads spend: $${googleAdsSpend}, Facebook Ads spend: $${facebookAdsSpend}, Total: $${totalAdSpend}`);
 
 			// Check if analytics record exists for this date and store
 			const { data: existingAnalytics, error: checkError } = await supabase
@@ -1030,7 +980,6 @@ class AnalyticsService {
 				existingCostOfGoods = parseFloat(existingAnalytics.cost_of_goods) || 0;
 				revenue = common.roundPrice(revenue);
 				existingCostOfGoods = common.roundPrice(existingCostOfGoods);
-				console.log(`    📊 Found existing analytics: revenue $${revenue}, cost of goods $${existingCostOfGoods}`);
 			}
 
 			// Use the higher cost of goods value (existing or new)
@@ -1052,7 +1001,6 @@ class AnalyticsService {
 
 			// Use upsert to update existing record or create new one
 			try {
-				console.log(analyticsData, 123);
 				const { error: upsertError } = await supabase
 					.from('analytics')
 					.upsert(analyticsData, { 
@@ -1065,7 +1013,6 @@ class AnalyticsService {
 					throw upsertError;
 				}
 
-				console.log(`✅ Ads analytics updated for ${date} (store: ${storeId}, revenue: $${revenue}, profit: $${profit})`);
 			} catch (error) {
 				console.error(`❌ Error updating analytics for ${date} (store: ${storeId}):`, error);
 				throw error;
@@ -1087,11 +1034,6 @@ class AnalyticsService {
 
 	async recalculateAdsOnlyAnalytics(socket = null, eventType = 'recalcProgress', startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
-			console.log(`🔄 Recalculating ads-only analytics for store: ${storeId}...`);
-			if (startDate && endDate) {
-				console.log(`📅 Date range: ${startDate} to ${endDate}`);
-			}
-
 			if (socket) {
 				socket.emit(eventType, {
 					stage: 'starting',
@@ -1114,8 +1056,6 @@ class AnalyticsService {
 
 			const { count, error: countError } = await countQuery;
 			if (countError) throw countError;
-
-			console.log(`📊 Total records to process for store ${storeId}: ${count || 0}`);
 
 			if (socket) {
 				socket.emit(eventType, {
@@ -1150,8 +1090,6 @@ class AnalyticsService {
 				if (chunkError) throw chunkError;
 
 				allDates.push(...(chunkData || []));
-				console.log(`📊 Fetched chunk ${i + 1}/${totalChunks} for store ${storeId}: ${chunkData?.length || 0} records`);
-
 				if (socket) {
 					const fetchProgress = 5 + Math.floor(((i + 1) / totalChunks) * 15); // Progress from 5% to 20%
 					socket.emit(eventType, {
@@ -1166,11 +1104,6 @@ class AnalyticsService {
 
 			const uniqueDates = [...new Set(allDates.map(ad => ad.date))].sort();
 
-			console.log(`📊 Unique dates found for store ${storeId}: ${uniqueDates.length}`);
-			if (uniqueDates.length > 0) {
-				console.log(`📊 Date range for store ${storeId}: ${uniqueDates[0]} to ${uniqueDates[uniqueDates.length - 1]}`);
-			}
-
 			if (socket) {
 				socket.emit(eventType, {
 					stage: 'processing',
@@ -1182,7 +1115,6 @@ class AnalyticsService {
 
 			for (let i = 0; i < uniqueDates.length; i++) {
 				const date = uniqueDates[i];
-				console.log(`🔄 Calculating ads-only analytics for ${date} (store: ${storeId})... (${i + 1}/${uniqueDates.length})`);
 
 				if (socket) {
 					const progress = 25 + Math.floor(((i + 1) / uniqueDates.length) * 75); // Progress from 20% to 95%
@@ -1209,7 +1141,6 @@ class AnalyticsService {
 				});
 			}
 
-			console.log(`✅ Ads-only analytics recalculation completed for store: ${storeId}`);
 		} catch (error) {
 			console.error(`❌ Error recalculating ads-only analytics for store ${storeId}:`, error);
 
@@ -1233,7 +1164,6 @@ class AnalyticsService {
 
 	async calculateAndStoreProductTrends(startDate, endDate, storeId = 'buycosari') {
 		try {
-			console.log(`📊 Calculating and storing product trends for ${storeId} from ${startDate} to ${endDate}`);
 			
 			// Get all unique dates in the range
 			const start = new Date(startDate);
@@ -1256,13 +1186,9 @@ class AnalyticsService {
 				monthlyGroups[monthYear].push(date);
 			});
 
-			console.log(`📅 Processing ${Object.keys(monthlyGroups).length} months`);
-
 			// Process each month
 			for (const [monthYear, dates] of Object.entries(monthlyGroups)) {
 				const [year, month] = monthYear.split('-').map(Number);
-				console.log(`🔄 Processing month: ${monthYear} (${dates.length} days)`);
-
 				// Calculate monthly product analytics
 				const monthlyData = await this.calculateMonthlyProductSkuAnalytics(
 					dates[0], 
@@ -1274,7 +1200,6 @@ class AnalyticsService {
 				await this.storeMonthlyProductTrends(monthlyData, monthYear, month, year, storeId);
 			}
 
-			console.log(`✅ Product trends calculated and stored for ${storeId}`);
 			return { success: true, monthsProcessed: Object.keys(monthlyGroups).length };
 
 		} catch (error) {
@@ -1312,8 +1237,6 @@ class AnalyticsService {
 				throw upsertError;
 			}
 
-			console.log(`✅ Stored ${trendsData.length} product trends for ${monthYear}`);
-
 		} catch (error) {
 			console.error(`❌ Error storing monthly product trends for ${monthYear}:`, error);
 			throw error;
@@ -1322,8 +1245,6 @@ class AnalyticsService {
 
 	async recalculateAllProductTrends(socket = null, startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
-			console.log(`🔄 Starting full product trends recalculation for ${storeId}`);
-			
 			if (socket) {
 				socket.emit('productTrendsProgress', {
 					stage: 'starting',
@@ -1395,7 +1316,6 @@ class AnalyticsService {
 					.lte('created_at', `${date}-${lastDay}T23:59:59.999`)
 					.neq('financial_status', 'refunded')
 					.neq('financial_status', 'cancelled');
-				console.log(`${date}-01T00:00:00`, `${date}-${lastDay}T23:59:59.999`, orderCount, storeId);
 
 				var orderLineData = [], adsData = [], cogsData = [];
 
@@ -1487,7 +1407,6 @@ class AnalyticsService {
 
 				for (var i = 0; i < monthlyProductTrends.length; i += chunk) {
 					const {insertError} = await supabase.from('product_trends').insert(monthlyProductTrends.slice(i, i + chunk));
-					console.log(insertError, 333333)
 					if (insertError) {
 						console.error('❌ Error inserting product trends:', insertError);
 						throw insertError;
@@ -1514,7 +1433,6 @@ class AnalyticsService {
 				});
 			}
 
-			console.log(`✅ Full product trends recalculation completed for ${storeId}`);
 			return { success: true, message: 'Product trends recalculated successfully' };
 
 		} catch (error) {
@@ -1542,8 +1460,6 @@ class AnalyticsService {
 			timeframe = 'month' // 'month', 'quarter'
 		} = options;
 
-		console.log(`📊 Calculating individual product cohort analytics for ${storeId} from ${startDate} to ${endDate}`);
-		console.log(`📈 Metric: ${metric}, Timeframe: ${timeframe}`);
 
 		// Use the retryOperation helper for database resilience
 		return retryOperation(async () => {
@@ -1560,7 +1476,6 @@ class AnalyticsService {
 				if (firstDateError) throw firstDateError;
 
 				if (!productFirstDates || productFirstDates.length === 0) {
-					console.log('📭 No product trends data found for cohort analysis');
 					return {
 						success: true,
 						data: [],
@@ -1568,8 +1483,6 @@ class AnalyticsService {
 						message: 'No product trends data found for cohort analysis'
 					};
 				}
-
-				console.log(`✅ Found ${productFirstDates.length} product trend records`);
 
 				// Find first appearance for each product
 				const productFirstAppearance = {};
@@ -1584,7 +1497,6 @@ class AnalyticsService {
 
 				// Get unique products
 				const uniqueProducts = Object.keys(productFirstAppearance);
-				console.log(`📦 Found ${uniqueProducts.length} unique products`);
 
 				// Calculate individual product performance month-over-month
 				const individualProductData = [];
@@ -1694,9 +1606,6 @@ class AnalyticsService {
 					topPerformer: individualProductData[0]?.productSku || 'N/A',
 					topPerformerValue: individualProductData[0]?.totalValue || 0
 				};
-
-				console.log(`✅ Successfully processed ${individualProductData.length} individual products`);
-				console.log(`📊 Summary: ${summaryStats.totalProducts} products, Avg first month: ${summaryStats.averageFirstMonth.toFixed(2)}`);
 
 				return {
 					success: true,

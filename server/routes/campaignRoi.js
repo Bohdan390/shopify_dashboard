@@ -78,7 +78,6 @@ router.post('/recalculate-all', async (req, res) => {
     // Start the recalculation process
     campaignRoiService.recalculateAllCampaignRoi()
       .then(() => {
-        console.log('Campaign ROI recalculation completed successfully');
       })
       .catch((error) => {
         console.error('Campaign ROI recalculation failed:', error);

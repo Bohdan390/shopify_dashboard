@@ -83,7 +83,6 @@ const CampaignRoi = () => {
   // Listen for ads sync completion from GlobalStoreSelector
   useEffect(() => {
     if (adsSyncCompleted > 0) {
-      console.log('🔄 Ads sync completed, refreshing campaign ROI data...');
       if (activeTab === 'summary') {
         fetchCampaignRoiSummary();
       } else {

@@ -246,7 +246,6 @@ const CustomerLTV = () => {
     // Listen for sync completion from GlobalStoreSelector and refresh data
     useEffect(() => {
         if (syncCompleted > 0 || adsSyncCompleted > 0) {
-            console.log('🔄 Sync completed, refreshing CustomerLTV data...');
             if (selectedStore) {
                 fetchCustomerLtvAnalytics();
             }
@@ -270,12 +269,10 @@ const CustomerLTV = () => {
 		setupSocketHandlers(newSocket);
 
         newSocket.on('connect', () => {
-            console.log('🔌 Connected to WebSocket server (Customers)');
             setSocket(newSocket);
         });
 
         newSocket.on('syncProgress', (data) => {
-            console.log('📊 LTV Sync progress:', data);
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
@@ -299,7 +296,6 @@ const CustomerLTV = () => {
         });
 
         newSocket.on('disconnect', () => {
-            console.log('🔌 Disconnected from WebSocket server (Customers)');
             setSocket(null);
         });
 
@@ -353,7 +349,6 @@ const CustomerLTV = () => {
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 10 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 10 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            console.log(startDate, endDate, "startDate, endDate")
             const response = await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
                 startDate,
                 endDate,

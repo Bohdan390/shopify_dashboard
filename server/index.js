@@ -40,10 +40,8 @@ const { supabase } = require('./config/database-supabase');
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
-  console.log('🔌 Client connected:', socket.id);
   
   socket.on('disconnect', () => {
-    console.log('🔌 Client disconnected:', socket.id);
   });
 });
 
@@ -61,17 +59,12 @@ app.use('/api/customers', require('./routes/customers'));
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '../client/build');
-console.log('🔍 Build path:', buildPath);
-console.log('🔍 Build directory exists:', require('fs').existsSync(buildPath));
 
 app.use(express.static(buildPath));
 
 // Catch-all handler: send back React's index.html file for any non-API routes
 app.get('*', (req, res) => {
-  console.log('🔍 Serving route:', req.path);
   const indexPath = path.join(buildPath, 'index.html');
-  console.log('🔍 Index file path:', indexPath);
-  console.log('🔍 Index file exists:', require('fs').existsSync(indexPath));
   
   if (require('fs').existsSync(indexPath)) {
     res.sendFile(indexPath);
@@ -98,5 +91,4 @@ app.use((err, req, res, next) => {
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🔌 WebSocket server ready for real-time updates`);
 }); 
