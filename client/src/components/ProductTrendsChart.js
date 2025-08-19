@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { TrendingUp, DollarSign, BarChart3, Calendar, RefreshCw, Grid, BarChart, Download, Filter, Search } from 'lucide-react';
+import { TrendingUp, DollarSign, BarChart3, Calendar, RefreshCw, Grid, BarChart, Download, Search } from 'lucide-react';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 
