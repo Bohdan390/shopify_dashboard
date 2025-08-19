@@ -9,10 +9,7 @@ services:
     environment_slug: node-js
     instance_count: 1
     instance_size_slug: basic-xxs
-    build_command: |
-      npm ci --ignore-scripts
-      cd client && npm ci --ignore-scripts
-      cd client && npm run build
+    build_command: chmod +x build.sh && ./build.sh
     envs:
       - key: NODE_ENV
         value: production
