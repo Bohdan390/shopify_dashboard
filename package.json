@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Shopify Revenue and Profit Dashboard",
   "main": "server/index.js",
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
