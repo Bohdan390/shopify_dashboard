@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
+const fs = require('fs');
 // const rateLimit = require('express-rate-limit'); // No longer needed
 const http = require('http');
 const socketIo = require('socket.io');
@@ -56,6 +58,32 @@ app.use('/api/ads', require('./routes/ads'));
 app.use('/api/campaign-roi', require('./routes/campaignRoi'));
 app.use('/api/product-groups', require('./routes/productGroups'));
 app.use('/api/customers', require('./routes/customers'));
+
+// Serve static files from React build
+const buildPath = path.join(__dirname, '../client/build');
+console.log('🔍 Build path:', buildPath);
+console.log('🔍 Build directory exists:', require('fs').existsSync(buildPath));
+
+app.use(express.static(buildPath));
+
+// Catch-all handler: send back React's index.html file for any non-API routes
+app.get('*', (req, res) => {
+  console.log('🔍 Serving route:', req.path);
+  const indexPath = path.join(buildPath, 'index.html');
+  console.log('🔍 Index file path:', indexPath);
+  console.log('🔍 Index file exists:', require('fs').existsSync(indexPath));
+  
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ 
+      error: 'React build files not found',
+      buildPath,
+      indexPath,
+      files: require('fs').readdirSync(buildPath)
+    });
+  }
+});
 
 // Health check
 app.get('/health', (req, res) => {
