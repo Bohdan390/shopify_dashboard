@@ -53,6 +53,10 @@ function roundPrice(price) {
     return Number(price.toFixed(2));
 }
 
+const hasNumberX = (str) => {
+    return /\d+x/i.test(str);
+};
+
 async function updateSyncTracking(fieldName, now = new Date(), storeId) {
     try {
         now = now.toISOString();
@@ -78,5 +82,6 @@ async function updateSyncTracking(fieldName, now = new Date(), storeId) {
 }
 
 module.exports = {
-    createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime, diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths
+    createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
+    diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX
 }

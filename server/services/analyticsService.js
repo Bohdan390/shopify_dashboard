@@ -571,13 +571,12 @@ class AnalyticsService {
 	}
 
 	// Lightweight orders-only recalculation (no ads, no COGS)
-	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari') {
+	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari', socketStatus = null) {
 		try {
 			syncDate = common.createLocalDate(syncDate).toISOString().split('T')[0];
 			let initialProgress = 0;
 			if (socket) {
-				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
-				initialProgress = isStandaloneRecalc ? 0 : 95;
+				const eventType = isStandaloneRecalc ? 'recalcProgress' : socketStatus;
 				initialProgress = 0;
 				socket.emit(eventType, {
 					stage: isStandaloneRecalc ? 'starting' : 'analytics',
@@ -762,12 +761,6 @@ class AnalyticsService {
 			sortBy = 'total_revenue',
 			sortOrder = 'desc',
 			search = '',
-			minRevenue = null,
-			maxRevenue = null,
-			minProfit = null,
-			maxProfit = null,
-			minROI = null,
-			maxROI = null,
 			page = 1,
 			limit = 50
 		} = options;
@@ -781,6 +774,7 @@ class AnalyticsService {
 
 		if (productRevenueError) throw productRevenueError;
 
+		console.log(productRevenue)
 		var productSkus = [];
 
 		productRevenue.forEach(product => {
@@ -845,6 +839,12 @@ class AnalyticsService {
 					});
 				}
 				else {
+					if (product.product_title.includes("x")) {
+						console.log(product.product_title)
+					}
+					if (common.hasNumberX(product.product_title)) {
+						productSkus.get(productSku).sku_title = common.extractProductSku(product.product_title);
+					}
 					productSkus.get(productSku).total_revenue += common.roundPrice(product.total_revenue);
 					productSkus.get(productSku).order_count += product.order_count;
 					if (product.campaigns != undefined) {
@@ -1033,7 +1033,7 @@ class AnalyticsService {
 		}
 	}
 
-	async recalculateAdsOnlyAnalytics(socket = null, eventType = 'recalcProgress', startDate = null, endDate = null, storeId = 'buycosari') {
+	async recalculateAdsOnlyAnalytics(socket = null, eventType = '', startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
 			if (socket) {
 				socket.emit(eventType, {

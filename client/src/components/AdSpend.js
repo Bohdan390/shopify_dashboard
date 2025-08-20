@@ -323,6 +323,7 @@ const AdSpend = () => {
 
 	const { selectedStore, adsSyncCompleted } = useStore();
 	const [adSpendData, setAdSpendData] = useState([]);
+	const [campaigns, setCampaigns] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [dateRange, setDateRange] = useState(() => {
@@ -683,6 +684,7 @@ const AdSpend = () => {
 			setSyncProgress({ stage: 'starting', message: `Starting Windsor.ai sync for ${selectedStore}...`, progress: 0 });
 
 			await axios.post('/api/ads/sync-windsor', {
+				from: "dashboard",
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
 				storeId: selectedStore,
