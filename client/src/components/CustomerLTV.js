@@ -241,7 +241,7 @@ const CustomerLTV = () => {
         }
     }, [ltvSyncSuccess]);
     // Get socket from context
-    const { socket, checkSocketHealth } = useSocket();
+    const { socket, checkSocketHealth, testSocket, emitEvent, selectStore } = useSocket();
 
     // WebSocket event handlers
     useEffect(() => {
@@ -276,6 +276,12 @@ const CustomerLTV = () => {
     // Select store for socket when component mounts
     useEffect(() => {
         if (!socket) return;
+        
+        // Select store for this socket connection
+        if (selectedStore) {
+            selectStore(selectedStore);
+        }
+        
         socket.on('syncProgress', (data) => {
             console.log(data)
             if (data.stage && data.stage === 'calculating') {
@@ -310,7 +316,7 @@ const CustomerLTV = () => {
                 socket.off('syncProgress');
             }
         };
-    }, [socket]);
+    }, [socket, selectedStore, selectStore]);
 
     // Fetch product SKUs
     const fetchProductSkus = async () => {
@@ -512,16 +518,38 @@ const CustomerLTV = () => {
                                     <span className="text-xs text-gray-500">ID: {socket.id}</span>
                                 )}
                             </div>
-                            <button
-                                onClick={() => {
-                                    const health = checkSocketHealth();
-                                    console.log('🔌 Socket Health Check:', health);
-                                    alert(`Socket Health:\n${JSON.stringify(health, null, 2)}`);
-                                }}
-                                className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                            >
-                                Debug Socket
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        const health = checkSocketHealth();
+                                        console.log('🔌 Socket Health Check:', health);
+                                        alert(`Socket Health:\n${JSON.stringify(health, null, 2)}`);
+                                    }}
+                                    className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                                >
+                                    Debug Socket
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const result = testSocket();
+                                        console.log('🧪 Test Result:', result);
+                                        alert(`Test Result: ${result}`);
+                                    }}
+                                    className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                                >
+                                    Test Socket
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const result = emitEvent('selectStore', selectedStore);
+                                        console.log('📡 Emit Result:', result);
+                                        alert(`Emit Result: ${result}`);
+                                    }}
+                                    className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
+                                >
+                                    Emit selectStore
+                                </button>
+                            </div>
                         </div>
                     </div>
 

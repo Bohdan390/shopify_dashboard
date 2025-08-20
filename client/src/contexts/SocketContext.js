@@ -15,28 +15,26 @@ export const useSocket = () => {
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const { selectedStore } = useStore();
+  const [socketId, setSocketId] = useState(null);
 
   useEffect(() => {
-    // Determine the socket URL based on environment
+    // Create socket connection ONLY ONCE when app loads
     const getSocketUrl = () => {
       if (process.env.NODE_ENV === 'production') {
-        // In production, use the same domain as the current page
         return window.location.origin;
       }
-      // In development, use localhost
       return 'http://localhost:5000';
     };
 
     const socketUrl = getSocketUrl();
-    console.log('🔌 Creating socket connection to:', socketUrl);
+    console.log('🔌 Creating SINGLE socket connection to:', socketUrl);
 
     const newSocket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
       rememberUpgrade: true,
       timeout: 20000,
-      forceNew: true,
+      forceNew: false, // Don't force new connection
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -47,14 +45,20 @@ export const SocketProvider = ({ children }) => {
 
     // Socket event handlers
     newSocket.on('connect', () => {
-      console.log('🔌 Socket connected:', newSocket.id, selectedStore);
+      console.log('🔌 Socket connected:', newSocket.id);
+      setSocketId(newSocket.id);
+      
       console.log('🔌 Socket health check:', {
         id: newSocket.id,
         connected: newSocket.connected,
         readyState: newSocket.readyState,
         transport: newSocket.io?.engine?.transport?.name
       });
-      selectStore(newSocket, selectedStore);
+      
+      // Test if socket is actually working
+      console.log('🧪 Testing socket functionality...');
+      newSocket.emit('test', { message: 'Client socket test', timestamp: Date.now() });
+      
       setIsConnected(true);
     });
 
@@ -70,6 +74,11 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('welcome', (data) => {
       console.log('🔌 Welcome message:', data);
+    });
+
+    // Test response listener
+    newSocket.on('testResponse', (data) => {
+      console.log('✅ Server responded to test:', data);
     });
 
     newSocket.on('autoSyncProgress', (data) => {
@@ -97,9 +106,10 @@ export const SocketProvider = ({ children }) => {
   }, []);
 
   // Function to select store for this socket connection
-  const selectStore = (_socket, storeId) => {
-    if (_socket) {
-      _socket.emit('selectStore', storeId);
+  const selectStore = (storeId) => {
+    if (socket && socket.connected) {
+      console.log(`🏪 Emitting selectStore event for store: ${storeId}`);
+      socket.emit('selectStore', storeId);
       console.log(`🏪 Socket selected store: ${storeId}`);
     }
   };
@@ -107,6 +117,8 @@ export const SocketProvider = ({ children }) => {
   const value = {
     socket,
     isConnected,
+    socketId,
+    selectStore,
     // Socket health check function
     checkSocketHealth: () => {
       if (socket) {
@@ -120,6 +132,26 @@ export const SocketProvider = ({ children }) => {
         };
       }
       return null;
+    },
+    // Manual test functions
+    testSocket: () => {
+      if (socket && socket.connected) {
+        console.log('🧪 Manual socket test...');
+        socket.emit('test', { 
+          message: 'Manual test from client', 
+          timestamp: Date.now()
+        });
+        return 'Test event emitted';
+      }
+      return 'Socket not ready';
+    },
+    emitEvent: (eventName, data) => {
+      if (socket && socket.connected) {
+        console.log(`📡 Emitting ${eventName}:`, data);
+        socket.emit(eventName, data);
+        return `Event ${eventName} emitted`;
+      }
+      return 'Socket not ready';
     }
   };
 
