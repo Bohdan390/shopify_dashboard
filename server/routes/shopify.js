@@ -23,28 +23,9 @@ router.post('/sync-orders', async (req, res) => {
     var socketStatus = from == "dashboard" ? "dashboard_syncProgress" : "global_syncProgress";
 
     // Step 1: Sync orders from Shopify with real-time progress
-    const ordersCount = await storeService.syncOrders(parseInt(limit), syncDate, socket, socketStatus);
+    await storeService.syncOrders(parseInt(limit), syncDate, socket, socketStatus);
     
     // Step 2: Recalculate ONLY revenue/orders (no ads, no COGS) - much faster!
-    if (socket) {
-      socket.emit(socketStatus, {
-        stage: 'analytics_starting',
-        message: `🔄 Starting revenue recalculation from ${syncDate}...`,
-        progress: 90,
-        total: 'unlimited'
-      });
-    }
-    await analyticsService.recalculateOrdersOnlyFromDate(syncDate, socket, false, storeId, socketStatus);
-    
-    if (socket) {
-      socket.emit(socketStatus, {
-        stage: 'completed',
-        message: '✅ Sync and revenue calculation completed successfully!',
-        progress: 100,
-        total: 'unlimited',
-        ordersCount: ordersCount
-      });
-    }
   } catch (error) {
     console.error('❌ Error syncing orders:', error);
     

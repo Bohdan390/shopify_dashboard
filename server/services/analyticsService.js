@@ -576,9 +576,8 @@ class AnalyticsService {
 			syncDate = common.createLocalDate(syncDate).toISOString().split('T')[0];
 			let initialProgress = 0;
 			if (socket) {
-				const eventType = isStandaloneRecalc ? 'recalcProgress' : socketStatus;
 				initialProgress = 0;
-				socket.emit(eventType, {
+				socket.emit(socketStatus, {
 					stage: isStandaloneRecalc ? 'starting' : 'analytics',
 					message: `🔄 Recalculating revenue from ${syncDate}...`,
 					progress: initialProgress,
@@ -611,8 +610,7 @@ class AnalyticsService {
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
 				if (socket) {
-					const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
-					socket.emit(eventType, {
+					socket.emit(socketStatus, {
 						stage: 'completed',
 						message: '📭 No orders found from sync date, skipping revenue calculation',
 						progress: 100,
@@ -699,8 +697,7 @@ class AnalyticsService {
 					// Emit progress
 					if (socket) {
 						const progress = initialProgress + (processedCount / allDates.length) * 100;
-						const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
-						socket.emit(eventType, {
+						socket.emit(socketStatus, {
 							stage: 'processing',
 							message: `📊 Processing revenue for ${date}... (${processedCount}/${allDates.length})`,
 							progress: Number(progress.toFixed(1)) > 100 ? 100 : Number(progress.toFixed(1)),
@@ -716,8 +713,7 @@ class AnalyticsService {
 			}
 
 			if (socket) {
-				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
-				socket.emit(eventType, {
+				socket.emit(socketStatus, {
 					stage: 'completed',
 					message: `✅ Revenue recalculation completed! Processed ${processedCount} days`,
 					progress: 100,
@@ -740,8 +736,7 @@ class AnalyticsService {
 			console.error('❌ Error in orders-only recalculation:', error);
 			
 			if (socket) {
-				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
-				socket.emit(eventType, {
+				socket.emit(socketStatus, {
 					stage: 'error',
 					message: `❌ Error in revenue recalculation: ${error.message}`,
 					progress: 0,

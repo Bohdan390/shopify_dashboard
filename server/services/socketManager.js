@@ -225,10 +225,9 @@ class SocketManager {
             // Get the last sync date to use as start date
             const { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
             
-            console.log(ordersStartDate, )
             // Call the real Shopify order sync service with the actual start date
             const storeService = new ShopifyService(storeId);
-            const ordersCount = await storeService.syncOrders(50, ordersStartDate, null, 'autoSyncProgress');
+            const ordersCount = await storeService.syncOrders(250, ordersStartDate, null, 'autoSyncProgress');
             
             this.broadcastToStore(storeId, 'autoSyncProgress', {
                 storeId,
@@ -240,7 +239,6 @@ class SocketManager {
             });
 
             return ordersCount;
-            console.log(`📦 Auto-sync orders completed for store: ${storeId}, ${ordersCount} orders processed from ${ordersStartDate.toISOString().split('T')[0]}`);
             
         } catch (error) {
             console.error(`❌ Error in auto-sync orders for store: ${storeId}:`, error);
@@ -270,7 +268,6 @@ class SocketManager {
 
             // Get the last ads sync date to use as start date
             const { adsStartDate, endDate } = await this.getLastSyncDates(storeId);
-            console.log(adsStartDate, endDate)
 
             // Call the real Windsor ads sync service with the actual start date
             const result = await windsorService.fetchAndSaveAdData(
@@ -301,47 +298,6 @@ class SocketManager {
                 stage: 'ads',
                 message: `❌ Ads sync failed: ${error.message}`,
                 progress: 50,
-                timestamp: new Date().toISOString()
-            });
-            throw error;
-        }
-    }
-
-    // Sync LTV for a store
-    async syncLTV(storeId) {
-        try {
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ltv',
-                message: '💰 Syncing LTV data...',
-                progress: 75,
-                timestamp: new Date().toISOString()
-            });
-
-            // For LTV, we'll just update the sync tracking since LTV is calculated from orders and ads
-            // In a real implementation, you might call an LTV calculation service here
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay for LTV processing
-            
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ltv',
-                message: '✅ LTV data updated from orders and ads',
-                progress: 80,
-                timestamp: new Date().toISOString()
-            });
-
-            console.log(`💰 Auto-sync LTV completed for store: ${storeId}`);
-            
-        } catch (error) {
-            console.error(`❌ Error in auto-sync LTV for store: ${storeId}:`, error);
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ltv',
-                message: `❌ LTV sync failed: ${error.message}`,
-                progress: 75,
                 timestamp: new Date().toISOString()
             });
             throw error;

@@ -69,7 +69,7 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('autoSyncProgress', (data) => {
       if (data.stage == 'ads_completed') {
         if (window.showPrimeToast) {
-          window.showPrimeToast('Auto sync completed! The data will be refreshed in a few seconds.', 'success');
+          window.showPrimeToast('Auto sync completed! The page will be refreshed in a few seconds.', 'success');
         }
         setTimeout(() => {
           window.location.reload();
