@@ -841,9 +841,6 @@ class AnalyticsService {
 					});
 				}
 				else {
-					if (product.product_title.includes("x")) {
-						console.log(product.product_title)
-					}
 					if (common.hasNumberX(product.product_title)) {
 						productSkus.get(productSku).sku_title = common.extractProductSku(product.product_title);
 					}
@@ -886,7 +883,7 @@ class AnalyticsService {
 		if (search) {
 			const searchLower = search.toLowerCase();
 			processedProducts = processedProducts.filter(product => 
-				product.product_title.toLowerCase().includes(searchLower)
+				product.sku_title.toLowerCase().includes(searchLower)
 			);
 		}
 
