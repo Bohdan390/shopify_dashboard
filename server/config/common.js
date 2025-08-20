@@ -81,7 +81,12 @@ async function updateSyncTracking(fieldName, now = new Date(), storeId) {
     }
 }
 
+const hasNumberXPattern = (str) => {
+    // Check for patterns like "1x", "2x", "3x", "10x", "25x", etc.
+    return /\d+x/i.test(str);
+};
+
 module.exports = {
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
-    diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX
+    diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern
 }

@@ -774,7 +774,6 @@ class AnalyticsService {
 
 		if (productRevenueError) throw productRevenueError;
 
-		console.log(productRevenue)
 		var productSkus = [];
 
 		productRevenue.forEach(product => {
@@ -818,6 +817,14 @@ class AnalyticsService {
 			p_campaign_names: campaignNames
 		});
 
+		let productData = [];
+		if (storeId == "meonutrition") {
+			let { data: pData, error: productDataError } = await supabase
+				.from('products')
+				.select('*')
+				.eq("store_id", storeId)
+			productData.push(...pData);
+		}
 		if (adSpendError) throw adSpendError;
 
 		var productSkus = new Map();
@@ -914,6 +921,16 @@ class AnalyticsService {
 		const totalPages = Math.ceil(totalCount / limit);
 		const offset = (page - 1) * limit;
 		const paginatedProducts = processedProducts.slice(offset, offset + limit);
+
+		console.log(productData.length)
+		productData.forEach(product => {
+			if (common.hasNumberXPattern(product.product_title)) {
+				if (paginatedProducts.find(p => product.product_sku_id.includes(p.product_sku))) {
+					paginatedProducts.find(p => product.product_sku_id.includes(p.product_sku)).sku_title = common.extractProductSku(product.product_title);
+				}
+			}
+		});
+		
 
 		return {
 			products: paginatedProducts,
