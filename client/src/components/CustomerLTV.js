@@ -241,20 +241,34 @@ const CustomerLTV = () => {
         }
     }, [ltvSyncSuccess]);
     // Get socket from context
-    const { socket } = useSocket();
+    const { socket, checkSocketHealth } = useSocket();
 
     // WebSocket event handlers
     useEffect(() => {
+        console.log('🔌 Socket status check:', {
+            socket: !!socket,
+            connected: socket?.connected,
+            id: socket?.id,
+            store: selectedStore,
+            sku: selectedProductSku
+        });
+
         if (selectedStore && selectedProductSku) {
-            // Execute fetchIndividualProductLtv after socket connection
-            console.log(socket && socket.connected)
-            if (socket && socket.connected) {
+            // Check if socket is truly functional
+            if (socket && socket.connected && socket.id) {
+                console.log('✅ Socket is healthy, executing fetchIndividualProductLtv');
                 fetchIndividualProductLtv();
-            }
-            else {
+            } else {
+                console.log('⚠️ Socket not ready, retrying in 2 seconds...');
                 setTimeout(() => {
-                    fetchIndividualProductLtv();
-                }, 1000);
+                    if (socket && socket.connected && socket.id) {
+                        console.log('✅ Socket ready on retry, executing fetchIndividualProductLtv');
+                        fetchIndividualProductLtv();
+                    } else {
+                        console.log('❌ Socket still not ready, proceeding without socket');
+                        fetchIndividualProductLtv();
+                    }
+                }, 2000);
             }
         }
     }, [socket, selectedStore, selectedProductSku]);
@@ -483,6 +497,33 @@ const CustomerLTV = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Socket Debug Section */}
+                    <div className="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded-lg mb-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="font-medium">Socket Status:</span>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    socket?.connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                    {socket?.connected ? 'Connected' : 'Disconnected'}
+                                </span>
+                                {socket?.id && (
+                                    <span className="text-xs text-gray-500">ID: {socket.id}</span>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const health = checkSocketHealth();
+                                    console.log('🔌 Socket Health Check:', health);
+                                    alert(`Socket Health:\n${JSON.stringify(health, null, 2)}`);
+                                }}
+                                className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                            >
+                                Debug Socket
+                            </button>
+                        </div>
+                    </div>
 
                     {/* LTV Data Table */}
                     {ltvLoading ? (

@@ -48,6 +48,12 @@ export const SocketProvider = ({ children }) => {
     // Socket event handlers
     newSocket.on('connect', () => {
       console.log('🔌 Socket connected:', newSocket.id, selectedStore);
+      console.log('🔌 Socket health check:', {
+        id: newSocket.id,
+        connected: newSocket.connected,
+        readyState: newSocket.readyState,
+        transport: newSocket.io?.engine?.transport?.name
+      });
       selectStore(newSocket, selectedStore);
       setIsConnected(true);
     });
@@ -101,6 +107,20 @@ export const SocketProvider = ({ children }) => {
   const value = {
     socket,
     isConnected,
+    // Socket health check function
+    checkSocketHealth: () => {
+      if (socket) {
+        return {
+          exists: !!socket,
+          connected: socket.connected,
+          id: socket.id,
+          readyState: socket.readyState,
+          transport: socket.io?.engine?.transport?.name,
+          hasListeners: socket.hasListeners && socket.hasListeners('connect')
+        };
+      }
+      return null;
+    }
   };
 
   return (
