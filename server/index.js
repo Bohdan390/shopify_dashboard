@@ -52,10 +52,32 @@ app.use((req, res, next) => {
 // Database connection - Supabase only
 const { supabase } = require('./config/database-supabase');
 
+// Import socket manager
+const socketManager = require('./services/socketManager');
+
 // WebSocket connection handling
 io.on('connection', (socket) => {
+  console.log('🔌 New socket connection:', socket.id);
+  
+  // Handle store selection for this socket
+  socket.on('selectStore', (storeId) => {
+    console.log(`🏪 Socket ${socket.id} selected store: ${storeId}`);
+    socket.storeId = storeId; // Store the storeId on the socket object
+    socketManager.addSocket(storeId, socket);
+  });
   
   socket.on('disconnect', () => {
+    if (socket.storeId) {
+      console.log(`🔌 Socket ${socket.id} disconnected from store: ${socket.storeId}`);
+      socketManager.removeSocket(socket.storeId, socket);
+    }
+  });
+  
+  // Handle manual sync trigger (for testing)
+  socket.on('triggerManualSync', (storeId) => {
+    if (socket.storeId === storeId) {
+      socketManager.triggerManualSync(storeId);
+    }
   });
 });
 
@@ -95,6 +117,43 @@ app.get('*', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint to trigger manual sync
+app.post('/api/test/trigger-sync/:storeId', (req, res) => {
+  const { storeId } = req.params;
+  try {
+    socketManager.triggerManualSync(storeId);
+    res.json({ 
+      success: true, 
+      message: `Manual sync triggered for store: ${storeId}`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Get sync status for a store
+app.get('/api/sync/status/:storeId', (req, res) => {
+  const { storeId } = req.params;
+  try {
+    const status = socketManager.getSyncStatus(storeId);
+    res.json({ 
+      success: true, 
+      storeId,
+      status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
 });
 
 // Error handling middleware

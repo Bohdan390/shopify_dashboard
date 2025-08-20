@@ -122,31 +122,37 @@ const SearchableSelect = ({
 
   return (
     <div className={`relative ${className}`} ref={selectRef}>
-      {/* Main Select Button */}
-      <button
-        type="button"
-        onClick={handleToggle}
-        disabled={disabled}
-        style={style}
+      {/* Main Select Container */}
+      <div
         className={`
           w-full bg-white border border-gray-300 rounded-lg 
           ${sizeClasses[size]}
           font-medium text-gray-700 
-          hover:border-gray-400 focus:outline-none focus:ring-2 
-          focus:ring-blue-500 focus:border-blue-500 
+          hover:border-gray-400 focus-within:ring-2 
+          focus-within:ring-blue-500 focus-within:border-blue-500 
           transition-all duration-200 cursor-pointer
           shadow-sm hover:shadow-md
           disabled:opacity-50 disabled:cursor-not-allowed
           flex items-center justify-between
           ${isOpen ? 'border-blue-500 ring-2 ring-blue-500' : ''}
+          ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
+        style={style}
       >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleToggle}
+          disabled={disabled}
+          className="flex-1 text-left h-full"
+        >
+          <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
           {selectedOption && (
             <button
+              type="button"
               onClick={clearSelection}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
               title="Clear selection"
@@ -160,7 +166,7 @@ const SearchableSelect = ({
             }`} 
           />
         </div>
-      </button>
+      </div>
 
       {/* Dropdown */}
       {isOpen && (

@@ -15,7 +15,6 @@ import { useAuth } from '../contexts/AuthContext';
 const Sidebar = () => {
   const location = useLocation();
   const { logout } = useAuth();
-
   const navigation = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },

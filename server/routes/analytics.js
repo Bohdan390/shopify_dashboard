@@ -1066,7 +1066,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					socket.emit('syncProgress', {
 						stage: 'calculating',
 						message: '💾 Saving LTV data...',
-						progress: Number((90 + (i / ltvData.length) * 10).toFixed(1)),
+						progress: 100,
 						total: 'unlimited'
 					});
 				}

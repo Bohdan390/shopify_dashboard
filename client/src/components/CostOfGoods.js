@@ -551,8 +551,8 @@ const CostOfGoods = () => {
       console.error('Error fetching cost of goods:', error);
       setError('Failed to load cost of goods data. Please try again.');
       
-      if (window.showToast) {
-        window.showToast.error('Error', 'Failed to load cost of goods data');
+      if (window.showPrimeToast) {
+        window.showPrimeToast('Failed to load cost of goods data', 'error');
       }
     } finally {
       if (showTableLoader) {
@@ -652,8 +652,8 @@ const CostOfGoods = () => {
     } catch (error) {
       console.error('Error saving cost of goods:', error);
       
-      if (window.showToast) {
-        window.showToast.error('Error', 'Failed to save cost of goods entry. Please try again.');
+      if (window.showPrimeToast) {
+        window.showPrimeToast('Failed to save cost of goods entry. Please try again.', 'error');
       }
     } finally {
       setAddingEntry(false);
@@ -686,8 +686,8 @@ const CostOfGoods = () => {
     } catch (error) {
       console.error('Error deleting cost of goods:', error);
       
-      if (window.showToast) {
-        window.showToast.error('Error', 'Failed to delete cost of goods entry. Please try again.');
+      if (window.showPrimeToast) {
+        window.showPrimeToast('Failed to delete cost of goods entry. Please try again.', 'error');
       }
     } finally {
       setDeletingEntry(null);
