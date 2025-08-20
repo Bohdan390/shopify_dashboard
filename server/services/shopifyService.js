@@ -13,6 +13,19 @@ class ShopifyService {
 		this.setupStoreConfig();
 	}
 
+	// Helper function to send WebSocket messages
+	sendWebSocketMessage(socket, eventType, data) {
+		if (socket && socket.readyState === 1) { // WebSocket.OPEN
+			const message = JSON.stringify({
+				type: eventType,
+				data: data,
+				timestamp: Date.now()
+			});
+			console.log(message, socket.id)
+			socket.send(message);
+		}
+	}
+
 	setupStoreConfig() {
 		// Store configurations
 		const storeConfigs = {
@@ -128,9 +141,10 @@ class ShopifyService {
 					console.log(diff, totalDiff)
 					if (diff < 0) diff = 0;
 					if (socket) {
+						console.log(socket)
 						let progress = Number((100 * diff / totalDiff).toFixed(1));
 						if (progress > 100) progress = 100;
-						socket.emit(socketStatus, {
+						this.sendWebSocketMessage(socket, socketStatus, {
 							stage: 'fetching',
 							message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
 							progress: progress,
@@ -173,7 +187,7 @@ class ShopifyService {
 			console.log("sync completed")
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'fetching',
 					message: `📥 Fetching page ${pageCount}... (${totalFetched} orders so far)`,
 					progress: 100,
@@ -198,7 +212,7 @@ class ShopifyService {
 		try {
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'saving',
 					message: `💾 Preparing to save ${orders.length} orders...`,
 					progress: 0,
@@ -400,7 +414,7 @@ class ShopifyService {
 
 			if (lineItemsData.length > 0) {
 				if (socket) {
-					socket.emit(socketStatus, {
+					this.sendWebSocketMessage(socket, socketStatus, {
 						stage: 'saving',
 						message: `💾 Saving ${lineItemsData.length} line items...`,
 						progress: 10,
@@ -423,7 +437,7 @@ class ShopifyService {
 						
 						// Emit progress to frontend for each chunk
 						if (socket) {
-							socket.emit(socketStatus, {
+							this.sendWebSocketMessage(socket, socketStatus, {
 								stage: 'saving',
 								message: `💾 Saving ${lineItemsData.length} line items...`,
 								progress: 10 + Math.floor((currentChunk / totalLineItemChunks) * 30),
@@ -465,7 +479,7 @@ class ShopifyService {
 			}
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'saving',
 					message: `💾 Saving ${lineItemsData.length} line items...`,
 					progress: 40,
@@ -518,7 +532,7 @@ class ShopifyService {
 						}
 
 						if (socket) {
-							socket.emit(socketStatus, {
+							this.sendWebSocketMessage(socket, socketStatus, {
 								stage: 'saving',
 								message: `💾 Saving ${uniqueProducts.size} unique products to products table...`,
 								progress: 40 + Math.floor((currentChunk / totalChunks) * 10),
@@ -548,7 +562,7 @@ class ShopifyService {
 			}
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'saving',
 					message: `💾 Saving ${uniqueProducts.size} unique products to products table...`,
 					progress: 50,
@@ -575,7 +589,7 @@ class ShopifyService {
 
 						// Emit progress to frontend for each customers chunk
 						if (socket) {
-							socket.emit(socketStatus, {
+							this.sendWebSocketMessage(socket, socketStatus, {
 								stage: 'saving',
 								message: `👥 Processing customers chunk ${currentChunk}/${totalChunks} (${progress}% - ${i + chunk.length}/${customersArray.length} customers)...`,
 								progress: 50 + Math.floor((currentChunk / totalChunks) * 20), // Progress from 98% to 100%
@@ -618,7 +632,7 @@ class ShopifyService {
 
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'saving',
 					message: `💾 Saving ${uniqueCustomers.size} unique customers to customers table...`,
 					progress: 70,
@@ -638,7 +652,7 @@ class ShopifyService {
 
 					if (socket) {
 						const progress = 70 + Math.floor((currentChunk / totalChunks) * 30); // Progress from 25% to 85%
-						socket.emit(socketStatus, {
+						this.sendWebSocketMessage(socket, socketStatus, {
 							stage: 'saving',
 							message: `💾 Saving orders chunk (${currentChunk}/${totalChunks}) - ${chunk.length} orders...`,
 							progress: progress,
@@ -675,7 +689,7 @@ class ShopifyService {
 					throw error;
 				}
 				if (socket) {
-					socket.emit(socketStatus, {
+					this.sendWebSocketMessage(socket, socketStatus, {
 						stage: 'saving',
 						message: `💾 Saving ${orderDataArray.length} orders to database...`,
 						progress: 100,
@@ -739,7 +753,7 @@ class ShopifyService {
 
 			// Emit initial progress
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'starting',
 					message: '🔄 Starting order sync...',
 					progress: 0,
@@ -749,7 +763,7 @@ class ShopifyService {
 
 			var date = new Date();
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'fetching',
 					message: '📥 Fetching orders from Shopify...',
 					progress: 0,
@@ -761,7 +775,7 @@ class ShopifyService {
 
 			await sleep(1000);
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'saving',
 					message: `💾 Saving ${orders.length} orders to database...`,
 					progress: 0,
@@ -775,7 +789,7 @@ class ShopifyService {
 			console.log("saved all data")
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'sync_completed',
 					message: '✅ Order sync completed!',
 					progress: 100,
@@ -794,7 +808,7 @@ class ShopifyService {
 			console.error('❌ Error syncing orders:', error);
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'error',
 					message: `❌ Error syncing orders: ${error.message}`,
 					progress: 0,

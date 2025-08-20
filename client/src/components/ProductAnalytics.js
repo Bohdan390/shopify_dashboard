@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, Package, Calendar, Filter, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import axios from 'axios';
+import api from "../config/axios"
 import ProductAnalyticsLoader from './loaders/ProductAnalyticsLoader';
 import ProductAnalyticsTableLoader from './loaders/ProductAnalyticsTableLoader';
 import ProductGroups from './ProductGroups';
@@ -378,7 +378,7 @@ const ProductAnalytics = () => {
         }
       });
 
-      const response = await axios.get('/api/analytics/product', { params });
+      const response = await api.get('/api/analytics/product', { params });
       setProductAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching product analytics:', error);
@@ -443,11 +443,11 @@ const ProductAnalytics = () => {
 
     try {
       // Fetch available campaigns
-      const campaignsResponse = await axios.get('/api/analytics/available-campaigns', { params: { storeId: selectedStore } });
+      const campaignsResponse = await api.get('/api/analytics/available-campaigns', { params: { storeId: selectedStore } });
       setAvailableCampaigns(campaignsResponse.data);
 
       // Fetch existing links for this product
-      const linksResponse = await axios.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links');
       const productLinks = linksResponse.data.filter(link => link.product_sku === product.product_sku);
       setLinkedCampaigns(productLinks);
     } catch (error) {
@@ -461,7 +461,7 @@ const ProductAnalytics = () => {
     try {
       setLinkingCampaigns(prev => new Set([...prev, campaign.campaign_id]));
 
-      await axios.post('/api/analytics/product-campaign-links', {
+      await api.post('/api/analytics/product-campaign-links', {
         product_id: selectedProduct.product_id, // Use product_title as product_id
         product_title: selectedProduct.product_title,
         store_id: selectedStore,
@@ -472,7 +472,7 @@ const ProductAnalytics = () => {
       });
 
       // Refresh the links
-      const linksResponse = await axios.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links');
       const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 
@@ -493,13 +493,13 @@ const ProductAnalytics = () => {
     try {
       setLinkingCampaigns(prev => new Set([...prev, campaignId]));
 
-      await axios.post(`/api/analytics/product-campaign-links/${linkId}`, {
+      await api.post(`/api/analytics/product-campaign-links/${linkId}`, {
         storeId: selectedStore,
         productSku: selectedProduct.product_sku
       });
 
       // Refresh the links
-      const linksResponse = await axios.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links');
       const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 

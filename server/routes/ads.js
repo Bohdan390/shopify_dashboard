@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../config/database-supabase');
 const windsorService = require('../services/windsorService');
 const common = require('../config/common');
+const socketManager = require('../services/socketManager');
 
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
@@ -26,8 +27,7 @@ router.post('/sync-windsor', async (req, res) => {
     const filterText = accountName ? `account: ${accountName}` : `store: ${storeId}`;
 
     // Get the socket instance from the request
-    const io = req.app.get('io');
-    const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
 
     var socketStatus = from == "global" ? "global_adsSyncProgress" : "adsSyncProgress";
 
@@ -37,21 +37,31 @@ router.post('/sync-windsor', async (req, res) => {
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
-      socket.emit(socketStatus, {
-        stage: 'analytics_starting',
-        message: '🔄 Starting analytics recalculation...',
-        progress: 90,
-        total: 'unlimited'
+      const message = JSON.stringify({
+        type: socketStatus,
+        data: {
+          stage: 'analytics_starting',
+          message: '🔄 Starting analytics recalculation...',
+          progress: 90,
+          total: 'unlimited'
+        },
+        timestamp: Date.now()
       });
+      socket.send(message);
     }
         
     if (socket) {
-      socket.emit(socketStatus, {
-        stage: 'completed',
-        message: '✅ Windsor.ai sync and analytics recalculation completed!',
-        progress: 100,
-        total: 'unlimited'
+      const message = JSON.stringify({
+        type: socketStatus,
+        data: {
+          stage: 'completed',
+          message: '✅ Windsor.ai sync and analytics recalculation completed!',
+          progress: 100,
+          total: 'unlimited'
+        },
+        timestamp: Date.now()
       });
+      socket.send(message);
     }
 
   } catch (error) {

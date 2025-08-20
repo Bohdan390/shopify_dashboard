@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import { CheckCircle, AlertCircle, Info, Clock, RefreshCw } from 'lucide-react';
-import axios from 'axios';
+import api from '../config/axios';
 import { useSocket } from '../contexts/SocketContext';
 
 const GlobalStoreSelector = () => {
@@ -25,28 +25,30 @@ const GlobalStoreSelector = () => {
 	];
 
 	// Get socket from context
-	const { socket } = useSocket();
+	const socketContext = useSocket();
+	const { socket, addEventListener } = socketContext;
 
 	// WebSocket event handlers
 	useEffect(() => {
 		if (!socket) return;
 
-		socket.on('global_syncProgress', (data) => {
+		// Add event listener for global sync progress
+		const removeGlobalSyncListener = addEventListener('global_syncProgress', (data) => {
+			console.log(data)
 			updateSyncProgress(data);
 		});
 
-		socket.on('global_adsSyncProgress', (data) => {
+		// Add event listener for global ads sync progress
+		const removeGlobalAdsSyncListener = addEventListener('global_adsSyncProgress', (data) => {
 			updateSyncProgress(data);
 		});
 
-		// Cleanup event listeners when component unmounts or socket changes
+		// Cleanup event listeners when component unmounts
 		return () => {
-			if (socket) {
-				socket.off('global_syncProgress');
-				socket.off('global_adsSyncProgress');
-			}
+			removeGlobalSyncListener();
+			removeGlobalAdsSyncListener();
 		};
-	}, [socket]);
+	}, [socket, addEventListener]);
 
 	const updateSyncProgress = (data) => {
 		setSyncProgress(data);
@@ -66,7 +68,7 @@ const GlobalStoreSelector = () => {
 	const fetchSyncStatus = async (storeId) => {
 		try {
 			setLoading(true);
-			const response = await axios.get(`/api/analytics/sync-status?storeId=${storeId}`);
+			const response = await api.get(`/api/analytics/sync-status?storeId=${storeId}`);
 
 			if (response.data.success) {
 				const data = response.data.data;
@@ -140,8 +142,9 @@ const GlobalStoreSelector = () => {
 			setSyncProgress(null); // Clear previous progress
 			setSyncStep('Starting orders sync...');
 
+			console.log(socket)
 			// Pass socket ID for real-time progress updates
-			const response = await axios.post('/api/shopify/sync-orders', {
+			const response = await api.post('/api/shopify/sync-orders', {
 				syncDate: syncInfo.lastSyncDate, // Today's date
 				limit: 250,    // Fetch 250 orders per page (Shopify's maximum)
 				socketId: socket?.id, // Pass socket ID for WebSocket communication
@@ -171,7 +174,7 @@ const GlobalStoreSelector = () => {
 			setSyncProgress(null);
 			setSyncStep('Starting ads sync...');
 
-			await axios.post('/api/ads/sync-windsor', {
+			await api.post('/api/ads/sync-windsor', {
 				from: "global",
 				startDate: syncInfo.lastAdsSyncDate,
 				storeId: selectedStore,

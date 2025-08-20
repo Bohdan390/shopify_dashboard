@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../config/axios';
 import { useSocket } from '../contexts/SocketContext';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
@@ -66,7 +66,7 @@ const CustomerLTV = () => {
     const fetchIndividualProductLtv = async () => {
         if (isLtvLoading) return;
         isLtvLoading = true;
-        if (!socket || !socket.connected) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
             isLtvLoading = false;
             return;
         }
@@ -80,11 +80,11 @@ const CustomerLTV = () => {
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
+            await api.post('/api/analytics/sync-customer-ltv-cohorts', {
                 startDate,
                 endDate,
                 storeId: selectedStore || 'buycosari',
-                socketId: socket?.id,
+                socketId: socketId, // Use the WebSocket ID
                 sku: selectedProductSku
             });
             isLtvLoading = false;
@@ -241,7 +241,7 @@ const CustomerLTV = () => {
         }
     }, [ltvSyncSuccess]);
     // Get socket from context
-    const { socket, checkSocketHealth, testSocket, emitEvent, selectStore } = useSocket();
+    const { socket, checkSocketHealth, testSocket, emitEvent, selectStore, addEventListener, socketId } = useSocket();
 
     // WebSocket event handlers
     useEffect(() => {
@@ -255,19 +255,13 @@ const CustomerLTV = () => {
 
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
-            if (socket && socket.connected && socket.id) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 console.log('✅ Socket is healthy, executing fetchIndividualProductLtv');
                 fetchIndividualProductLtv();
             } else {
                 console.log('⚠️ Socket not ready, retrying in 2 seconds...');
                 setTimeout(() => {
-                    if (socket && socket.connected && socket.id) {
-                        console.log('✅ Socket ready on retry, executing fetchIndividualProductLtv');
-                        fetchIndividualProductLtv();
-                    } else {
-                        console.log('❌ Socket still not ready, proceeding without socket');
-                        fetchIndividualProductLtv();
-                    }
+                    fetchIndividualProductLtv()
                 }, 2000);
             }
         }
@@ -282,8 +276,9 @@ const CustomerLTV = () => {
             selectStore(selectedStore);
         }
         
-        socket.on('syncProgress', (data) => {
-            console.log(data)
+        // Add event listener for syncProgress
+        const removeListener = addEventListener('syncProgress', (data) => {
+            console.log('📨 syncProgress received:', data);
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
@@ -310,18 +305,14 @@ const CustomerLTV = () => {
             }
         });
 
-        // Cleanup event listeners when component unmounts or socket changes
-        return () => {
-            if (socket) {
-                socket.off('syncProgress');
-            }
-        };
-    }, [socket, selectedStore, selectStore]);
+        // Cleanup event listener when component unmounts
+        return removeListener;
+    }, [socket, selectedStore, selectStore, addEventListener]);
 
     // Fetch product SKUs
     const fetchProductSkus = async () => {
         try {
-            const response = await axios.get('/api/customers/products-sku', {
+            const response = await api.get('/api/customers/products-sku', {
                 params: {
                     storeId: selectedStore || 'buycosari'
                 }
@@ -503,55 +494,6 @@ const CustomerLTV = () => {
                             </div>
                         </div>
                     )}
-
-                    {/* Socket Debug Section */}
-                    <div className="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded-lg mb-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <span className="font-medium">Socket Status:</span>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    socket?.connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                    {socket?.connected ? 'Connected' : 'Disconnected'}
-                                </span>
-                                {socket?.id && (
-                                    <span className="text-xs text-gray-500">ID: {socket.id}</span>
-                                )}
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => {
-                                        const health = checkSocketHealth();
-                                        console.log('🔌 Socket Health Check:', health);
-                                        alert(`Socket Health:\n${JSON.stringify(health, null, 2)}`);
-                                    }}
-                                    className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                                >
-                                    Debug Socket
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        const result = testSocket();
-                                        console.log('🧪 Test Result:', result);
-                                        alert(`Test Result: ${result}`);
-                                    }}
-                                    className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                                >
-                                    Test Socket
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        const result = emitEvent('selectStore', selectedStore);
-                                        console.log('📡 Emit Result:', result);
-                                        alert(`Emit Result: ${result}`);
-                                    }}
-                                    className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                                >
-                                    Emit selectStore
-                                </button>
-                            </div>
-                        </div>
-                    </div>
 
                     {/* LTV Data Table */}
                     {ltvLoading ? (

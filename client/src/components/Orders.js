@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Search, Filter, Calendar, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import axios from 'axios';
+import api from "../config/axios"
 import BeautifulSelect from './BeautifulSelect';
 import OrdersLoader from './loaders/OrdersLoader';
 import OrdersTableLoader from './loaders/OrdersTableLoader';
@@ -432,7 +432,7 @@ const Orders = () => {
 			params.append('sortBy', sortToUse.key);
 			params.append('sortDirection', sortToUse.direction);
 
-			const response = await axios.get(`/api/shopify/orders?${params.toString()}`);
+			const response = await api.get(`/api/shopify/orders?${params.toString()}`);
 			setOrders(response.data.orders);
 			setPagination(response.data.pagination);
 			
@@ -463,7 +463,7 @@ const Orders = () => {
 				params.append('endDate', dateRange.endDate);
 			}
 
-			const response = await axios.get(`/api/shopify/stats?${params.toString()}`);
+			const response = await api.get(`/api/shopify/stats?${params.toString()}`);
 			setOverallStats(response.data);
 		} catch (error) {
 			console.error('Error fetching overall stats:', error);

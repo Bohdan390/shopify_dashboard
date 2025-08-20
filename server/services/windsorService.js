@@ -20,6 +20,18 @@ class WindsorService {
     }
   }
 
+  // Helper function to send WebSocket messages
+  sendWebSocketMessage(socket, eventType, data) {
+    if (socket && socket.readyState === 1) { // WebSocket.OPEN
+      const message = JSON.stringify({
+        type: eventType,
+        data: data,
+        timestamp: Date.now()
+      });
+      socket.send(message);
+    }
+  }
+
   async fetchAdData(startDate, endDate, dataSource = 'facebook_ads', storeId = null) {
     try {
       if (!this.apiKey) {
@@ -185,7 +197,7 @@ class WindsorService {
       
       // Save campaigns to database
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'saving_campaigns',
           message: `📊 Saving ${campaigns.size} campaigns to database...`,
           progress: 70,
@@ -223,7 +235,7 @@ class WindsorService {
       
       // Save ad spend data to database
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'saving_spend',
           message: `💰 Saving ${adSpendRecords.length} ad spend records to database...`,
           progress: 85,
@@ -244,7 +256,7 @@ class WindsorService {
           const chunk = chunks[i];
           
           if (socket) {
-            socket.emit(socketStatus, {
+            this.sendWebSocketMessage(socket, socketStatus, {
               stage: 'saving_spend_chunk',
               message: `💾 Saving chunk ${i + 1}/${chunks.length} (${chunk.length} records)...`,
               progress: 85 + (i / chunks.length) * 10,
@@ -282,7 +294,7 @@ class WindsorService {
       var date = new Date();
       // Emit initial progress
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'starting',
           message: `🔄 Starting Windsor.ai ads sync for ${storeId || 'all stores'}...`,
           progress: 0,
@@ -292,7 +304,7 @@ class WindsorService {
       
       // Fetch data from Windsor.ai
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'fetching',
           message: `📥 Fetching ad data from Windsor.ai for ${storeId || 'all stores'}...`,
           progress: 20,
@@ -304,7 +316,7 @@ class WindsorService {
       
       if (adData.length === 0) {
         if (socket) {
-          socket.emit(socketStatus, {
+          this.sendWebSocketMessage(socket, socketStatus, {
             stage: 'completed',
             message: '⚠️  No ad data found for the specified date range',
             progress: 100,
@@ -317,7 +329,7 @@ class WindsorService {
       }
       
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'saving',
           message: `💾 Saving ${adData.length} ad records to database...`,
           progress: 60,
@@ -329,7 +341,7 @@ class WindsorService {
       const result = await this.saveAdDataToDatabase(adData, socket, storeId, socketStatus);
       
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'sync_completed',
           message: '✅ Windsor.ai ads sync completed!',
           progress: 100,
@@ -349,7 +361,7 @@ class WindsorService {
       console.error('❌ Error in Windsor.ai fetch and save:', error);
       
       if (socket) {
-        socket.emit(socketStatus, {
+        this.sendWebSocketMessage(socket, socketStatus, {
           stage: 'error',
           message: `❌ Error syncing ads: ${error.message}`,
           progress: 0,

@@ -10,7 +10,7 @@ import {
 	Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
 	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart
 } from 'recharts';
-import axios from 'axios';
+import api from "../config/axios"
 import { useSocket } from '../contexts/SocketContext';
 import BeautifulSelect from './BeautifulSelect';
 import DashboardLoader from './loaders/DashboardLoader';
@@ -364,7 +364,7 @@ const Dashboard = () => {
 	const [showRecalcCalendar, setShowRecalcCalendar] = useState(false);
 
 	// WebSocket states
-	const { socket } = useSocket();
+	const { socket, addEventListener } = useSocket();
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [recalcProgress, setRecalcProgress] = useState(null);
 
@@ -380,8 +380,8 @@ const Dashboard = () => {
 				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
 
 				const [analyticsResponse, summaryResponse] = await Promise.all([
-					axios.get(analyticsUrl),
-					axios.get(summaryUrl)
+					api.get(analyticsUrl),
+					api.get(summaryUrl)
 				]);
 				// Ensure we have valid data
 				const analyticsData = Array.isArray(analyticsResponse.data) ? analyticsResponse.data : [];
@@ -420,9 +420,10 @@ const Dashboard = () => {
 	useEffect(() => {
 		if (!socket) return;
 
-		socket.on('dashboard_syncProgress', (data) => {
+		// Add event listeners for dashboard sync progress
+		const removeDashboardListener = addEventListener('dashboard_syncProgress', (data) => {
 			setSyncProgress(data);
-			console.log(data)
+			console.log('📨 dashboard_syncProgress received:', data);
 
 			// Close sync modal immediately when sync starts
 			if (data.stage === 'starting' || data.stage === 'fetching' || data.stage === 'saving') {
@@ -453,7 +454,8 @@ const Dashboard = () => {
 			}
 		});
 
-		socket.on('recalcProgress', (data) => {
+		// Add event listener for recalculation progress
+		const removeRecalcListener = addEventListener('recalcProgress', (data) => {
 			setRecalcProgress(data);
 
 			// Update sync step based on progress
@@ -484,14 +486,12 @@ const Dashboard = () => {
 			}
 		});
 
-		// Cleanup event listeners when component unmounts or socket changes
+		// Cleanup event listeners when component unmounts
 		return () => {
-			if (socket) {
-				socket.off('dashboard_syncProgress');
-				socket.off('recalcProgress');
-			}
+			removeDashboardListener();
+			removeRecalcListener();
 		};
-	}, [socket]);
+	}, [socket, addEventListener]);
 
 	// Listen for sync completion from GlobalStoreSelector and refresh dashboard data
 	useEffect(() => {
@@ -543,7 +543,7 @@ const Dashboard = () => {
 				url = `/api/analytics/dashboard?period=${period}&storeId=${selectedStore}`;
 			}
 
-			const response = await axios.get(url);
+			const response = await api.get(url);
 			setDashboardData(response.data);
 
 			// Show success toast for manual refresh
@@ -656,7 +656,7 @@ const Dashboard = () => {
 			setSyncStep('Starting analytics recalculation...');
 
 			// Pass socket ID for real-time progress updates
-			await axios.post('/api/analytics/recalculate', {
+			await api.post('/api/analytics/recalculate', {
 				recalcDate: recalcDate,
 				socketId: socket?.id, // Pass socket ID for WebSocket communication
 				storeId: selectedStore // Pass selected store ID
@@ -687,7 +687,7 @@ const Dashboard = () => {
 			setSyncProgress(null); // Clear previous progress
 			setSyncStep('Starting sync...');
 			// Pass socket ID for real-time progress updates
-			const response = await axios.post('/api/shopify/sync-orders', {
+			const response = await api.post('/api/shopify/sync-orders', {
 				from: "dashboard",
 				syncDate: syncDate,
 				limit: 250,    // Fetch 250 orders per page (Shopify's maximum)

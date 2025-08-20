@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, Edit, Trash2, Calendar, Filter, ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import api from "../config/axios"
 import CostOfGoodsLoader from './loaders/CostOfGoodsLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
@@ -44,7 +44,7 @@ const ProductAutocomplete = ({
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/ads/products');
+      const response = await api.get('/api/ads/products');
       setProducts(response.data.data || []);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -536,7 +536,7 @@ const CostOfGoods = () => {
         sortOrder: 'desc'
       });
       
-      const response = await axios.get(`/api/ads/cog?${params}`);
+      const response = await api.get(`/api/ads/cog?${params}`);
       
       // Handle server-side pagination response
       if (response.data && response.data.data && response.data.pagination) {
@@ -632,10 +632,10 @@ const CostOfGoods = () => {
 
       if (editingEntry) {
         // Update existing entry
-        await axios.put(`/api/ads/cog/${editingEntry.id}`, apiData);
+        await api.put(`/api/ads/cog/${editingEntry.id}`, apiData);
       } else {
         // Add new entry
-        await axios.post('/api/ads/cog', apiData);
+        await api.post('/api/ads/cog', apiData);
       }
 
       setFormData({
@@ -680,7 +680,7 @@ const CostOfGoods = () => {
 
     try {
       setDeletingEntry(entry.id);
-      await axios.delete(`/api/ads/cog/${entry.id}`);
+      await api.delete(`/api/ads/cog/${entry.id}`);
       
       fetchCostOfGoods();
     } catch (error) {
