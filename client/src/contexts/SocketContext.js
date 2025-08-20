@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { io } from 'socket.io-client';
-import { useStore } from './StoreContext';
 
 const SocketContext = createContext();
 
@@ -16,102 +14,158 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState(null);
+  const eventListeners = useRef(new Map());
 
   useEffect(() => {
-    // Create socket connection ONLY ONCE when app loads
-    const getSocketUrl = () => {
+    // Create WebSocket connection ONLY ONCE when app loads
+    const getWebSocketUrl = () => {
       if (process.env.NODE_ENV === 'production') {
-        return window.location.origin;
+        // Convert HTTP/HTTPS to WS/WSS
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}`;
       }
-      return 'http://localhost:5000';
+      return 'ws://localhost:5000';
     };
 
-    const socketUrl = getSocketUrl();
-    console.log('🔌 Creating SINGLE socket connection to:', socketUrl);
+    const wsUrl = getWebSocketUrl();
+    console.log('🔌 Creating SINGLE WebSocket connection to:', wsUrl);
 
-    const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true,
-      timeout: 20000,
-      forceNew: false, // Don't force new connection
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5,
-      autoConnect: true
-    });
+    const newSocket = new WebSocket(wsUrl);
 
-    // Socket event handlers
-    newSocket.on('connect', () => {
-      console.log('🔌 Socket connected:', newSocket.id);
-      setSocketId(newSocket.id);
-      
-      console.log('🔌 Socket health check:', {
-        id: newSocket.id,
-        connected: newSocket.connected,
-        readyState: newSocket.readyState,
-        transport: newSocket.io?.engine?.transport?.name
-      });
-      
-      // Test if socket is actually working
-      console.log('🧪 Testing socket functionality...');
-      newSocket.emit('test', { message: 'Client socket test', timestamp: Date.now() });
-      
+    // WebSocket event handlers
+    newSocket.onopen = () => {
+      console.log('🔌 WebSocket connected');
+      setSocketId(`ws_${Date.now()}`);
       setIsConnected(true);
-    });
+      
+      // Test if WebSocket is working - use newSocket directly since state isn't set yet
+      console.log('🧪 Testing WebSocket functionality...');
+      const testMessage = { type: 'getSocketId', data: { message: 'Get Client Socket ID', timestamp: Date.now() } };
+      newSocket.send(JSON.stringify(testMessage));
+    };
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('🔌 Socket disconnected:', reason);
+    newSocket.onclose = (event) => {
+      console.log('🔌 WebSocket disconnected:', event.code, event.reason);
       setIsConnected(false);
-    });
+      setSocketId(null);
+    };
 
-    newSocket.on('connect_error', (error) => {
-      console.error('🔌 Socket connection error:', error);
+    newSocket.onerror = (error) => {
+      console.error('🔌 WebSocket error:', error);
       setIsConnected(false);
-    });
+    };
 
-    newSocket.on('welcome', (data) => {
-      console.log('🔌 Welcome message:', data);
-    });
-
-    // Test response listener
-    newSocket.on('testResponse', (data) => {
-      console.log('✅ Server responded to test:', data);
-    });
-
-    newSocket.on('autoSyncProgress', (data) => {
-      if (data.stage == 'ads_completed') {
-        if (window.showPrimeToast) {
-          window.showPrimeToast('Auto sync completed! The page will be refreshed in a few seconds.', 'success');
+    newSocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle different message types
+        if (data.type === 'testResponse') {
+          console.log('✅ Server responded to test:', data);
+        } else if (data.type === 'autoSyncProgress') {
+          if (data.stage === 'ads_completed') {
+            if (window.showPrimeToast) {
+              window.showPrimeToast('Auto sync completed! The page will be refreshed in a few seconds.', 'success');
+            }
+            setTimeout(() => {
+              window.location.reload();
+            }, 5000);
+          }
+        } else if (data.type === 'welcome') {
+          console.log('🔌 Welcome message:', data);
         }
-        setTimeout(() => {
-          window.location.reload();
-        }, 5000);
+        else if (data.type === 'getSocketId') {
+          console.log(data)
+          newSocket.id = data.data;
+          setSocket(newSocket);
+          setSocketId(data.data);
+        }
+        // Trigger event listeners
+        if (data.type && eventListeners.current.has(data.type)) {
+          eventListeners.current.get(data.type).forEach(callback => callback(data.data));
+        }
+      } catch (error) {
+        console.error('❌ Error parsing WebSocket message:', error);
       }
-    });
-
-    newSocket.on('error', (error) => {
-      console.error('🔌 Socket error:', error);
-    });
+    };
 
     setSocket(newSocket);
 
     // Cleanup on unmount
     return () => {
-      console.log('🔌 Cleaning up socket connection');
-      newSocket.close();
+      console.log('🔌 Cleaning up WebSocket connection');
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close();
+      }
     };
   }, []);
 
-  // Function to select store for this socket connection
-  const selectStore = (storeId) => {
-    if (socket && socket.connected) {
-      console.log(`🏪 Emitting selectStore event for store: ${storeId}`);
-      socket.emit('selectStore', storeId);
-      console.log(`🏪 Socket selected store: ${storeId}`);
+  // Function to send messages
+  const sendMessage = (type, data) => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      const message = { type, data, timestamp: Date.now() };
+      socket.send(JSON.stringify(message));
+      console.log(`📤 WebSocket message sent:`, message);
+      return true;
     }
+    console.warn('⚠️ WebSocket not ready, message not sent');
+    return false;
+  };
+
+  // Function to select store
+  const selectStore = (storeId) => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      console.log(`🏪 Selecting store: ${storeId}`);
+      sendMessage('selectStore', { storeId });
+      return true;
+    }
+    return false;
+  };
+
+  // Function to add event listeners
+  const addEventListener = (eventType, callback) => {
+    if (!eventListeners.current.has(eventType)) {
+      eventListeners.current.set(eventType, new Set());
+    }
+    eventListeners.current.get(eventType).add(callback);
+    
+    return () => {
+      const listeners = eventListeners.current.get(eventType);
+      if (listeners) {
+        listeners.delete(callback);
+      }
+    };
+  };
+
+  // Socket health check function
+  const checkSocketHealth = () => {
+    if (socket) {
+      return {
+        exists: !!socket,
+        connected: socket.readyState === WebSocket.OPEN,
+        readyState: socket.readyState,
+        url: socket.url,
+        bufferedAmount: socket.bufferedAmount
+      };
+    }
+    return null;
+  };
+
+  // Manual test function
+  const testSocket = () => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      console.log('🧪 Manual WebSocket test...');
+      return sendMessage('test', { 
+        message: 'Manual test from client', 
+        timestamp: Date.now()
+      });
+    }
+    return false;
+  };
+
+  // Emit event function
+  const emitEvent = (eventName, data) => {
+    return sendMessage(eventName, data);
   };
 
   const value = {
@@ -119,40 +173,11 @@ export const SocketProvider = ({ children }) => {
     isConnected,
     socketId,
     selectStore,
-    // Socket health check function
-    checkSocketHealth: () => {
-      if (socket) {
-        return {
-          exists: !!socket,
-          connected: socket.connected,
-          id: socket.id,
-          readyState: socket.readyState,
-          transport: socket.io?.engine?.transport?.name,
-          hasListeners: socket.hasListeners && socket.hasListeners('connect')
-        };
-      }
-      return null;
-    },
-    // Manual test functions
-    testSocket: () => {
-      if (socket && socket.connected) {
-        console.log('🧪 Manual socket test...');
-        socket.emit('test', { 
-          message: 'Manual test from client', 
-          timestamp: Date.now()
-        });
-        return 'Test event emitted';
-      }
-      return 'Socket not ready';
-    },
-    emitEvent: (eventName, data) => {
-      if (socket && socket.connected) {
-        console.log(`📡 Emitting ${eventName}:`, data);
-        socket.emit(eventName, data);
-        return `Event ${eventName} emitted`;
-      }
-      return 'Socket not ready';
-    }
+    sendMessage,
+    addEventListener,
+    checkSocketHealth,
+    testSocket,
+    emitEvent
   };
 
   return (

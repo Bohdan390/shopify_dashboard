@@ -3,6 +3,19 @@ const router = express.Router();
 const analyticsService = require('../services/analyticsService');
 const { supabase } = require('../config/database-supabase');
 const common = require('../config/common');
+const socketManager = require('../services/socketManager');
+
+// Helper function to send WebSocket messages
+function sendWebSocketMessage(socket, eventType, data) {
+	if (socket && socket.readyState === 1) { // WebSocket.OPEN
+		const message = JSON.stringify({
+			type: eventType,
+			data: data,
+			timestamp: Date.now()
+		});
+		socket.send(message);
+	}
+}
 
 // Health check endpoint
 router.get('/health', async (req, res) => {
@@ -241,14 +254,13 @@ router.post('/recalculate', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const io = req.app.get('io');
-		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
+		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAnalyticsFromDate(recalcDate, socket, true, storeId);
 
 		// Emit final completion
 		if (socket) {
-			socket.emit('recalcProgress', {
+			sendWebSocketMessage(socket, 'recalcProgress', {
 				stage: 'completed',
 				message: '✅ Analytics recalculation completed successfully!',
 				progress: 100,
@@ -273,14 +285,13 @@ router.post('/recalculate-orders-only', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const io = req.app.get('io');
-		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
+		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateOrdersOnlyFromDate(recalcDate, socket, true, storeId);
 
 		// Emit final completion
 		if (socket) {
-			socket.emit('recalcProgress', {
+			sendWebSocketMessage(socket, 'recalcProgress', {
 				stage: 'completed',
 				message: '✅ Revenue recalculation completed successfully!',
 				progress: 100,
@@ -301,14 +312,13 @@ router.post('/recalculate-ads-only', async (req, res) => {
 		const { startDate, endDate, socketId, storeId = 'buycosari' } = req.body;
 
 		// Get the socket instance from the request
-		const io = req.app.get('io');
-		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
+		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAdsOnlyAnalytics(socket, 'recalcProgress', startDate, endDate, storeId);
 
 		// Emit final completion
 		if (socket) {
-			socket.emit('recalcProgress', {
+			sendWebSocketMessage(socket, 'recalcProgress', {
 				stage: 'completed',
 				message: '✅ Ads-only analytics recalculation completed successfully!',
 				progress: 100,
@@ -337,14 +347,13 @@ router.post('/recalculate-product-trends', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const io = req.app.get('io');
-		const socket = socketId ? io.sockets.sockets.get(socketId) : null;
+		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAllProductTrends(socket, startDate, endDate, storeId);
 
 		// Emit final completion
 		if (socket) {
-			socket.emit('productTrendsProgress', {
+			sendWebSocketMessage(socket, 'productTrendsProgress', {
 				stage: 'completed',
 				message: '✅ Product trends recalculation completed successfully!',
 				progress: 100,
@@ -642,8 +651,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 
 		// Clear existing data for the date range
-		const io = req.app.get('io');
-		const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
+		const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
 		// Calculate and insert new customer LTV cohorts
 
 		const {data: syncTracking, error: syncTrackingError} = await supabase.from('sync_tracking').select('last_sync_date').eq('store_id', storeId).limit(1);
@@ -687,13 +695,13 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
-			if (socket) {
-				socket.emit('syncProgress', {
-					stage: 'get_customer_ltv_cohorts',
-					message: 'Customer LTV cohorts synced successfully',
-					data: JSON.stringify(result.data)
-				});
-			}
+		if (socket) {
+			sendWebSocketMessage(socket, 'syncProgress', {
+				stage: 'get_customer_ltv_cohorts',
+				message: 'Customer LTV cohorts synced successfully',
+				data: JSON.stringify(result.data)
+			});
+		}
 		} else {
 			throw new Error(result.error);
 		}
@@ -717,7 +725,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 
 		// Emit initial progress
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: 'Starting Customer LTV calculation...',
 				progress: 0,
@@ -757,7 +765,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.lte('created_at', `${endDate}-31T23:59:59Z`);
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '',
 				progress: 5,
@@ -777,7 +785,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			if (rangeOrdersError) throw rangeOrdersError;
 			rangeOrders.push(...orders);
 			if (socket) {
-				socket.emit('syncProgress', {
+				sendWebSocketMessage(socket, 'syncProgress', {
 					stage: 'calculating',
 					message: '📥 Fetching customers data...',
 					progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(1)),
@@ -787,7 +795,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '📥 Fetching customers data...',
 				progress: 30,
@@ -815,7 +823,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			if (customersError) throw customersError;
 			allCustomers.push(...customers);
 			if (socket) {
-				socket.emit('syncProgress', {
+				sendWebSocketMessage(socket, 'syncProgress', {
 					stage: 'calculating',
 					message: '📥 Fetching customers data...',
 					progress: Number((30 + (i / customerCount) * 20).toFixed(1)),
@@ -825,7 +833,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '📥 Fetching ads data...',
 				progress: 50,
@@ -850,7 +858,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			if (productCampaignLinksError) throw productCampaignLinksError;
 			allProductCampaignLinks.push(...productCampaignLinks);
 			if (socket) {
-				socket.emit('syncProgress', {
+				sendWebSocketMessage(socket, 'syncProgress', {
 					stage: 'calculating',
 					message: '📥 Fetching products data...',
 					progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
@@ -860,7 +868,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '📥 Fetching products data...',
 				progress: 60,
@@ -894,7 +902,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '� Calculating LTV cohorts...',
 				progress: 70,
@@ -923,7 +931,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			})
 			allAdsSpend.push(...adsSpend);
 			if (socket) {
-				socket.emit('syncProgress', {
+				sendWebSocketMessage(socket, 'syncProgress', {
 					stage: 'calculating',
 					message: '� Calculating LTV cohorts...',
 					progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
@@ -948,7 +956,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		})
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '🔄 Calculating LTV cohorts...',
 				progress: 80,
@@ -1024,12 +1032,12 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					retention_rate: Number((retentionRate * 100).toFixed(2)),
 					total_first_order_price: Math.round(totalFOrderPrice).toFixed(2),
 					avg_first_order_price: Math.round(totalFOrderPrice / customers.length).toFixed(2),
-					created_at: common.createLocalDateWithTime(new Date()).toISOString(),
-					updated_at: common.createLocalDateWithTime(new Date()).toISOString()
+					created_at: new Date().toISOString(),
+					updated_at: new Date().toISOString()
 				});
 			})
 			if (socket) {
-				socket.emit('syncProgress', {
+				sendWebSocketMessage(socket, 'syncProgress', {
 					stage: 'calculating',
 					message: '🔄 Calculating LTV cohorts...',
 					progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(1)),
@@ -1038,7 +1046,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			}
 		}
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'calculating',
 				message: '💾 Saving LTV data...',
 				progress: 90,
@@ -1063,7 +1071,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					.insert(ltvData.slice(i, i + chunkSize));
 				if (insertError) throw insertError;
 				if (socket) {
-					socket.emit('syncProgress', {
+					sendWebSocketMessage(socket, 'syncProgress', {
 						stage: 'calculating',
 						message: '💾 Saving LTV data...',
 						progress: 100,
@@ -1074,7 +1082,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		if (socket) {
-			socket.emit('syncProgress', {
+			sendWebSocketMessage(socket, 'syncProgress', {
 				stage: 'completed',
 				message: '✅ LTV calculation completed!',
 				progress: 100,

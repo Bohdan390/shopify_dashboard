@@ -20,6 +20,17 @@ const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
 };
 
 class AnalyticsService {
+	// Helper function to send WebSocket messages
+	sendWebSocketMessage(socket, eventType, data) {
+		if (socket && socket.readyState === 1) { // WebSocket.OPEN
+			const message = JSON.stringify({
+				type: eventType,
+				data: data,
+				timestamp: Date.now()
+			});
+			socket.send(message);
+		}
+	}
 	async calculateDailyAnalytics(date, storeId = 'buycosari') {
 		try {
 			// Get revenue for the date
@@ -291,91 +302,6 @@ class AnalyticsService {
 		}
 	}
 
-	async recalculateAllAnalytics(socket = null) {
-		try {
-			if (socket) {
-				socket.emit('recalcProgress', {
-					stage: 'starting',
-					message: '🔄 Starting analytics recalculation...',
-					progress: 0,
-					total: 0
-				});
-			}
-
-			const { count, error: countError } = await supabase
-				.from('orders')
-				.select('*', { count: 'exact', head: true });
-
-			if (countError) throw countError;
-
-			let chunkSize = 1000;
-			let orderDates = [];
-			for (let i = 0; i < count; i += chunkSize) {
-				const { data, error } = await supabase
-					.from('orders')
-					.select('created_at, total_price')
-					.eq('financial_status', 'paid')
-					.range(i, i + chunkSize - 1);
-
-				if (error) throw error;
-				orderDates.push(...data);
-			}
-
-			const uniqueDates = [...new Set(orderDates.map(order =>
-				new Date(order.created_at).toISOString().split('T')[0]
-			))].sort();
-
-			if (socket) {
-				socket.emit('recalcProgress', {
-					stage: 'processing',
-					message: `📊 Processing ${uniqueDates.length} unique dates...`,
-					progress: 10,
-					total: uniqueDates.length
-				});
-			}
-
-			for (let i = 0; i < uniqueDates.length; i++) {
-				const date = uniqueDates[i];
-				if (socket) {
-					const progress = 10 + Math.floor((i / uniqueDates.length) * 80); // Progress from 10% to 90%
-					socket.emit('recalcProgress', {
-						stage: 'calculating',
-						message: `📊 Calculating analytics for ${date}... (${i + 1}/${uniqueDates.length})`,
-						progress: progress,
-						total: uniqueDates.length,
-						current: i + 1
-					});
-				}
-
-				await this.calculateDailyAnalytics(date);
-			}
-
-			if (socket) {
-				socket.emit('recalcProgress', {
-					stage: 'completed',
-					message: '✅ Analytics recalculation completed successfully!',
-					progress: 100,
-					total: uniqueDates.length,
-					processedDates: uniqueDates.length
-				});
-			}
-
-		} catch (error) {
-			console.error('❌ Error recalculating analytics:', error);
-
-			if (socket) {
-				socket.emit('recalcProgress', {
-					stage: 'error',
-					message: `❌ Error recalculating analytics: ${error.message}`,
-					progress: 0,
-					total: 0,
-					error: error.message
-				});
-			}
-
-			throw error;
-		}
-	}
 
 	async recalculateAnalyticsFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari') {
 		try {
@@ -383,7 +309,7 @@ class AnalyticsService {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 				const initialProgress = isStandaloneRecalc ? 0 : 95;
 
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: isStandaloneRecalc ? 'starting' : 'analytics',
 					message: `🔄 Recalculating analytics from ${syncDate}...`,
 					progress: initialProgress,
@@ -417,7 +343,7 @@ class AnalyticsService {
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
 				if (socket) {
-					socket.emit('recalcProgress', {
+					this.sendWebSocketMessage(socket, 'recalcProgress', {
 						stage: 'completed',
 						message: '📭 No orders found from sync date, skipping analytics',
 						progress: 100,
@@ -447,7 +373,7 @@ class AnalyticsService {
 
 					const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 
-					socket.emit(eventType, {
+					this.sendWebSocketMessage(socket, eventType, {
 						stage: isStandaloneRecalc ? 'calculating' : 'analytics',
 						message: `📊 Calculating analytics for ${date}... (${i + 1}/${allDates.length})`,
 						progress: progress,
@@ -463,7 +389,7 @@ class AnalyticsService {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 				const finalProgress = isStandaloneRecalc ? 100 : 99;
 
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: isStandaloneRecalc ? 'completed' : 'analytics',
 					message: '✅ Analytics recalculation completed!',
 					progress: finalProgress,
@@ -478,7 +404,7 @@ class AnalyticsService {
 			if (socket) {
 				const eventType = isStandaloneRecalc ? 'recalcProgress' : 'syncProgress';
 
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'error',
 					message: `❌ Error recalculating analytics: ${error.message}`,
 					progress: 0,
@@ -577,7 +503,7 @@ class AnalyticsService {
 			let initialProgress = 0;
 			if (socket) {
 				initialProgress = 0;
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: isStandaloneRecalc ? 'starting' : 'analytics',
 					message: `🔄 Recalculating revenue from ${syncDate}...`,
 					progress: initialProgress,
@@ -610,7 +536,7 @@ class AnalyticsService {
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
 				if (socket) {
-					socket.emit(socketStatus, {
+					this.sendWebSocketMessage(socket, socketStatus, {
 						stage: 'completed',
 						message: '📭 No orders found from sync date, skipping revenue calculation',
 						progress: 100,
@@ -697,7 +623,7 @@ class AnalyticsService {
 					// Emit progress
 					if (socket) {
 						const progress = initialProgress + (processedCount / allDates.length) * 100;
-						socket.emit(socketStatus, {
+						this.sendWebSocketMessage(socket, socketStatus, {
 							stage: 'processing',
 							message: `📊 Processing revenue for ${date}... (${processedCount}/${allDates.length})`,
 							progress: Number(progress.toFixed(1)) > 100 ? 100 : Number(progress.toFixed(1)),
@@ -713,7 +639,7 @@ class AnalyticsService {
 			}
 
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'completed',
 					message: `✅ Revenue recalculation completed! Processed ${processedCount} days`,
 					progress: 100,
@@ -736,7 +662,7 @@ class AnalyticsService {
 			console.error('❌ Error in orders-only recalculation:', error);
 			
 			if (socket) {
-				socket.emit(socketStatus, {
+				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'error',
 					message: `❌ Error in revenue recalculation: ${error.message}`,
 					progress: 0,
@@ -1044,7 +970,7 @@ class AnalyticsService {
 	async recalculateAdsOnlyAnalytics(socket = null, eventType = '', startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
 			if (socket) {
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'starting',
 					message: `🔄 Starting ads-only analytics recalculation for store: ${storeId}...`,
 					progress: 0,
@@ -1067,7 +993,7 @@ class AnalyticsService {
 			if (countError) throw countError;
 
 			if (socket) {
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'fetching',
 					message: `📊 Fetching ${count || 0} records for store: ${storeId}${startDate && endDate ? ` from ${startDate} to ${endDate}` : ''}...`,
 					progress: 5,
@@ -1101,7 +1027,7 @@ class AnalyticsService {
 				allDates.push(...(chunkData || []));
 				if (socket) {
 					const fetchProgress = 5 + Math.floor(((i + 1) / totalChunks) * 15); // Progress from 5% to 20%
-					socket.emit(eventType, {
+					this.sendWebSocketMessage(socket, eventType, {
 						stage: 'fetching',
 						message: `📊 Fetched chunk ${i + 1}/${totalChunks} for store: ${storeId} (${offset + (chunkData?.length || 0)}/${count || 0} records)...`,
 						progress: fetchProgress,
@@ -1114,7 +1040,7 @@ class AnalyticsService {
 			const uniqueDates = [...new Set(allDates.map(ad => ad.date))].sort();
 
 			if (socket) {
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'processing',
 					message: `📊 Processing ${uniqueDates.length} unique dates for store: ${storeId}${uniqueDates.length > 0 ? ` (${uniqueDates[0]} to ${uniqueDates[uniqueDates.length - 1]})` : ''}...`,
 					progress: 20,
@@ -1127,7 +1053,7 @@ class AnalyticsService {
 
 				if (socket) {
 					const progress = 25 + Math.floor(((i + 1) / uniqueDates.length) * 75); // Progress from 20% to 95%
-					socket.emit(eventType, {
+					this.sendWebSocketMessage(socket, eventType, {
 						stage: 'calculating',
 						message: `📊 Calculating analytics for ${date} (store: ${storeId}, ${i + 1}/${uniqueDates.length})...`,
 						progress: progress,
@@ -1141,7 +1067,7 @@ class AnalyticsService {
 
 			if (socket) {
 				const dateRangeInfo = uniqueDates.length > 0 ? ` (${uniqueDates[0]} to ${uniqueDates[uniqueDates.length - 1]})` : '';
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'analytics_completed',
 					message: `✅ Ads-only analytics recalculation completed successfully for store: ${storeId}!${dateRangeInfo}`,
 					progress: 100,
@@ -1154,7 +1080,7 @@ class AnalyticsService {
 			console.error(`❌ Error recalculating ads-only analytics for store ${storeId}:`, error);
 
 			if (socket) {
-				socket.emit(eventType, {
+				this.sendWebSocketMessage(socket, eventType, {
 					stage: 'error',
 					message: `❌ Error recalculating ads-only analytics for store ${storeId}: ${error.message}`,
 					progress: 0,
@@ -1255,7 +1181,7 @@ class AnalyticsService {
 	async recalculateAllProductTrends(socket = null, startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
 			if (socket) {
-				socket.emit('productTrendsProgress', {
+				this.sendWebSocketMessage(socket, 'productTrendsProgress', {
 					stage: 'starting',
 					message: `🔄 Starting product trends recalculation for ${storeId}...`,
 					progress: 0,
@@ -1265,7 +1191,7 @@ class AnalyticsService {
 
 			// Step 1: Calculate and store basic trends (revenue, orders)
 			if (socket) {
-				socket.emit('productTrendsProgress', {
+				this.sendWebSocketMessage(socket, "productTrendsProgress", {
 					stage: 'calculating_revenue',
 					message: `📊 Calculating revenue trends...`,
 					progress: 20,
@@ -1423,7 +1349,7 @@ class AnalyticsService {
 				}
 				
 				if (socket) {
-					socket.emit('productTrendsProgress', {
+					this.sendWebSocketMessage(socket, "productTrendsProgress", {
 						stage: 'updating_ads_cogs',
 						message: `💰 Updating with ads and COGS data...`,
 						progress: (index + 1) / uniqueDates.length * 100,
@@ -1434,7 +1360,7 @@ class AnalyticsService {
 
 			// Step 2: Update with ads and COGS data
 			if (socket) {
-				socket.emit('productTrendsProgress', {
+				this.sendWebSocketMessage(socket, "productTrendsProgress", {
 					stage: 'completed',
 					message: `✅ Product trends recalculation completed for ${storeId}!`,
 					progress: 100,
@@ -1448,7 +1374,7 @@ class AnalyticsService {
 			console.error('❌ Error in full product trends recalculation:', error);
 			
 			if (socket) {
-				socket.emit('productTrendsProgress', {
+				this.sendWebSocketMessage(socket, "productTrendsProgress", {
 					stage: 'error',
 					message: `❌ Error recalculating product trends: ${error.message}`,
 					progress: 0,

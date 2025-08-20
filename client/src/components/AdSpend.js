@@ -7,7 +7,7 @@ import {
 	DollarSign, TrendingUp, TrendingDown, ShoppingCart, RefreshCw,
 	Facebook, Chrome, Filter, Download, Settings, Calendar, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
 import { useSocket } from '../contexts/SocketContext';
 import AdSpendLoader from './loaders/AdSpendLoader';
@@ -372,15 +372,17 @@ const AdSpend = () => {
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
 	// Get socket from context
-	const { socket } = useSocket();
+	const { socket, addEventListener } = useSocket();
 
 	// WebSocket event handlers
 	useEffect(() => {
 		if (!socket) return;
 
-		socket.on('adsSyncProgress', (data) => {
+		// Add event listener for ads sync progress
+		const removeAdsSyncListener = addEventListener('adsSyncProgress', (data) => {
 			setSyncProgress(data);
 
+			console.log(data)
 			// Handle completion - check for both 'completed' and 'analytics_completed' stages
 			if (data.stage === 'completed' || data.stage === 'analytics_completed') {
 				// If it's analytics_completed, wait for the final 'completed' stage
@@ -403,11 +405,9 @@ const AdSpend = () => {
 
 		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
-			if (socket) {
-				socket.off('adsSyncProgress');
-			}
+			removeAdsSyncListener();
 		};
-	}, [socket]);
+	}, [socket, addEventListener]);
 
 	// Close date presets dropdown when clicking outside
 	useEffect(() => {
@@ -524,7 +524,7 @@ const AdSpend = () => {
 				store_id: selectedStore
 			});
 
-			const response = await axios.get(`/api/ads/summary-stats?${params}`);
+			const response = await api.get(`/api/ads/summary-stats?${params}`);
 			const { data, revenue } = response.data;
 
 			if (data && Array.isArray(data)) {
@@ -655,7 +655,7 @@ const AdSpend = () => {
 			});
 
 
-			const response = await axios.get(`/api/ads/chart-data?${params}`);
+			const response = await api.get(`/api/ads/chart-data?${params}`);
 			const data = response.data.data || [];
 
 			if (data.length === 0) {
@@ -683,7 +683,7 @@ const AdSpend = () => {
 		try {
 			setSyncProgress({ stage: 'starting', message: `Starting Windsor.ai sync for ${selectedStore}...`, progress: 0 });
 
-			await axios.post('/api/ads/sync-windsor', {
+			await api.post('/api/ads/sync-windsor', {
 				from: "dashboard",
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
@@ -745,7 +745,7 @@ const AdSpend = () => {
 				...filters
 			});
 
-			const response = await axios.get(`/api/ads/spend-detailed?${params}`);
+			const response = await api.get(`/api/ads/spend-detailed?${params}`);
 			const { data, pagination } = response.data;
 			
 			setAdSpendData(data || []);
@@ -814,7 +814,7 @@ const AdSpend = () => {
 				...filters
 			});
 
-			const response = await axios.get(`/api/ads/spend-detailed?${params}`);
+			const response = await api.get(`/api/ads/spend-detailed?${params}`);
 			const { data, pagination } = response.data;
 			setAdSpendData(data || []);
 

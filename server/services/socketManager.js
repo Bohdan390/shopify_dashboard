@@ -11,63 +11,33 @@ class SocketManager {
     }
 
     // Add socket connection for a store
-    addSocket(storeId, socket) {
-        if (!this.activeSockets.has(storeId)) {
-            this.activeSockets.set(storeId, new Set());
+    addSocket(socket) {
+        if (!this.activeSockets.has(socket.id)) {
+            this.activeSockets.set(socket.id, socket);
         }
-        this.activeSockets.get(storeId).add(socket);
-        
-        console.log(`🔌 Socket connected for store: ${storeId}. Total connections: ${this.activeSockets.get(storeId).size}`);
-        
-        // Start cron job for this store if not already running
-        this.startCronJob(storeId);
-        
-        // Send current sync status
-        this.sendSyncStatus(storeId, socket);
+        console.log(socket.id)
+        // Start cron job for this store if not already running        
     }
 
     // Remove socket connection for a store
-    removeSocket(storeId, socket) {
-        if (this.activeSockets.has(storeId)) {
-            this.activeSockets.get(storeId).delete(socket);
-            
-            // If no more connections for this store, stop cron job
-            if (this.activeSockets.get(storeId).size === 0) {
-                this.stopCronJob(storeId);
-                this.activeSockets.delete(storeId);
-            }
-            
-            console.log(`🔌 Socket disconnected for store: ${storeId}. Remaining connections: ${this.activeSockets.get(storeId)?.size || 0}`);
+    removeSocket(socket) {
+        if (this.activeSockets.has(socket.id)) {
+            this.activeSockets.delete(socket.id);
         }
     }
 
     // Start cron job for automatic syncing
-    startCronJob(storeId) {
-        if (this.cronJobs.has(storeId)) {
-            console.log(`⏰ Cron job already running for store: ${storeId}`);
-            return;
-        }
-
-        console.log(`⏰ Starting cron job for store: ${storeId} - runs every hour`);
-        
+    startCronJob() {
         // 0 * * * *
-        const cronJob = cron.schedule('0 * * * *', async () => {
-            await this.runAutoSync(storeId);
+        cron.schedule('0 * * * *', async () => {
+            var stores = ["buycosari", "meonutrition", "nomobark", "gamoseries", "cosara", "dermao"]
+            for (const storeId of stores) {
+                await this.runAutoSync(storeId);
+            }
         }, {
             scheduled: true,
             timezone: "UTC"
         });
-
-        this.cronJobs.set(storeId, cronJob);
-    }
-
-    // Stop cron job for a store
-    stopCronJob(storeId) {
-        if (this.cronJobs.has(storeId)) {
-            this.cronJobs.get(storeId).stop();
-            this.cronJobs.delete(storeId);
-            console.log(`⏰ Stopped cron job for store: ${storeId}`);
-        }
     }
 
     // Run automatic sync for a store
@@ -304,35 +274,47 @@ class SocketManager {
         }
     }
 
-    // Broadcast message to all sockets for a specific store
+    // Broadcast message to all WebSocket connections for a specific store
     broadcastToStore(storeId, event, data) {
         if (this.activeSockets.has(storeId)) {
             const sockets = this.activeSockets.get(storeId);
-            sockets.forEach(socket => {
-                if (socket.connected) {
-                    socket.emit(event, data);
+            const message = JSON.stringify({
+                type: event,
+                data: data,
+                timestamp: Date.now()
+            });
+            
+            sockets.forEach(ws => {
+                if (ws.readyState === 1) { // WebSocket.OPEN
+                    ws.send(message);
                 }
             });
             console.log(`📡 Broadcasted ${event} to ${sockets.size} clients for store: ${storeId}`);
         }
     }
 
-    // Send current sync status to a specific socket
-    sendSyncStatus(storeId, socket) {
+    // Send current sync status to a specific WebSocket connection
+    sendSyncStatus(storeId, ws) {
         const isSyncing = this.syncInProgress.get(storeId) || false;
-        socket.emit('syncStatus', {
-            storeId,
-            isSyncing,
-            timestamp: new Date().toISOString()
+        const message = JSON.stringify({
+            type: 'syncStatus',
+            data: {
+                storeId,
+                isSyncing,
+                timestamp: new Date().toISOString()
+            },
+            timestamp: Date.now()
         });
+        
+        if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(message);
+        }
     }
 
     // Get sync status for a store
     getSyncStatus(storeId) {
         return {
             isSyncing: this.syncInProgress.get(storeId) || false,
-            activeConnections: this.activeSockets.get(storeId)?.size || 0,
-            hasCronJob: this.cronJobs.has(storeId)
         };
     }
 

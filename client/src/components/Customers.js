@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from "../config/axios"
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import LoadingSpinner from './LoadingSpinner';
@@ -69,7 +69,7 @@ const Customers = () => {
                 params.append('searchEmail', searchEmail);
             }
 
-            const response = await axios.get(`/api/customers/analytics?${params}`);
+            const response = await api.get(`/api/customers/analytics?${params}`);
             setCustomers(response.data.data || []);
             setPagination(response.data.pagination);
         } catch (error) {
@@ -89,7 +89,7 @@ const Customers = () => {
     // Fetch summary stats
     const fetchSummaryStats = async () => {
         try {
-            const response = await axios.get(`/api/customers/summary/stats?storeId=${selectedStore}`);
+            const response = await api.get(`/api/customers/summary/stats?storeId=${selectedStore}`);
             setSummaryStats(response.data.data || {});
         } catch (error) {
             console.error('❌ Error fetching summary stats:', error);
@@ -105,7 +105,7 @@ const Customers = () => {
             setShowCustomerModal(true);
             setCustomerDetailsLoading(true);
             setSelectedCustomer(null);
-            const response = await axios.get(`/api/customers/${customerId}?storeId=${selectedStore}`);
+            const response = await api.get(`/api/customers/${customerId}?storeId=${selectedStore}`);
             setSelectedCustomer(response.data.data);
         } catch (error) {
             console.error('❌ Error fetching customer details:', error);

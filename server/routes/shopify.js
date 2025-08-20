@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const ShopifyService = require('../services/shopifyService');
-const analyticsService = require('../services/analyticsService');
 const { supabase } = require('../config/database-supabase');
+const socketManager = require('../services/socketManager');
 
 // Sync orders from Shopify
 router.post('/sync-orders', async (req, res) => {
@@ -10,9 +10,9 @@ router.post('/sync-orders', async (req, res) => {
     	const { limit = 50, syncDate, storeId = 'buycosari', from } = req.body;
     
     // Get the socket instance from the request
-    const io = req.app.get('io');
-    const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
     
+    console.log(socket)
     // Create store-specific service instance
     const storeService = new ShopifyService(storeId);
     
@@ -29,17 +29,21 @@ router.post('/sync-orders', async (req, res) => {
   } catch (error) {
     console.error('❌ Error syncing orders:', error);
     
-    // Emit error to client if socket is available
-    const io = req.app.get('io');
-    const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
+    // Emit error to client if WebSocket is available
+    const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
     if (socket) {
-      socket.emit(socketStatus, {
-        stage: 'error',
-        message: `❌ Error syncing orders: ${error.message}`,
-        progress: 0,
-        total: 0,
-        error: error.message
+      const message = JSON.stringify({
+        type: socketStatus,
+        data: {
+          stage: 'error',
+          message: `❌ Error syncing orders: ${error.message}`,
+          progress: 0,
+          total: 0,
+          error: error.message
+        },
+        timestamp: Date.now()
       });
+      socket.send(message);
     }
     
     res.status(500).json({ error: 'Failed to sync orders' });

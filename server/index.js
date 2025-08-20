@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 // const rateLimit = require('express-rate-limit'); // No longer needed
 const http = require('http');
-const socketIo = require('socket.io');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const app = express();
@@ -16,12 +16,7 @@ server.timeout = 36000000; // 10 hours (in milliseconds)
 server.keepAliveTimeout = 65000; // 65 seconds
 server.headersTimeout = 66000; // 66 seconds
 
-const io = socketIo(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
-});
+const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 5000;
 
@@ -56,40 +51,42 @@ const { supabase } = require('./config/database-supabase');
 const socketManager = require('./services/socketManager');
 
 // WebSocket connection handling
-io.on('connection', (socket) => {
-  console.log('🔌 New socket connection:', socket.id);
-  
-  // Handle store selection for this socket
-  socket.on('selectStore', (storeId) => {
-    console.log(`🏪 Socket ${socket.id} selected store: ${storeId}`);
-    socket.storeId = storeId; // Store the storeId on the socket object
-    socketManager.addSocket(storeId, socket);
-  });
-  
-  socket.on('disconnect', () => {
-    if (socket.storeId) {
-      console.log(`🔌 Socket ${socket.id} disconnected from store: ${socket.storeId}`);
-      socketManager.removeSocket(socket.storeId, socket);
+wss.on('connection', (ws) => {
+  // Generate a unique ID for this WebSocket connection
+  ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  console.log('🔌 New WebSocket connection:', ws.id);
+  socketManager.addSocket(ws);
+  // Handle incoming messages
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log(`📨 WebSocket message received:`, data);
+      if (data.type === 'getSocketId') {
+        ws.send(JSON.stringify({ type: 'getSocketId', data: ws.id }));
+      }
+    } catch (error) {
+      console.error('❌ Error parsing WebSocket message:', error);
     }
   });
   
-  // Handle manual sync trigger (for testing)
-  socket.on('triggerManualSync', (storeId) => {
-    if (socket.storeId === storeId) {
-      socketManager.triggerManualSync(storeId);
-    }
+  ws.on('close', () => {
+    console.log(`🔌 WebSocket ${ws.id} disconnected`);
+    socketManager.removeSocket(ws);
+  });
+  
+  ws.on('error', (error) => {
+    console.error(`❌ WebSocket ${ws.id} error:`, error);
   });
 });
 
-// Make io available to routes
-app.set('io', io);
+// Make WebSocket server available to routes
+app.set('wss', wss);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/shopify', require('./routes/shopify'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/ads', require('./routes/ads'));
-app.use('/api/campaign-roi', require('./routes/campaignRoi'));
 app.use('/api/product-groups', require('./routes/productGroups'));
 app.use('/api/customers', require('./routes/customers'));
 
@@ -117,24 +114,6 @@ app.get('*', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// Test endpoint to trigger manual sync
-app.post('/api/test/trigger-sync/:storeId', (req, res) => {
-  const { storeId } = req.params;
-  try {
-    socketManager.triggerManualSync(storeId);
-    res.json({ 
-      success: true, 
-      message: `Manual sync triggered for store: ${storeId}`,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
 });
 
 // Get sync status for a store

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from "../config/axios"
 import BeautifulSelect from './BeautifulSelect';
 
 const ProductGroups = ({ selectedStore, dateRange }) => {
@@ -18,7 +18,7 @@ const ProductGroups = ({ selectedStore, dateRange }) => {
 		setError(null);
 
 		try {
-			const response = await axios.get('/api/product-groups/analytics', {
+			const response = await api.get('/api/product-groups/analytics', {
 				params: {
 					storeId: selectedStore,
 					startDate: dateRange.startDate,
@@ -40,7 +40,7 @@ const ProductGroups = ({ selectedStore, dateRange }) => {
 		setAutoGroupLoading(true);
 		setError(null);
 		try {
-			const response = await axios.post('/api/product-groups/auto-group', {
+			const response = await api.post('/api/product-groups/auto-group', {
 				storeId: selectedStore
 			});
 			

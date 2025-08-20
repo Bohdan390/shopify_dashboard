@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import api from "../config/axios"
 
 const AuthContext = createContext();
 
@@ -129,15 +130,11 @@ export const AuthProvider = ({ children }) => {
 
   const verifySession = async (token) => {
     try {
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionToken: token }),
+      const response = await api.post('/api/auth/verify', {
+        sessionToken: token
       });
 
-      const data = await response.json();
+      const data = await response.data;
       
       if (data.success) {
         setIsAuthenticated(true);
@@ -162,15 +159,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (password) => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
+      const response = await api.post('/api/auth/login', {
+        password: password
       });
 
-      const data = await response.json();
+      const data = await response.data;
       
       if (data.success) {
         setIsAuthenticated(true);

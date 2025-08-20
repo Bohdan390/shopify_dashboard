@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from "../config/axios"
 import { TrendingUp, DollarSign, BarChart3, Calendar, RefreshCw, Grid, BarChart, Download, Search } from 'lucide-react';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
@@ -85,7 +85,7 @@ const ProductTrendsChart = () => {
 		try {
 			const monthRange = getMonthRangeForAPI();
 			
-			const response = await axios.get('/api/analytics/product-cohort-analytics', {
+			const response = await api.get('/api/analytics/product-cohort-analytics', {
 				params: {
 					storeId: selectedStore || 'buycosari',
 					startDate: monthRange[0],
@@ -237,7 +237,7 @@ const ProductTrendsChart = () => {
 			const startDate = `${syncModalStartYear}-${syncModalStartMonth.toString().padStart(2, '0')}`;
 			const endDate = `${syncModalEndYear}-${syncModalEndMonth.toString().padStart(2, '0')}`;
 			
-			const response = await axios.post('/api/analytics/recalculate-product-trends', {
+			const response = await api.post('/api/analytics/recalculate-product-trends', {
 				startDate,
 				endDate,
 				storeId: selectedStore || 'buycosari'
