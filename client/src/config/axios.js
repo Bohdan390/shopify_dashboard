@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: process.env.NODE_ENV === 'production' 
-    ? process.env.REACT_APP_API_URL || 'https://orca-app-h3fwp.ondigitalocean.app'
+    ? process.env.REACT_APP_API_URL || 'https://shopify-dashboard-6wofx.ondigitalocean.app/'
     : 'http://localhost:5000',
   timeout: 36000000, // 10 hours for long-running sync operations
   headers: {
