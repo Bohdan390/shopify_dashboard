@@ -420,7 +420,7 @@ const Dashboard = () => {
 	useEffect(() => {
 		if (!socket) return;
 
-		socket.on('syncProgress', (data) => {
+		socket.on('dashboard_syncProgress', (data) => {
 			setSyncProgress(data);
 			console.log(data)
 
@@ -487,7 +487,7 @@ const Dashboard = () => {
 		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
 			if (socket) {
-				socket.off('syncProgress');
+				socket.off('dashboard_syncProgress');
 				socket.off('recalcProgress');
 			}
 		};
@@ -688,6 +688,7 @@ const Dashboard = () => {
 			setSyncStep('Starting sync...');
 			// Pass socket ID for real-time progress updates
 			const response = await axios.post('/api/shopify/sync-orders', {
+				from: "dashboard",
 				syncDate: syncDate,
 				limit: 250,    // Fetch 250 orders per page (Shopify's maximum)
 				socketId: socket?.id, // Pass socket ID for WebSocket communication

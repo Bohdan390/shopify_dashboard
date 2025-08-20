@@ -8,7 +8,7 @@ const common = require('../config/common');
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
   try {
-    let { startDate, endDate, storeId, accountName } = req.body;
+    let { startDate, endDate, storeId, accountName, from } = req.body;
     
     if (!startDate) startDate = common.createLocalDateWithTime("2020-01-01").toISOString();
     if (!endDate) endDate = common.createLocalDateWithTime(new Date()).toISOString();
@@ -30,15 +30,17 @@ router.post('/sync-windsor', async (req, res) => {
     const io = req.app.get('io');
     const socket = req.body.socketId ? io.sockets.sockets.get(req.body.socketId) : null;
 
+    var socketStatus = from == "global" ? "global_adsSyncProgress" : "adsSyncProgress";
+
     res.json({ message: `Windsor.ai sync and analytics recalculation completed successfully for ${filterText}` });
     
     // Use the new fetchAndSaveAdData method with socket for progress updates
     var date = new Date();
-    const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, accountName);
+    const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, socketStatus);
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
-      socket.emit('adsSyncProgress', {
+      socket.emit(socketStatus, {
         stage: 'analytics_starting',
         message: '🔄 Starting analytics recalculation...',
         progress: 90,
@@ -46,12 +48,12 @@ router.post('/sync-windsor', async (req, res) => {
       });
     }
     
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, 'adsSyncProgress', startDate, endDate, storeId);
+    await analyticsService.recalculateAdsOnlyAnalytics(socket, socketStatus, startDate, endDate, storeId);
     
     await common.updateSyncTracking('last_ads_sync_date', date, storeId);
 
     if (socket) {
-      socket.emit('adsSyncProgress', {
+      socket.emit(socketStatus, {
         stage: 'completed',
         message: '✅ Windsor.ai sync and analytics recalculation completed!',
         progress: 100,

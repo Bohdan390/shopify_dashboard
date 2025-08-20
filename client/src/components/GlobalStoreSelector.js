@@ -31,26 +31,25 @@ const GlobalStoreSelector = () => {
 	useEffect(() => {
 		if (!socket) return;
 
-		socket.on('syncProgress', (data) => {
+		socket.on('global_syncProgress', (data) => {
 			updateSyncProgress(data);
 		});
 
-		socket.on('adsSyncProgress', (data) => {
+		socket.on('global_adsSyncProgress', (data) => {
 			updateSyncProgress(data);
 		});
 
 		// Cleanup event listeners when component unmounts or socket changes
 		return () => {
 			if (socket) {
-				socket.off('syncProgress');
-				socket.off('adsSyncProgress');
+				socket.off('global_syncProgress');
+				socket.off('global_adsSyncProgress');
 			}
 		};
 	}, [socket]);
 
 	const updateSyncProgress = (data) => {
 		setSyncProgress(data);
-
 		// Update sync step based on progress
 		if (data.stage === 'completed') {
 			window.location.reload()
@@ -173,6 +172,7 @@ const GlobalStoreSelector = () => {
 			setSyncStep('Starting ads sync...');
 
 			await axios.post('/api/ads/sync-windsor', {
+				from: "global",
 				startDate: syncInfo.lastAdsSyncDate,
 				storeId: selectedStore,
 				socketId: socket?.id // Pass socket ID for real-time progress
