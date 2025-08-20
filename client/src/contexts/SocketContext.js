@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { useStore } from './StoreContext';
 
 const SocketContext = createContext();
 
@@ -14,6 +15,7 @@ export const useSocket = () => {
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const { selectedStore } = useStore();
 
   useEffect(() => {
     // Determine the socket URL based on environment
@@ -45,7 +47,8 @@ export const SocketProvider = ({ children }) => {
 
     // Socket event handlers
     newSocket.on('connect', () => {
-      console.log('🔌 Socket connected:', newSocket.id);
+      console.log('🔌 Socket connected:', newSocket.id, selectedStore);
+      selectStore(newSocket, selectedStore);
       setIsConnected(true);
     });
 
@@ -63,6 +66,17 @@ export const SocketProvider = ({ children }) => {
       console.log('🔌 Welcome message:', data);
     });
 
+    newSocket.on('autoSyncProgress', (data) => {
+      if (data.stage == 'ads_completed') {
+        if (window.showPrimeToast) {
+          window.showPrimeToast('Auto sync completed! The data will be refreshed in a few seconds.', 'success');
+        }
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      }
+    });
+
     newSocket.on('error', (error) => {
       console.error('🔌 Socket error:', error);
     });
@@ -76,9 +90,17 @@ export const SocketProvider = ({ children }) => {
     };
   }, []);
 
+  // Function to select store for this socket connection
+  const selectStore = (_socket, storeId) => {
+    if (_socket) {
+      _socket.emit('selectStore', storeId);
+      console.log(`🏪 Socket selected store: ${storeId}`);
+    }
+  };
+
   const value = {
     socket,
-    isConnected
+    isConnected,
   };
 
   return (

@@ -75,8 +75,8 @@ const Customers = () => {
         } catch (error) {
             console.error('❌ Error fetching customer analytics:', error);
             setError('Failed to fetch customers. Please try again.');
-            if (window.showToast) {
-                window.showToast.error('Error', 'Failed to fetch customers. Please try again.');
+            if (window.showPrimeToast) {
+                window.showPrimeToast('Failed to fetch customers. Please try again.', 'error');
             }
         } finally {
             setLoading(false);
@@ -93,8 +93,8 @@ const Customers = () => {
             setSummaryStats(response.data.data || {});
         } catch (error) {
             console.error('❌ Error fetching summary stats:', error);
-            if (window.showToast) {
-                window.showToast.error('Error', 'Failed to fetch customer statistics');
+            if (window.showPrimeToast) {
+                window.showPrimeToast('Failed to fetch customer statistics', 'error');
             }
         }
     };
@@ -109,8 +109,8 @@ const Customers = () => {
             setSelectedCustomer(response.data.data);
         } catch (error) {
             console.error('❌ Error fetching customer details:', error);
-            if (window.showToast) {
-                window.showToast.error('Error', 'Failed to load customer details');
+            if (window.showPrimeToast) {
+                window.showPrimeToast('Failed to load customer details', 'error');
             }
         } finally {
             setCustomerDetailsLoading(false);
@@ -120,8 +120,8 @@ const Customers = () => {
     // Handle search
     const handleSearch = () => {
         if (!searchEmail.trim()) {
-            if (window.showToast) {
-                window.showToast.warning('Search Warning', 'Please enter an email to search');
+            if (window.showPrimeToast) {
+                window.showPrimeToast('Please enter an email to search', 'warning');
             }
             return;
         }

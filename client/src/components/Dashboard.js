@@ -553,8 +553,8 @@ const Dashboard = () => {
 			setDashboardData({ summary: {}, analytics: [] });
 
 			// Show error toast for manual refresh
-			if (showRefreshing && window.showToast) {
-				window.showToast.error('Update Failed', 'Failed to refresh dashboard data');
+			if (showRefreshing && window.showPrimeToast) {
+				window.showPrimeToast('Failed to refresh dashboard data', 'error');
 			}
 		} finally {
 			dailyLoading = false;

@@ -922,7 +922,6 @@ class AnalyticsService {
 		const offset = (page - 1) * limit;
 		const paginatedProducts = processedProducts.slice(offset, offset + limit);
 
-		console.log(productData.length)
 		productData.forEach(product => {
 			if (common.hasNumberXPattern(product.product_title)) {
 				if (paginatedProducts.find(p => product.product_sku_id.includes(p.product_sku))) {

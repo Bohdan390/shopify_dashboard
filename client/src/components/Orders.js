@@ -440,8 +440,8 @@ const Orders = () => {
 		} catch (error) {
 			console.error('Error fetching orders:', error);
 			setError('Failed to fetch orders. Please try again.');
-			if (window.showToast) {
-				window.showToast.error('Error', 'Failed to fetch orders. Please try again.');
+			if (window.showPrimeToast) {
+				window.showPrimeToast('Failed to fetch orders. Please try again.', 'error');
 			}
 		} finally {
 			setLoading(false);
@@ -467,16 +467,16 @@ const Orders = () => {
 			setOverallStats(response.data);
 		} catch (error) {
 			console.error('Error fetching overall stats:', error);
-			if (window.showToast) {
-				window.showToast.error('Error', 'Failed to fetch order statistics');
+			if (window.showPrimeToast) {
+				window.showPrimeToast('Failed to fetch order statistics', 'error');
 			}
 		}
 	};
 
 	const handleSearch = () => {
 		if (!searchTerm.trim()) {
-			if (window.showToast) {
-				window.showToast.warning('Search Warning', 'Please enter a search term');
+			if (window.showPrimeToast) {
+				window.showPrimeToast('Please enter a search term', 'warning');
 			}
 			return;
 		}
@@ -613,15 +613,15 @@ const Orders = () => {
 				await fetchOverallStats();
 			} catch (error) {
 				console.error('Error fetching orders with date range:', error);
-				if (window.showToast) {
-					window.showToast.error('Error', 'Failed to apply date range filter');
+				if (window.showPrimeToast) {
+					window.showPrimeToast('Failed to apply date range filter', 'error');
 				}
 			} finally {
 				setSearchLoading(false);
 			}
 		} else {
-			if (window.showToast) {
-				window.showToast.warning('Date Selection', 'Please select both start and end dates');
+			if (window.showPrimeToast) {
+				window.showPrimeToast('Please select both start and end dates', 'warning');
 			}
 		}
 	};

@@ -258,7 +258,7 @@ const CustomerLTV = () => {
         }
     }, [socket, selectedStore, selectedProductSku]);
 
-    // Listen for sync progress updates
+    // Select store for socket when component mounts
     useEffect(() => {
         if (!socket) return;
         socket.on('syncProgress', (data) => {

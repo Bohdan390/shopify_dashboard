@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
@@ -9,12 +9,15 @@ import ProductTrendsChart from './components/ProductTrendsChart';
 import Customers from './components/Customers';
 import CustomerLTV from './components/CustomerLTV';
 import Sidebar from './components/Sidebar';
-import ToastContainer from './components/ToastContainer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { StoreProvider, useStore } from './contexts/StoreContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { Toast } from 'primereact/toast';
 import './App.css';
+import 'primereact/resources/primereact.min.css';
+import 'primeicons/primeicons.css';
+import 'primereact/resources/themes/lara-light-indigo/theme.css';
 
 // Protected Route component for Product Trends
 const ProtectedProductTrendsRoute = () => {
@@ -49,10 +52,31 @@ function AppRoutes() {
 }
 
 function App() {
+  const toast = useRef(null);
+  
+  // Set up global toast function
+  React.useEffect(() => {
+    window.showPrimeToast = (message, severity = 'info') => {
+      if (toast.current) {
+        toast.current.show({
+          severity: severity,
+          summary: severity === 'success' ? 'Success' : severity === 'error' ? 'Error' : 'Info',
+          detail: message,
+          life: 5000
+        });
+      }
+    };
+    
+    return () => {
+      delete window.showPrimeToast;
+    };
+  }, []);
+  
   return (
     <AuthProvider>
       <StoreProvider>
         <SocketProvider>
+          <Toast ref={toast} />
           <Router
             future={{
               v7_startTransition: true,
@@ -64,7 +88,6 @@ function App() {
               <div className="flex-1 overflow-auto">
                 <AppRoutes />
               </div>
-              <ToastContainer />
             </div>
           </Router>
         </SocketProvider>
