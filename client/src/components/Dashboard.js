@@ -1029,27 +1029,27 @@ const Dashboard = () => {
 												style={{ width: `${(syncProgress || recalcProgress).progress}%` }}
 											></div>
 										</div>
-										{syncProgress && syncProgress.current && syncProgress.total !== 'unlimited' && (
+										{(syncProgress && syncProgress.current && syncProgress.total !== 'unlimited') ? (
 											<div className="text-xs text-blue-600 font-medium mt-1">
 												{syncProgress.current} / {syncProgress.total} orders
 											</div>
-										)}
-										{syncProgress && syncProgress.total === 'unlimited' && (
+										) : <></>}
+										{(syncProgress && syncProgress.total === 'unlimited') ? (
 											<div className="text-xs text-blue-600 font-medium mt-1">
 												{syncProgress.current} orders processed
 											</div>
-										)}
-										{recalcProgress && recalcProgress.current && recalcProgress.total && (
+										) : <></>}
+										{(recalcProgress && recalcProgress.current && recalcProgress.total) ? (
 											<div className="text-xs text-blue-600 font-medium mt-1">
 												{recalcProgress.current} / {recalcProgress.total} dates
 											</div>
-										)}
+										) : <></>}
 									</div>
 								)}
 
-								{syncStep && !(syncProgress || recalcProgress) && (
+								{(syncStep && !(syncProgress || recalcProgress)) ? (
 									<p className="text-sm text-primary-600 font-medium">{syncStep}</p>
-								)}
+								) : <></>}
 								<p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
 							</>
 						)}

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/database-supabase');
 const windsorService = require('../services/windsorService');
-const analyticsService = require('../services/analyticsService');
 const common = require('../config/common');
 
 // Sync ad data from Windsor.ai
@@ -34,9 +33,7 @@ router.post('/sync-windsor', async (req, res) => {
 
     res.json({ message: `Windsor.ai sync and analytics recalculation completed successfully for ${filterText}` });
     
-    // Use the new fetchAndSaveAdData method with socket for progress updates
-    var date = new Date();
-    const result = await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, socketStatus);
+    await windsorService.fetchAndSaveAdData(startDate, endDate, socket, storeId, socketStatus);
     
     // After syncing ads, recalculate analytics based on ads data
     if (socket) {
@@ -47,11 +44,7 @@ router.post('/sync-windsor', async (req, res) => {
         total: 'unlimited'
       });
     }
-    
-    await analyticsService.recalculateAdsOnlyAnalytics(socket, socketStatus, startDate, endDate, storeId);
-    
-    await common.updateSyncTracking('last_ads_sync_date', date, storeId);
-
+        
     if (socket) {
       socket.emit(socketStatus, {
         stage: 'completed',

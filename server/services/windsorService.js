@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const common = require("../config/common")
+const analyticsService = require('../services/analyticsService');
 require('dotenv').config();
 
 class WindsorService {
@@ -278,6 +279,7 @@ class WindsorService {
 
   async fetchAndSaveAdData(startDate, endDate, socket = null, storeId = null, socketStatus = null) {
     try {
+      var date = new Date();
       // Emit initial progress
       if (socket) {
         socket.emit(socketStatus, {
@@ -329,14 +331,18 @@ class WindsorService {
       if (socket) {
         socket.emit(socketStatus, {
           stage: 'sync_completed',
-          message: '✅ Windsor.ai ads sync completed! Starting analytics recalculation...',
-          progress: 90,
+          message: '✅ Windsor.ai ads sync completed!',
+          progress: 100,
           total: 'unlimited',
           campaignsSaved: result.campaignsSaved,
           adSpendRecordsSaved: result.adSpendRecordsSaved
         });
       }
       
+      await analyticsService.recalculateAdsOnlyAnalytics(socket, socketStatus, startDate, endDate, storeId);
+
+      await common.updateSyncTracking('last_ads_sync_date', date, storeId);
+
       return result;
       
     } catch (error) {

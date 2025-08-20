@@ -777,12 +777,14 @@ class ShopifyService {
 			if (socket) {
 				socket.emit(socketStatus, {
 					stage: 'sync_completed',
-					message: '✅ Order sync completed! Starting analytics calculation...',
+					message: '✅ Order sync completed!',
 					progress: 100,
 					total: orders.length,
 					ordersCount: orders.length
 				});
 			}
+
+			await analyticsService.recalculateOrdersOnlyFromDate(syncDate, socket, false, this.storeId, socketStatus);
 
 			// Update sync tracking table
 			await common.updateSyncTracking('last_sync_date', date, this.storeId);
