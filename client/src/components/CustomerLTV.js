@@ -62,6 +62,38 @@ const CustomerLTV = () => {
     // Generate year options (current year and 4 years back)
     const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
+    // Fetch individual product LTV data
+    const fetchIndividualProductLtv = async () => {
+        if (isLtvLoading) return;
+        isLtvLoading = true;
+        if (!socket || !socket.connected) {
+            isLtvLoading = false;
+            return;
+        }
+        try {
+            setLtvLoading(true);
+            const params = new URLSearchParams({
+                sku: selectedProductSku,
+                storeId: selectedStore,
+            });
+
+            var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
+            var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
+
+            const response = await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
+                startDate,
+                endDate,
+                storeId: selectedStore || 'buycosari',
+                socketId: socket?.id,
+                sku: selectedProductSku
+            });
+            isLtvLoading = false;
+        } catch (error) {
+            console.error('❌ Error fetching customer analytics:', error);
+            isLtvLoading = false;
+        }
+    };
+
     // Get month range for display
     const getLtvMonthRangeDisplay = () => {
         if (ltvStartMonth === ltvEndMonth && ltvStartYear === ltvEndYear) {
@@ -213,8 +245,22 @@ const CustomerLTV = () => {
 
     // WebSocket event handlers
     useEffect(() => {
-        if (!socket) return;
+        if (selectedStore && selectedProductSku) {
+            // Execute fetchIndividualProductLtv after socket connection
+            if (socket && socket.connected) {
+                fetchIndividualProductLtv();
+            }
+            else {
+                setTimeout(() => {
+                    fetchIndividualProductLtv();
+                }, 1000);
+            }
+        }
+    }, [socket, selectedStore, selectedProductSku]);
 
+    // Listen for sync progress updates
+    useEffect(() => {
+        if (!socket) return;
         socket.on('syncProgress', (data) => {
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
@@ -275,32 +321,7 @@ const CustomerLTV = () => {
         }
     };
 
-    // Fetch individual product LTV data
-    const fetchIndividualProductLtv = async () => {
-        if (isLtvLoading) return;
-        isLtvLoading = true;
-        try {
-            setLtvLoading(true);
-            const params = new URLSearchParams({
-                sku: selectedProductSku,
-                storeId: selectedStore,
-            });
 
-            var startDate = ltvStartYear + "-" + (ltvStartMonth > 10 ? ltvStartMonth : "0" + ltvStartMonth);
-            var endDate = ltvEndYear + "-" + (ltvEndMonth > 10 ? ltvEndMonth : "0" + ltvEndMonth);
-
-            const response = await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
-                startDate,
-                endDate,
-                storeId: selectedStore || 'buycosari',
-                socketId: socket.id,
-                sku: selectedProductSku
-            });
-            isLtvLoading = false;
-        } catch (error) {
-            console.error('❌ Error fetching customer analytics:', error);
-        }
-    };
 
     // Format currency
     const formatCurrency = (amount) => {
