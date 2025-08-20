@@ -80,7 +80,7 @@ const CustomerLTV = () => {
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            const response = await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
+            await axios.post('/api/analytics/sync-customer-ltv-cohorts', {
                 startDate,
                 endDate,
                 storeId: selectedStore || 'buycosari',
@@ -247,6 +247,7 @@ const CustomerLTV = () => {
     useEffect(() => {
         if (selectedStore && selectedProductSku) {
             // Execute fetchIndividualProductLtv after socket connection
+            console.log(socket && socket.connected)
             if (socket && socket.connected) {
                 fetchIndividualProductLtv();
             }
@@ -262,6 +263,7 @@ const CustomerLTV = () => {
     useEffect(() => {
         if (!socket) return;
         socket.on('syncProgress', (data) => {
+            console.log(data)
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
