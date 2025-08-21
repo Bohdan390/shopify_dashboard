@@ -162,6 +162,16 @@ router.get('/:storeId', async (req, res) => {
         allProductSkus = allProductSkus.filter(sku => sku.sku_id.includes(search) || sku.sku_title.includes(search) || sku.product_ids.includes(search));
     }
 
+    var totalRevenue = 0;
+    var totalProfit = 0;
+    var totalQuantity = 0;
+    allProductSkus.forEach((product) => {
+        totalRevenue += product.total_revenue;
+        totalProfit += product.total_profit;
+        totalQuantity += product.total_quantity;
+    })
+    var avgOrderValue = totalRevenue / totalQuantity;
+
     // Apply server-side sorting
     allProductSkus.sort((a, b) => {
         let aValue = a[sortBy];
@@ -199,6 +209,10 @@ router.get('/:storeId', async (req, res) => {
     res.json({
       success: true,
       data: allProductSkus,
+      totalRevenue: common.roundPrice(totalRevenue),
+      totalProfit: common.roundPrice(totalProfit),
+      totalQuantity: totalQuantity,
+      avgOrderValue: common.roundPrice(avgOrderValue),
       pagination: {
         currentPage: parseInt(page),
         pageSize: parseInt(pageSize),

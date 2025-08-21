@@ -391,6 +391,14 @@ const Orders = () => {
 		fetchOrders(1, false, true);
 	}, [pageSize]);
 
+	// Automatically reload data when search is cleared
+	useEffect(() => {
+		if (searchTerm === '') {
+			// Reset to first page and fetch all orders when search is cleared
+			fetchOrders(1, false, true);
+		}
+	}, [searchTerm]);
+
 	const fetchOrders = async (page = 1, showRefresh = false, isTableOnly = false, customSortConfig = null) => {
 		if (isLoading) return;
 		isLoading = true;

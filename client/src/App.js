@@ -9,11 +9,13 @@ import ProductTrendsChart from './components/ProductTrendsChart';
 import Customers from './components/Customers';
 import CustomerLTV from './components/CustomerLTV';
 import ProductSkus from './components/ProductSkus';
+
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import { StoreProvider, useStore } from './contexts/StoreContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { CurrencyProvider } from './contexts/CurrencyContext';
 import { Toast } from 'primereact/toast';
 import './App.css';
 import 'primereact/resources/primereact.min.css';
@@ -46,6 +48,7 @@ function AppRoutes() {
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer-ltv" element={<CustomerLTV />} />
         <Route path="/product-skus" element={<ProductSkus />} />
+
         {/* Protected Product Trends route - redirects to dashboard if not meonutrition */}
         <Route path="/product-trends" element={<ProtectedProductTrendsRoute />} />
       </Routes>
@@ -78,20 +81,22 @@ function App() {
     <AuthProvider>
       <StoreProvider>
         <SocketProvider>
-          <Toast ref={toast} />
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
-            <div className="flex h-screen bg-gray-50">
-              <Sidebar />
-              <div className="flex-1 overflow-auto">
-                <AppRoutes />
+          <CurrencyProvider>
+            <Toast ref={toast} />
+            <Router
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true
+              }}
+            >
+              <div className="flex h-screen bg-gray-50">
+                <Sidebar />
+                <div className="flex-1 overflow-auto">
+                  <AppRoutes />
+                </div>
               </div>
-            </div>
-          </Router>
+            </Router>
+          </CurrencyProvider>
         </SocketProvider>
       </StoreProvider>
     </AuthProvider>
