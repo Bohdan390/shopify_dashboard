@@ -14,8 +14,9 @@ class SocketManager {
     addSocket(socket) {
         if (!this.activeSockets.has(socket.id)) {
             this.activeSockets.set(socket.id, socket);
+            console.log("socket added", socket.id)
         }
-        console.log(socket.id)
+        console.log("----------- Socket Add Finished ----------")
         // Start cron job for this store if not already running        
     }
 
