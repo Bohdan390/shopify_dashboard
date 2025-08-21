@@ -474,12 +474,12 @@ const Orders = () => {
 	};
 
 	const handleSearch = () => {
-		if (!searchTerm.trim()) {
-			if (window.showPrimeToast) {
-				window.showPrimeToast('Please enter a search term', 'warning');
-			}
-			return;
-		}
+		// if (!searchTerm.trim()) {
+		// 	if (window.showPrimeToast) {
+		// 		window.showPrimeToast('Please enter a search term', 'warning');
+		// 	}
+		// 	return;
+		// }
 		
 		setSearchLoading(true);
 		fetchOrders(1, false, true).finally(() => setSearchLoading(false));
