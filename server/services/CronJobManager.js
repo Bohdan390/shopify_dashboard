@@ -2,29 +2,11 @@ const cron = require('node-cron');
 const { supabase } = require('../config/database-supabase');
 const ShopifyService = require('./shopifyService');
 const windsorService = require('./windsorService');
+const common = require('../config/common');
 
-class SocketManager {
+class CronJobManager {
     constructor() {
-        this.activeSockets = new Map(); // storeId -> Set of socket objects
         this.syncInProgress = new Map(); // storeId -> sync status
-        this.cronJobs = new Map(); // storeId -> cron job reference
-    }
-
-    // Add socket connection for a store
-    addSocket(socket) {
-        if (!this.activeSockets.has(socket.id)) {
-            this.activeSockets.set(socket.id, socket);
-            console.log("socket added", socket.id)
-        }
-        console.log("----------- Socket Add Finished ----------")
-        // Start cron job for this store if not already running        
-    }
-
-    // Remove socket connection for a store
-    removeSocket(socket) {
-        if (this.activeSockets.has(socket.id)) {
-            this.activeSockets.delete(socket.id);
-        }
     }
 
     // Start cron job for automatic syncing
@@ -63,37 +45,17 @@ class SocketManager {
                 return;
             }
 
-            // Broadcast sync start
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'starting',
-                message: '🔄 Automatic sync started',
-                progress: 0,
-                timestamp: new Date().toISOString()
-            });
-
             // Run sync operations with progress tracking
             const ordersCount = await this.syncOrders(storeId);
-            
-            // Update progress after orders
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'orders_completed',
-                message: '📦 Orders sync completed, starting ads sync...',
-                progress: 35,
-                timestamp: new Date().toISOString()
-            });
             
             const adsCount = await this.syncAds(storeId);
             
             // Update progress after ads
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
+            common.broadcastToStore(common.activeSockets, 'autoSyncProgress', {
                 storeId,
                 type: 'auto',
                 stage: 'ads_completed',
-                message: `Auto Sync Completed. ${ordersCount} orders synced. ${adsCount} campaigns synced`,
+                message: `Auto Sync Completed. ${ordersCount} orders synced. ${adsCount} ads synced`,
                 progress: 65,
                 timestamp: new Date().toISOString()
             });
@@ -102,16 +64,6 @@ class SocketManager {
             
         } catch (error) {
             console.error(`❌ Auto-sync failed for store: ${storeId}:`, error);
-            
-            // Broadcast error
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'error',
-                message: `❌ Auto-sync failed: ${error.message}`,
-                progress: 0,
-                timestamp: new Date().toISOString()
-            });
         } finally {
             this.syncInProgress.set(storeId, false);
         }
@@ -186,43 +138,17 @@ class SocketManager {
     // Sync orders for a store
     async syncOrders(storeId) {
         try {
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'orders',
-                message: '📦 Syncing orders...',
-                progress: 25,
-                timestamp: new Date().toISOString()
-            });
-
             // Get the last sync date to use as start date
             const { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
             
             // Call the real Shopify order sync service with the actual start date
             const storeService = new ShopifyService(storeId);
             const ordersCount = await storeService.syncOrders(250, ordersStartDate, null, 'autoSyncProgress');
-            
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'orders',
-                message: `✅ Orders sync completed! ${ordersCount} orders processed from ${ordersStartDate.toISOString().split('T')[0]}`,
-                progress: 30,
-                timestamp: new Date().toISOString()
-            });
 
             return ordersCount;
             
         } catch (error) {
             console.error(`❌ Error in auto-sync orders for store: ${storeId}:`, error);
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'orders',
-                message: `❌ Orders sync failed: ${error.message}`,
-                progress: 25,
-                timestamp: new Date().toISOString()
-            });
             throw error;
         }
     }
@@ -230,15 +156,6 @@ class SocketManager {
     // Sync ads for a store
     async syncAds(storeId) {
         try {
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ads',
-                message: '📢 Syncing ads...',
-                progress: 50,
-                timestamp: new Date().toISOString()
-            });
-
             // Get the last ads sync date to use as start date
             const { adsStartDate, endDate } = await this.getLastSyncDates(storeId);
 
@@ -250,49 +167,13 @@ class SocketManager {
                 storeId, 
                 'autoSyncProgress'
             );
-            
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ads',
-                message: `✅ Ads sync completed! ${result.campaignsSaved} campaigns, ${result.adSpendRecordsSaved} records from ${adsStartDate.toISOString().split('T')[0]}`,
-                progress: 60,
-                timestamp: new Date().toISOString()
-            });
 
             console.log(`📢 Auto-sync ads completed for store: ${storeId}, ${result.campaignsSaved} campaigns, ${result.adSpendRecordsSaved} records from ${adsStartDate.toISOString().split('T')[0]}`);
             
             return result.campaignsSaved;
         } catch (error) {
             console.error(`❌ Error in auto-sync ads for store: ${storeId}:`, error);
-            this.broadcastToStore(storeId, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ads',
-                message: `❌ Ads sync failed: ${error.message}`,
-                progress: 50,
-                timestamp: new Date().toISOString()
-            });
             throw error;
-        }
-    }
-
-    // Broadcast message to all WebSocket connections for a specific store
-    broadcastToStore(storeId, event, data) {
-        if (this.activeSockets.has(storeId)) {
-            const sockets = this.activeSockets.get(storeId);
-            const message = JSON.stringify({
-                type: event,
-                data: data,
-                timestamp: Date.now()
-            });
-            
-            sockets.forEach(ws => {
-                if (ws.readyState === 1) { // WebSocket.OPEN
-                    ws.send(message);
-                }
-            });
-            console.log(`📡 Broadcasted ${event} to ${sockets.size} clients for store: ${storeId}`);
         }
     }
 
@@ -328,4 +209,4 @@ class SocketManager {
     }
 }
 
-module.exports = new SocketManager();
+module.exports = new CronJobManager();

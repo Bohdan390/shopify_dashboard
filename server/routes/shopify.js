@@ -10,9 +10,9 @@ router.post('/sync-orders', async (req, res) => {
     	const { limit = 50, syncDate, storeId = 'buycosari', from } = req.body;
     
     // Get the socket instance from the request
-    const socket = req.body.socketId ? common.socketManager.activeSockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
     
-    var socketIds = common.socketManager.activeSockets.keys();
+    var socketIds = common.activeSockets.keys();
     console.log(socketIds, 123);
     // Create store-specific service instance
     const storeService = new ShopifyService(storeId);
@@ -31,7 +31,7 @@ router.post('/sync-orders', async (req, res) => {
     console.error('❌ Error syncing orders:', error);
     
     // Emit error to client if WebSocket is available
-    const socket = req.body.socketId ? common.socketManager.activeSockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
     if (socket) {
       const message = JSON.stringify({
         type: socketStatus,

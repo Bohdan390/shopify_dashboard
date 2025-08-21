@@ -86,9 +86,25 @@ const hasNumberXPattern = (str) => {
     return /\d+x/i.test(str);
 };
 
+function broadcastToStore(sockets, event, data) {
+    const message = JSON.stringify({
+        type: event,
+        data: data,
+        timestamp: Date.now()
+    });
+    
+    sockets.forEach(ws => {
+        if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(message);
+        }
+    });
+    console.log(`📡 Broadcasted ${event} to ${sockets.size} clients`);
+}
+
 module.exports = {
     productSkus: [],
-    socketManager: null,
+    activeSockets: new Map(),
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
-    diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern
+    diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern,
+    broadcastToStore
 }
