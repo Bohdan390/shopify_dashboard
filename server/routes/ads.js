@@ -641,6 +641,7 @@ router.post('/cog', async (req, res) => {
       if (productSkuId) {
         productSkuId = productSkuId.includes("-") ? productSkuId.split("-")[0] + "-" + productSkuId.split("-")[1] : productSkuId;
         await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSkuId);
+        common.productSkus = [];
       }
 
       const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', date).eq('store_id', store_id).limit(1);

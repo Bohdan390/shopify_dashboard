@@ -87,6 +87,7 @@ const hasNumberXPattern = (str) => {
 };
 
 module.exports = {
+    productSkus: [],
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
     diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern
 }

@@ -73,15 +73,89 @@ router.get('/:storeId', async (req, res) => {
       .eq('store_id', storeId);
 
     var allProductSkus = []
-    for (let i = 0; i < count; i += chunk) {
+    var startDate = '2023-01-01';
+    var endDate = '2025-12-31';
+    if (common.productSkus.length == 0) {
         const { data, error } = await supabase.rpc('get_product_sku_revenue', {
             p_store_id: storeId,
-            p_start_date: '2023-01-01',
-            p_end_date: '2025-12-31',
-        }).range(i, i + chunk - 1);
+            p_start_date: startDate,
+            p_end_date: endDate,
+        });
 
         if (error) throw error;
-        allProductSkus.push(...data);
+        allProductSkus.push(...data)
+
+        var productSkus = [];
+
+        allProductSkus.forEach(product => {
+            if (!productSkus.includes(product.sku_id)) {
+                productSkus.push(product.sku_id);
+            }
+        });
+        
+        // Process and enrich product data
+        // Get manual product-campaign links
+        const {count: campaignCount} = await supabase
+            .from('product_campaign_links')
+            .select('*', { count: 'exact', head: true })
+            .eq('store_id', storeId)
+            .eq('is_active', true)
+            .in('product_sku', productSkus);
+
+        var allProductCampaignLinks = [];
+        for (var i = 0; i < campaignCount; i += 1000) {
+            const { data: manualLinks, error: linksError } = await supabase
+                .from('product_campaign_links')
+                .select('*')
+                .eq('store_id', storeId)
+                .eq('is_active', true)
+                .in('product_sku', productSkus)
+                .range(i, i + 1000 - 1);
+            if (linksError) throw linksError;
+            allProductCampaignLinks.push(...manualLinks);
+        }
+
+        const {count: costOfGoodsSoldCount} = await supabase.from("cost_of_goods_sold").select("*", { count: 'exact', head: true }).eq("store_id", storeId);
+        var costOfGoodsSold = [];
+        for (var i = 0; i < costOfGoodsSoldCount; i += chunk) {
+            const { data: costOfGoodsSoldData, error: costOfGoodsSoldError } = await supabase.from("cost_of_goods_sold").select("*").eq("store_id", storeId).range(i, i + chunk - 1);
+            if (costOfGoodsSoldError) throw costOfGoodsSoldError;
+            costOfGoodsSold.push(...costOfGoodsSoldData);
+        }
+
+        var campaignNames = allProductCampaignLinks.map(link => link.campaign_id);
+
+        const { data: adSpend, error: adSpendError } = await supabase
+        .rpc('aggregate_ad_spend_by_campaign', {
+            start_date: startDate + 'T00:00:00',
+            end_date: endDate + 'T23:59:59.999',
+            p_campaign_names: campaignNames
+        });
+
+        allProductSkus.forEach(product => {
+            var linkedCampaigns = allProductCampaignLinks.filter(link => link.product_sku == product.sku_id);
+            if (!product.total_profit) product.total_profit = product.total_revenue;
+            if (!product.ad_spend) product.ad_spend = 0;
+            if (!product.cost_of_goods) product.cost_of_goods = 0;
+            linkedCampaigns.forEach(link => {
+                var campaign = adSpend.find(item => item.campaign_id == link.campaign_id);
+                product.total_profit -= campaign.total_spend;
+                product.ad_spend += campaign.total_spend;
+            });
+            costOfGoodsSold.forEach(cost => {
+                if (product.product_ids.includes(cost.product_id)) {
+                    product.cost_of_goods += cost.total_cost;
+                    product.total_profit -= cost.total_cost;
+                }
+            });
+            product.roi_percentage = product.total_revenue > 0 ? (product.total_profit / product.total_revenue) * 100 : 0;
+            product.roi_percentage = common.roundPrice(product.roi_percentage);
+        });
+
+        common.productSkus.push(...allProductSkus);
+    }
+    else {
+        allProductSkus.push(...common.productSkus);
     }
 
     if (search) {
@@ -121,21 +195,6 @@ router.get('/:storeId', async (req, res) => {
     allProductSkus = allProductSkus.slice((page - 1) * pageSize, page * pageSize);
 
     // Fetch linked campaigns count for each SKU
-    for (let sku of allProductSkus) {
-        try {
-            const { count: linkedCount } = await supabase
-                .from('product_campaign_links')
-                .select('*', { count: 'exact', head: true })
-                .eq('product_sku', sku.sku_id)
-                .eq('store_id', storeId);
-            
-            sku.linked_campaigns_count = linkedCount || 0;
-        } catch (error) {
-            console.error(`Error fetching linked campaigns count for SKU ${sku.sku_id}:`, error);
-            sku.linked_campaigns_count = 0;
-        }
-    }
-    
     // Apply pagination
     res.json({
       success: true,
@@ -215,6 +274,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+let productSkus = [];
 // Update product SKU link
 router.put('/:id', async (req, res) => {
   try {
@@ -250,6 +310,7 @@ router.put('/:id', async (req, res) => {
       .single();
 
     await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq("product_sku", sku_id);
+    common.productSkus = [];
 
     if (error) throw error;
 
@@ -277,6 +338,9 @@ router.delete('/:id', async (req, res) => {
       .from('product_skus')
       .delete()
       .eq('id', id);
+
+    await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq("product_sku", id);
+    common.productSkus = [];
 
     if (error) throw error;
 
