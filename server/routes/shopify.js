@@ -7,13 +7,47 @@ const common = require("../config/common");
 // Sync orders from Shopify
 router.post('/sync-orders', async (req, res) => {
   try {
-    	const { limit = 50, syncDate, storeId = 'buycosari', from } = req.body;
+    const { limit = 50, syncDate, storeId = 'buycosari', from } = req.body;
+    
+    // Enhanced socket debugging
+    console.log('🔍 SYNC ORDERS REQUEST DEBUG:');
+    console.log('📋 Request body:', req.body);
+    console.log('🔌 Socket ID from request:', req.body.socketId);
+    
+    // Get socket info
+    const socketInfo = common.getActiveSocketsInfo();
+    console.log('🔌 Active sockets info:', socketInfo);
     
     // Get the socket instance from the request
-    const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? common.getSocket(req.body.socketId) : null;
     
-    var socketIds = common.activeSockets.keys();
-    console.log(socketIds, 123);
+    if (socket) {
+      console.log(`✅ Found socket ${req.body.socketId} for sync`);
+    } else {
+      console.warn(`⚠️ Socket ${req.body.socketId} not found in activeSockets`);
+      console.log('🔍 This might indicate:');
+      console.log('   - Server restarted and lost socket connections');
+      console.log('   - Socket disconnected before sync started');
+      console.log('   - Multiple server instances running');
+      console.log('   - Socket ID mismatch between client and server');
+      
+      // Try to find any socket for this store as a fallback
+      let fallbackSocket = null;
+      common.activeSockets.forEach((ws, id) => {
+        if (ws.storeId === storeId && ws.readyState === 1) {
+          fallbackSocket = ws;
+          console.log(`🔄 Using fallback socket ${id} for store ${storeId}`);
+        }
+      });
+      
+      if (fallbackSocket) {
+        console.log(`✅ Found fallback socket for store ${storeId}`);
+        socket = fallbackSocket;
+      } else {
+        console.warn(`❌ No fallback socket found for store ${storeId}`);
+      }
+    }
+    
     // Create store-specific service instance
     const storeService = new ShopifyService(storeId);
     
@@ -30,8 +64,8 @@ router.post('/sync-orders', async (req, res) => {
   } catch (error) {
     console.error('❌ Error syncing orders:', error);
     
-    // Emit error to client if WebSocket is available
-    const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
+    // Enhanced error handling with socket debugging
+    const socket = req.body.socketId ? common.getSocket(req.body.socketId) : null;
     if (socket) {
       const message = JSON.stringify({
         type: socketStatus,
@@ -45,6 +79,8 @@ router.post('/sync-orders', async (req, res) => {
         timestamp: Date.now()
       });
       socket.send(message);
+    } else {
+      console.warn('⚠️ Cannot send error to client - socket not found');
     }
     
     res.status(500).json({ error: 'Failed to sync orders' });

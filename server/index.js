@@ -56,15 +56,27 @@ wss.on('connection', (ws) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   console.log('🔌 New WebSocket connection:', ws.id);
-  common.activeSockets.set(ws.id, ws);
-  console.log(common.activeSockets.keys());
+  
+  // Use the new socket management function
+  common.addSocket(ws.id, ws);
+  
   // Handle incoming messages
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log(`📨 WebSocket message received:`, data);
+      console.log(`📨 WebSocket message received from ${ws.id}:`, data);
+      
+      // Update last activity
+      ws.lastActivity = Date.now();
+      
       if (data.type === 'getSocketId') {
         ws.send(JSON.stringify({ type: 'getSocketId', data: ws.id }));
+      } else if (data.type === 'selectStore') {
+        // Store the storeId with the socket for later use
+        ws.storeId = data.data.storeId;
+        console.log(`🏪 Socket ${ws.id} selected store: ${data.data.storeId}`);
+      } else if (data.type === 'triggerManualSync') {
+        console.log(`🔄 Manual sync triggered by socket ${ws.id} for store: ${ws.storeId || 'unknown'}`);
       }
     } catch (error) {
       console.error('❌ Error parsing WebSocket message:', error);
@@ -73,16 +85,51 @@ wss.on('connection', (ws) => {
   
   ws.on('close', () => {
     console.log(`🔌 WebSocket ${ws.id} disconnected`);
-    common.activeSockets.delete(ws.id);
+    common.removeSocket(ws.id);
   });
   
   ws.on('error', (error) => {
     console.error(`❌ WebSocket ${ws.id} error:`, error);
+    common.removeSocket(ws.id);
   });
+  
+  // Send welcome message
+  ws.send(JSON.stringify({ 
+    type: 'welcome', 
+    data: { 
+      message: 'Connected to server', 
+      socketId: ws.id,
+      timestamp: Date.now()
+    } 
+  }));
 });
+
+// Periodic socket cleanup (every 2 minutes)
+setInterval(() => {
+  const cleanedCount = common.cleanupDeadSockets();
+  if (cleanedCount > 0) {
+    console.log(`🧹 Socket cleanup completed. Cleaned ${cleanedCount} sockets.`);
+  }
+}, 120000); // 2 minutes
 
 // Make WebSocket server available to routes
 app.set('wss', wss);
+
+// Debug endpoint for socket monitoring
+app.get('/api/debug/sockets', (req, res) => {
+  const socketInfo = common.getActiveSocketsInfo();
+  res.json({
+    timestamp: new Date().toISOString(),
+    server: {
+      pid: process.pid,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      platform: process.platform,
+      nodeVersion: process.version
+    },
+    sockets: socketInfo
+  });
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
