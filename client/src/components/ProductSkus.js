@@ -517,7 +517,9 @@ const ProductSkus = () => {
             setAvailableCampaigns(campaignsResponse.data);
 
             // Fetch existing links for this SKU
-            const linksResponse = await api.get('/api/analytics/product-campaign-links');
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
+                params: { storeId: selectedStore } 
+            });
             const skuLinks = linksResponse.data.filter(link => link.product_sku === sku.sku_id);
             setLinkedCampaigns(skuLinks);
         } catch (error) {
@@ -542,7 +544,9 @@ const ProductSkus = () => {
             });
 
             // Refresh the links
-            const linksResponse = await api.get('/api/analytics/product-campaign-links');
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
+                params: { storeId: selectedStore } 
+            });
             const skuLinks = linksResponse.data.filter(link => link.product_sku === selectedSku.sku_id);
             setLinkedCampaigns(skuLinks);
 
@@ -574,7 +578,9 @@ const ProductSkus = () => {
             });
 
             // Refresh the links
-            const linksResponse = await api.get('/api/analytics/product-campaign-links');
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
+                params: { storeId: selectedStore } 
+            });
             const skuLinks = linksResponse.data.filter(link => link.product_sku === selectedSku.sku_id);
             setLinkedCampaigns(skuLinks);
 
@@ -716,21 +722,6 @@ const ProductSkus = () => {
                                     const totalOrders = productSkus.reduce((sum, sku) => sum + (sku.order_count || 0), 0);
                                     return formatCurrency(totalOrders > 0 ? totalRevenue / totalOrders : 0);
                                 })()}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Campaign Summary Card */}
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex items-center">
-                        <Hash className="w-8 h-8 text-purple-600 mr-3" />
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Total Linked Campaigns</p>
-                            <p className="text-2xl font-bold text-purple-700">
-                                {productSkus.reduce((sum, sku) => sum + (sku.linked_campaigns_count || 0), 0).toLocaleString()}
                             </p>
                         </div>
                     </div>
@@ -1160,7 +1151,7 @@ const ProductSkus = () => {
                                                 disabled={loading}
                                                 className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                                             >
-                                                <span>Quantity Sold</span>
+                                                <span>Ad Spend</span>
                                                 {getSortIcon('total_quantity')}
                                             </button>
                                         </th>
@@ -1170,7 +1161,7 @@ const ProductSkus = () => {
                                                 disabled={loading}
                                                 className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                                             >
-                                                <span>Orders</span>
+                                                <span>Cost of Goods</span>
                                                 {getSortIcon('order_count')}
                                             </button>
                                         </th>
@@ -1180,18 +1171,8 @@ const ProductSkus = () => {
                                                 disabled={loading}
                                                 className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                                             >
-                                                <span>Avg Order Value</span>
+                                                <span>Profit</span>
                                                 {getSortIcon('avg_order_value')}
-                                            </button>
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <button
-                                                onClick={() => handleSort('linked_campaigns')}
-                                                disabled={loading}
-                                                className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-                                            >
-                                                <span>Linked Campaigns</span>
-                                                {getSortIcon('linked_campaigns')}
                                             </button>
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1202,7 +1183,7 @@ const ProductSkus = () => {
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {productSkus.map((sku) => (
                                         <tr 
-                                            key={sku.id} 
+                                            key={sku.sku_id} 
                                             className="hover:bg-blue-50 hover:border-l-4 hover:border-blue-500 cursor-pointer transition-all duration-200 border-l-4 border-transparent"
                                             onClick={() => openLinkModal(sku)}
                                         >
@@ -1225,28 +1206,20 @@ const ProductSkus = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 <div className="flex items-center">
                                                     <Package className="w-4 h-4 text-blue-600 mr-2" />
-                                                    <span className="font-medium">{sku.total_quantity || 0}</span>
+                                                    <span className="font-medium">{formatCurrency(sku.ad_spend)}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 <div className="flex items-center">
                                                     <ShoppingCart className="w-4 h-4 text-purple-600 mr-2" />
-                                                    <span className="font-medium">{sku.order_count || 0}</span>
+                                                    <span className="font-medium">{formatCurrency(sku.cost_of_goods)}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <BarChart3 className="w-4 h-4 text-indigo-600 mr-2" />
                                                     <span className="text-sm font-medium text-indigo-700">
-                                                        {formatCurrency(sku.avg_order_value)}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                <div className="flex items-center">
-                                                    <Hash className="w-4 h-4 text-purple-600 mr-2" />
-                                                    <span className="font-medium">
-                                                        {sku.linked_campaigns_count || 0}
+                                                        {formatCurrency(sku.total_profit)}
                                                     </span>
                                                 </div>
                                             </td>
@@ -1265,7 +1238,7 @@ const ProductSkus = () => {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleDelete(sku.id);
+                                                            handleDelete(sku.sku_id);
                                                         }}
                                                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                                                         title="Delete"

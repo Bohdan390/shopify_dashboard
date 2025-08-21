@@ -12,7 +12,8 @@ router.post('/sync-orders', async (req, res) => {
     // Get the socket instance from the request
     const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
     
-    console.log(socket)
+    var socketIds = socketManager.activeSockets.keys();
+    console.log(socketIds, 123);
     // Create store-specific service instance
     const storeService = new ShopifyService(storeId);
     

@@ -396,10 +396,12 @@ router.get('/dashboard', async (req, res) => {
 // Manual Product-Campaign Links Routes
 router.get('/product-campaign-links', async (req, res) => {
 	try {
+		const { storeId } = req.query;
 		const { data, error } = await supabase
 			.from('product_campaign_links')
 			.select('*')
 			.eq('is_active', true)
+			.eq('store_id', storeId)
 			.order('created_at', { ascending: false });
 
 		if (error) throw error;
@@ -456,6 +458,7 @@ router.post('/product-campaign-links', async (req, res) => {
 
 			if (error) throw error;
 			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
+			common.productSkus = [];
 		} else {
 			// Create new link
 			const { error } = await supabase
@@ -472,6 +475,7 @@ router.post('/product-campaign-links', async (req, res) => {
 
 			if (error) throw error;
 			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
+			common.productSkus = [];
 		}
 
 		res.json({ success: true });
@@ -496,6 +500,7 @@ router.post('/product-campaign-links/:id', async (req, res) => {
 			.update({ is_active: false, updated_at: new Date() })
 			.eq('id', id);
 		await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', storeId).eq('product_sku', productSku);
+        common.productSkus = [];
 		if (error) throw error;
 		res.json({ success: true });
 	} catch (error) {

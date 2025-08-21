@@ -465,6 +465,7 @@ class ShopifyService {
 			// Extract unique products from line items and prepare for products table
 			
 			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', this.storeId).in('product_sku', updateProductSkus);
+			common.productSkus = [];
 			
 			console.log(uniqueProductSkus.values());
 			if (this.storeId == "meonutrition") {

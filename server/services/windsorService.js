@@ -93,6 +93,7 @@ class WindsorService {
           var productSkus = campaignLinks.map(item => item.product_sku);
           if (productSkus.length > 0) {
             await this.supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', storeId).in('product_sku', productSkus);
+            common.productSkus = [];
           }
         }
 
