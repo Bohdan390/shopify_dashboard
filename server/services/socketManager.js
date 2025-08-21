@@ -29,7 +29,9 @@ class SocketManager {
     // Start cron job for automatic syncing
     startCronJob() {
         // 0 * * * *
+        console.log("Starting cron job")
         cron.schedule('0 * * * *', async () => {
+            console.log("Running cron job")
             var stores = ["buycosari", "meonutrition", "nomobark", "gamoseries", "cosara", "dermao"]
             for (const storeId of stores) {
                 await this.runAutoSync(storeId);

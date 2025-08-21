@@ -68,6 +68,45 @@ router.get('/revenue', async (req, res) => {
   }
 });
 
+// Get products for a store
+router.get('/products/:storeId', async (req, res) => {
+  try {
+    const { storeId } = req.params;
+    const { search = '', limit = 1000 } = req.query;
+    
+    let query = supabase
+      .from('products')
+      .select('product_id, product_title, vendor, created_at')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false });
+    
+    // Add search filter if provided
+    if (search && search.trim()) {
+      query = query.or(`product_title.ilike.%${search}%`);
+    }
+    
+    // Apply limit
+    query = query.limit(parseInt(limit));
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      data: data || [],
+      count: data ? data.length : 0
+    });
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch products',
+      error: error.message
+    });
+  }
+});
+
 // Get recent orders with pagination, search, and sorting
 router.get('/orders', async (req, res) => {
   try {

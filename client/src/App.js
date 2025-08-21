@@ -8,6 +8,7 @@ import ProductAnalytics from './components/ProductAnalytics';
 import ProductTrendsChart from './components/ProductTrendsChart';
 import Customers from './components/Customers';
 import CustomerLTV from './components/CustomerLTV';
+import ProductSkus from './components/ProductSkus';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import { StoreProvider, useStore } from './contexts/StoreContext';
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/product-analytics" element={<ProductAnalytics />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/customer-ltv" element={<CustomerLTV />} />
+        <Route path="/product-skus" element={<ProductSkus />} />
         {/* Protected Product Trends route - redirects to dashboard if not meonutrition */}
         <Route path="/product-trends" element={<ProtectedProductTrendsRoute />} />
       </Routes>

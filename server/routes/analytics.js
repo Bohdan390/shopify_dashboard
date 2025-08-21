@@ -668,11 +668,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 			synced = true;
 		}
 
-		var s = sku
-		if (sku.includes("-")) {
-			s = sku.split("-")[0] + "-" + sku.split("-")[1];
-		}
-		const {data: lastSync, error: lastSyncError} = await supabase.from('customer_ltv_cohorts').select('created_at').eq('store_id', storeId).eq('product_sku', s).limit(1);
+		const {data: lastSync, error: lastSyncError} = await supabase.from('customer_ltv_cohorts').select('created_at').eq('store_id', storeId).eq('product_sku', sku).limit(1);
 		if (lastSyncError) {
 			console.error('❌ Error fetching last synced date:', lastSyncError);
 			throw lastSyncError;
@@ -720,7 +716,6 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket = null) {
 	try {
 		// Get all orders for the store to determine customer first order dates
-		var date = new Date();
 		var chunkSize = 1000;
 
 		// Emit initial progress
@@ -737,12 +732,13 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		// 	store_id_param: storeId
 		// });
 
-		var s = "";
-		if (!sku.includes("-")) {
-			s = sku;
-		}
-		else {
-			s = sku.split("-")[0] + "-" + sku.split("-")[1];
+
+		const {data: skuData, error: skuError} = await supabase.from("product_skus").select("*").eq("store_id", storeId).eq("sku_id", sku);
+		if (skuError) throw skuError;
+
+		var productIds = [];
+		if (skuData.length > 0) {
+			productIds = skuData[0].product_ids.split(",");
 		}
 
 		startDate = "2023-01";
@@ -760,7 +756,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.from('order_line_items')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
-			.like('sku', `%${s.trim()}%`)
+			.in('product_id', productIds)
 			.gte('created_at', `${startDate}-01T00:00:00Z`)
 			.lte('created_at', `${endDate}-31T23:59:59Z`);
 
@@ -778,7 +774,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
 				.select('customer_id, total_price, created_at, sku, financial_status')
 				.eq('store_id', storeId)
-				.like('sku', '%' + s + '%')
+				.in('product_id', productIds)
 				.gte('created_at', `${startDate}-01T00:00:00Z`)
 				.lte('created_at', `${endDate}-31T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
@@ -845,14 +841,14 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.from('product_campaign_links')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
-			.eq('product_sku', s);
+			.eq('product_sku', sku);
 
 		var allProductCampaignLinks = [];
 		for (var i = 0; i < adsProductCampaignCount; i += chunkSize) {
 			const { data: productCampaignLinks, error: productCampaignLinksError } = await supabase.from('product_campaign_links')
 				.select('*')
 				.eq('store_id', storeId)
-				.eq('product_sku', s)
+				.eq('product_sku', sku)
 				.eq("is_active", true)
 				.range(i, i + chunkSize - 1);
 			if (productCampaignLinksError) throw productCampaignLinksError;
@@ -880,23 +876,23 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.from('products')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
-			.like('product_sku_id', `%${sku}%`);
+			.in('product_id', productIds);
 			
 		var allProducts = new Map();
 
 		for (var i = 0; i < productCount; i += chunkSize) {
 			const { data: products, error: productsError } = await supabase.from('products')
-			.select('product_id, sale_price, sale_quantity').eq('store_id', storeId).like('product_sku_id', `%${sku}%`).range(i, i + chunkSize - 1);
+			.select('product_id, sale_price, sale_quantity').eq('store_id', storeId).in('product_id', productIds).range(i, i + chunkSize - 1);
 			if (productsError) throw productsError;
 			products.forEach(product => {
 				allProducts.set(product.product_id, product);
 			})
 		}
 
-		const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId).like("product_sku_id", `%${sku}%`);
+		const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId).in("product_id", productIds);
 		var allCostOfGoods = [];
 		for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
-			const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).like("product_sku_id", `%${sku}%`).range(i, i + chunkSize - 1);
+			const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).in("product_id", productIds).range(i, i + chunkSize - 1);
 			if (costOfGoodsError) throw costOfGoodsError;
 			allCostOfGoods.push(...costOfGoods);
 		}
@@ -1011,7 +1007,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					}
 				})
 				allCostOfGoods.forEach(cost => {
-					if (cost.product_sku_id.includes(sku) && cost.date.includes(date)) {
+					if (productIds.includes(cost.product_id) && cost.date.includes(date)) {
 						totalProfit -= cost.total_cost;
 					}
 				})
@@ -1020,7 +1016,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				var retentionRate = orders.length / customers.length || 0;
 				ltvData.push({
 					store_id: storeId,
-					product_sku: s,
+					product_sku: sku,
 					cohort_month: uniqueDate,
 					months_since_first: i,
 					customer_count: customers.length,
@@ -1054,13 +1050,11 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			});
 		}
 
-		await supabase.from('customer_ltv_cohorts').delete().eq('store_id', storeId).eq('product_sku', s).gte('cohort_month', startDate).lte('cohort_month', endDate);
-	
 		const { error: deleteError } = await supabase
 			.from('customer_ltv_cohorts')
 			.delete()
 			.eq('store_id', storeId)
-			.eq('product_sku', s)
+			.eq('product_sku', sku)
 			.gte('cohort_month', startDate)
 			.lte('cohort_month', endDate);
 

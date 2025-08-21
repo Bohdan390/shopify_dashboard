@@ -398,10 +398,17 @@ router.post('/stores', async (req, res) => {
 // Get products
 router.get('/products', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { storeId } = req.query;
+    let query = supabase
       .from('products')
-      .select('*')
-      .order('product_title', { ascending: true });
+      .select('*');
+
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    }
+    query = query.order('product_title', { ascending: true });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('❌ Error fetching products:', error);

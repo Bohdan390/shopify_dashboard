@@ -62,28 +62,17 @@ router.get('/analytics', async (req, res) => {
 router.get('/products-sku', async (req, res) => {
 	try {
 		const { storeId = 'buycosari' } = req.query;
-		const { data, error } = await supabase
-			.from('products')
-			.select('product_sku_id, product_title')
+		const { data: productSkus, error } = await supabase
+			.from('product_skus')
+			.select('sku_id, sku_title')
 			.eq('store_id', storeId)
-			.order('product_sku_id', { ascending: true });
 		
-		var productSkus = new Map();
-    if (data) {
-      data.forEach((item) => {
-        var s = item.product_sku_id;
-        if (s.includes("-")) {
-          s = s.split("-")[0] + "-" + s.split("-")[1];
-        }
-        productSkus.set(s, {product_sku_title: common.extractProductSku(item.product_title), product_sku_id: s});
-      })
-    }
 	  if (error) {
 		console.error('❌ Error fetching products:', error);
 		throw error;
 	  }
   
-	  res.json({ data: Array.from(productSkus.values()) || [] });
+	  res.json({ data: productSkus || [] });
   
 	} catch (error) {
 	  console.error('❌ Error getting products:', error);

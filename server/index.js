@@ -51,6 +51,7 @@ const { supabase } = require('./config/database-supabase');
 const socketManager = require('./services/socketManager');
 
 // WebSocket connection handling
+socketManager.startCronJob();
 wss.on('connection', (ws) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -89,6 +90,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/product-groups', require('./routes/productGroups'));
 app.use('/api/customers', require('./routes/customers'));
+app.use('/api/product-skus', require('./routes/productSkus'));
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '../client/build');

@@ -243,7 +243,6 @@ const CustomerLTV = () => {
     // Get socket from context
     const { socket, checkSocketHealth, testSocket, emitEvent, selectStore, addEventListener, socketId } = useSocket();
 
-    // WebSocket event handlers
     useEffect(() => {
         console.log('🔌 Socket status check:', {
             socket: !!socket,
@@ -252,21 +251,19 @@ const CustomerLTV = () => {
             store: selectedStore,
             sku: selectedProductSku
         });
+        handleProductLtv();
+    }, [socket, selectedStore, selectedProductSku]);
 
+    const handleProductLtv = async () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
+            console.log(socket.readyState)
             if (socket && socket.readyState === WebSocket.OPEN) {
                 console.log('✅ Socket is healthy, executing fetchIndividualProductLtv');
                 fetchIndividualProductLtv();
-            } else {
-                console.log('⚠️ Socket not ready, retrying in 2 seconds...');
-                setTimeout(() => {
-                    fetchIndividualProductLtv()
-                }, 2000);
             }
         }
-    }, [socket, selectedStore, selectedProductSku]);
-
+    }
     // Select store for socket when component mounts
     useEffect(() => {
         if (!socket) return;
@@ -321,7 +318,7 @@ const CustomerLTV = () => {
             if (response.data && response.data.data) {
                 setProductSkus(response.data.data);
                 if (response.data.data.length > 0) {
-                    setSelectedProductSku(response.data.data[0].product_sku_id);
+                    setSelectedProductSku(response.data.data[0].sku_id);
                 }
             } else {
                 setProductSkus([]);
@@ -389,7 +386,7 @@ const CustomerLTV = () => {
                             onChange={handleProductSelection}
                             options={[
                                 { value: '', label: 'Choose a product...' },
-                                ...productSkus.map(sku => ({ value: sku.product_sku_id, label: sku.product_sku_title }))
+                                ...productSkus.map(sku => ({ value: sku.sku_id, label: sku.sku_title }))
                             ]}
                             placeholder="Select a product to analyze"
                             searchPlaceholder="Search products..."
