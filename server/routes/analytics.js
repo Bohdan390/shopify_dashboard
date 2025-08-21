@@ -3,7 +3,6 @@ const router = express.Router();
 const analyticsService = require('../services/analyticsService');
 const { supabase } = require('../config/database-supabase');
 const common = require('../config/common');
-const socketManager = require('../services/socketManager');
 
 // Helper function to send WebSocket messages
 function sendWebSocketMessage(socket, eventType, data) {
@@ -254,7 +253,7 @@ router.post('/recalculate', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
+		const socket = socketId ? common.socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAnalyticsFromDate(recalcDate, socket, true, storeId);
 
@@ -285,7 +284,7 @@ router.post('/recalculate-orders-only', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
+		const socket = socketId ? common.socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateOrdersOnlyFromDate(recalcDate, socket, true, storeId);
 
@@ -312,7 +311,7 @@ router.post('/recalculate-ads-only', async (req, res) => {
 		const { startDate, endDate, socketId, storeId = 'buycosari' } = req.body;
 
 		// Get the socket instance from the request
-		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
+		const socket = socketId ? common.socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAdsOnlyAnalytics(socket, 'recalcProgress', startDate, endDate, storeId);
 
@@ -347,7 +346,7 @@ router.post('/recalculate-product-trends', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const socket = socketId ? socketManager.activeSockets.get(socketId) : null;
+		const socket = socketId ? common.socketManager.activeSockets.get(socketId) : null;
 
 		const result = await analyticsService.recalculateAllProductTrends(socket, startDate, endDate, storeId);
 
@@ -656,7 +655,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 
 		// Clear existing data for the date range
-		const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
+		const socket = req.body.socketId ? common.socketManager.activeSockets.get(req.body.socketId) : null;
 		// Calculate and insert new customer LTV cohorts
 
 		const {data: syncTracking, error: syncTrackingError} = await supabase.from('sync_tracking').select('last_sync_date').eq('store_id', storeId).limit(1);

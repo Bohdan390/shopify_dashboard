@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 // const rateLimit = require('express-rate-limit'); // No longer needed
 const http = require('http');
+const common = require("./config/common");
 const WebSocket = require('ws');
 require('dotenv').config();
 
@@ -49,14 +50,14 @@ const { supabase } = require('./config/database-supabase');
 
 // Import socket manager
 const socketManager = require('./services/socketManager');
-
+common.socketManager = socketManager;
 // WebSocket connection handling
 socketManager.startCronJob();
 wss.on('connection', (ws) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   console.log('🔌 New WebSocket connection:', ws.id);
-  socketManager.addSocket(ws);
+  common.socketManager.addSocket(ws);
   // Handle incoming messages
   ws.on('message', (message) => {
     try {
@@ -72,7 +73,7 @@ wss.on('connection', (ws) => {
   
   ws.on('close', () => {
     console.log(`🔌 WebSocket ${ws.id} disconnected`);
-    socketManager.removeSocket(ws);
+    common.socketManager.removeSocket(ws);
   });
   
   ws.on('error', (error) => {
@@ -122,7 +123,7 @@ app.get('/health', (req, res) => {
 app.get('/api/sync/status/:storeId', (req, res) => {
   const { storeId } = req.params;
   try {
-    const status = socketManager.getSyncStatus(storeId);
+    const status = common.socketManager.getSyncStatus(storeId);
     res.json({ 
       success: true, 
       storeId,
