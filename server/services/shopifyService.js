@@ -141,7 +141,6 @@ class ShopifyService {
 					console.log(diff, totalDiff)
 					if (diff < 0) diff = 0;
 					if (socket) {
-						console.log(socket)
 						let progress = Number((100 * diff / totalDiff).toFixed(1));
 						if (progress > 100) progress = 100;
 						this.sendWebSocketMessage(socket, socketStatus, {
@@ -357,7 +356,7 @@ class ShopifyService {
 						}
 
 						if (this.storeId == "meonutrition") {
-							var productSku = productSkusData.find(productSku => productSku.sku_id == lineItem.sku);
+							var productSku = productSkusData.find(productSku => lineItem.sku.includes(productSku.sku_id));
 							if (productSku) {
 								if (!productSku.product_ids.includes(productId) && !productsData.find(_product => _product.product_id == productId)) {
 									productSku.product_ids += "," + productId;
