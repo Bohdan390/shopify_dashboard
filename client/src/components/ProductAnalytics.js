@@ -7,6 +7,7 @@ import ProductAnalyticsTableLoader from './loaders/ProductAnalyticsTableLoader';
 import ProductGroups from './ProductGroups';
 import BeautifulSelect from './BeautifulSelect';
 import { useStore } from '../contexts/StoreContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -534,12 +535,7 @@ const ProductAnalytics = () => {
     setCampaignSearchTerm(''); // Clear search term when closing modal
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
+  const { formatCurrency } = useCurrency();
 
   const formatPercentage = (value) => {
     return `${(value || 0).toFixed(1)}%`;
@@ -1086,43 +1082,44 @@ const ProductAnalytics = () => {
       {productAnalytics.products && productAnalytics.products.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <DollarSign className="w-8 h-8 text-green-500 mr-6" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(productAnalytics.totalRevenue)}
+                  					{formatCurrency(productAnalytics.totalRevenue, 'USD')}
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-500" />
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Package className="w-8 h-8 text-blue-500 mr-6" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Ad Spend</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(productAnalytics.totalAdSpend)}
+                  					{formatCurrency(productAnalytics.totalAdSpend, 'SEK')}
                 </p>
               </div>
-              <Package className="w-8 h-8 text-blue-500" />
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <TrendingUp className="w-8 h-8 text-purple-500 mr-6" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Profit</p>
                 <p className={`text-2xl font-bold ${productAnalytics.totalProfit >= 0
                   ? 'text-green-600'
                   : 'text-red-600'
                   }`}>
-                  {formatCurrency(productAnalytics.totalProfit)}
+                  					{formatCurrency(productAnalytics.totalProfit, 'USD')}
                 </p>
               </div>
-              <TrendingUp className="w-8 h-8 text-purple-500" />
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Package className="w-8 h-8 text-blue-500 mr-6" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Products</p>
                 <p className="text-2xl font-bold text-gray-900">{productAnalytics.pagination?.totalCount || productAnalytics.products.length}</p>
@@ -1183,18 +1180,18 @@ const ProductAnalytics = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900 font-medium">
-                        {formatCurrency(product.total_revenue)}
+                        							{formatCurrency(product.total_revenue, 'USD')}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {formatCurrency(product.ad_spend)}
+                        							{formatCurrency(product.ad_spend, 'SEK')}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`text-sm font-medium ${product.profit >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
-                        {formatCurrency(product.profit)}
+                        							{formatCurrency(product.profit, 'USD')}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

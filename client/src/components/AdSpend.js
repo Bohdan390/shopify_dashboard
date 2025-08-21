@@ -13,6 +13,7 @@ import { useSocket } from '../contexts/SocketContext';
 import AdSpendLoader from './loaders/AdSpendLoader';
 import AdSpendTableLoader from './loaders/AdSpendTableLoader';
 import { useStore } from '../contexts/StoreContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -701,12 +702,7 @@ const AdSpend = () => {
 		}
 	};
 
-	const formatCurrency = (amount) => {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount);
-	};
+	const { formatCurrency } = useCurrency();
 
 	const formatNumber = (num) => {
 		return new Intl.NumberFormat('en-US').format(num);
@@ -1133,7 +1129,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Total Spend</p>
 									<p className="text-2xl font-bold text-gray-900">
-										{formatCurrency(summaryStats.totalSpend)}
+										{formatCurrency(summaryStats.totalSpend, 'SEK')}
 									</p>
 								</div>
 							</div>
@@ -1145,7 +1141,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Facebook Spend</p>
 									<p className="text-2xl font-bold text-[#1877F2]">
-										{formatCurrency(summaryStats.facebookSpend)}
+										{formatCurrency(summaryStats.facebookSpend, 'SEK')}
 									</p>
 								</div>
 							</div>
@@ -1157,7 +1153,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Google Spend</p>
 									<p className="text-2xl font-bold text-[#f59e0b]">
-										{formatCurrency(summaryStats.googleSpend)}
+										{formatCurrency(summaryStats.googleSpend, 'SEK')}
 									</p>
 								</div>
 							</div>
@@ -1172,7 +1168,7 @@ const AdSpend = () => {
 										{`${summaryStats.roas.toFixed(2)}x`}
 									</p>
 									<p className="text-xs text-gray-500 mt-1">
-										Revenue: {formatCurrency(summaryStats.totalRevenue)}
+										Revenue: {formatCurrency(summaryStats.totalRevenue, 'USD')}
 									</p>
 								</div>
 							</div>
@@ -1185,11 +1181,11 @@ const AdSpend = () => {
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
 							<div>
 								<span className="text-gray-600">Total Revenue:</span>
-								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalRevenue)}</span>
+								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalRevenue, 'USD')}</span>
 							</div>
 							<div>
 								<span className="text-gray-600">Total Ad Spend:</span>
-								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalSpend)}</span>
+								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalSpend, 'SEK')}</span>
 							</div>
 							<div>
 								<span className="text-gray-600">ROAS Formula:</span>
@@ -1233,7 +1229,7 @@ const AdSpend = () => {
 											tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 										/>
 										<Tooltip 
-											formatter={(value, name) => [formatCurrency(value), name]}
+											formatter={(value, name) => [formatCurrency(value, 'SEK'), name]}
 											labelFormatter={(label, payload) => {
 												if (payload && payload[0] && payload[0].payload.dateRange) {
 													return `${payload[0].payload.dateRange} (${payload[0].payload.daysCount} days)`;
@@ -1289,7 +1285,7 @@ const AdSpend = () => {
 							<div className="flex justify-between items-center mb-4">
 								<h3 className="text-lg font-semibold text-gray-900">Platform Distribution</h3>
 								<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-									💰 Total: {formatCurrency(summaryStats.totalSpend)}
+									💰 Total: {formatCurrency(summaryStats.totalSpend, 'SEK')}
 								</div>
 							</div>
 							<ResponsiveContainer width="100%" height={300}>
@@ -1317,7 +1313,7 @@ const AdSpend = () => {
 										))}
 									</Pie>
 									<Tooltip
-										formatter={(value) => formatCurrency(value)}
+										formatter={(value) => formatCurrency(value, 'SEK')}
 										contentStyle={{
 											backgroundColor: 'rgba(255, 255, 255, 0.95)',
 											border: '1px solid #e5e7eb',

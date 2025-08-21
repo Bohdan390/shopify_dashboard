@@ -11,7 +11,7 @@ import {
     TrendingUp,
     Grid,
 } from 'lucide-react';
-let isLtvLoading = false
+let isLtvLoading = false, timeOut = null
 const CustomerLTV = () => {
 	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
     const [loading, setLoading] = useState(true);
@@ -84,7 +84,7 @@ const CustomerLTV = () => {
                 startDate,
                 endDate,
                 storeId: selectedStore || 'buycosari',
-                socketId: socketId, // Use the WebSocket ID
+                socketId: socket?.id, // Use the WebSocket ID
                 sku: selectedProductSku
             });
             isLtvLoading = false;
@@ -257,10 +257,16 @@ const CustomerLTV = () => {
     const handleProductLtv = async () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
-            console.log(socket.readyState)
+            console.log(socket.readyState, socket.id)
             if (socket && socket.readyState === WebSocket.OPEN) {
                 console.log('✅ Socket is healthy, executing fetchIndividualProductLtv');
+                clearTimeout(timeOut);
                 fetchIndividualProductLtv();
+            }
+            else {
+                timeOut = setTimeout(() => {
+                    handleProductLtv();
+                }, 2000);
             }
         }
     }

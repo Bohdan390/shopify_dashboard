@@ -5,7 +5,7 @@ import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
 import {
     Plus, Edit, Trash2, Search, RefreshCw,
-    Package, Hash, FileText, Calendar, Save, X, XCircle,
+    Package, Hash, FileText, TrendingUp, Save, X, XCircle,
     DollarSign, ShoppingCart, BarChart3
 } from 'lucide-react';
 
@@ -20,6 +20,12 @@ const ProductSkus = () => {
         pageSize: 10,
         totalPages: 1,
         totalItems: 0
+    });
+    const [productRevenue, setProductRevenue] = useState({
+        totalRevenue: 0,
+        totalProfit: 0,
+        totalQuantity: 0,
+        avgOrderValue: 0
     });
 
     // Sort state
@@ -81,6 +87,12 @@ const ProductSkus = () => {
 
             if (response.data.success) {
                 setProductSkus(response.data.data);
+                setProductRevenue({
+                    totalRevenue: response.data.totalRevenue,
+                    totalProfit: response.data.totalProfit,
+                    totalQuantity: response.data.totalQuantity,
+                    avgOrderValue: response.data.avgOrderValue
+                })
                 setPagination(prev => ({
                     ...prev,
                     currentPage: response.data.pagination.currentPage,
@@ -681,7 +693,7 @@ const ProductSkus = () => {
                         <div>
                             <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                             <p className="text-2xl font-bold text-green-700">
-                                {formatCurrency(productSkus.reduce((sum, sku) => sum + (sku.total_revenue || 0), 0))}
+                                {formatCurrency(productRevenue.totalRevenue)}
                             </p>
                         </div>
                     </div>
@@ -693,7 +705,7 @@ const ProductSkus = () => {
                         <div>
                             <p className="text-sm font-medium text-gray-600">Total Quantity</p>
                             <p className="text-2xl font-bold text-blue-700">
-                                {productSkus.reduce((sum, sku) => sum + (sku.total_quantity || 0), 0).toLocaleString()}
+                                {productRevenue.totalQuantity.toLocaleString()}
                             </p>
                         </div>
                     </div>
@@ -701,11 +713,11 @@ const ProductSkus = () => {
 
                 <div className="bg-white rounded-lg shadow-sm border p-4">
                     <div className="flex items-center">
-                        <ShoppingCart className="w-8 h-8 text-purple-600 mr-3" />
+                        <TrendingUp className="w-8 h-8 text-purple-600 mr-3" />
                         <div>
-                            <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                            <p className="text-sm font-medium text-gray-600">Total Profit</p>
                             <p className="text-2xl font-bold text-purple-700">
-                                {productSkus.reduce((sum, sku) => sum + (sku.order_count || 0), 0).toLocaleString()}
+                                {formatCurrency(productRevenue.totalProfit)}
                             </p>
                         </div>
                     </div>
@@ -717,11 +729,7 @@ const ProductSkus = () => {
                         <div>
                             <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
                             <p className="text-2xl font-bold text-indigo-700">
-                                {(() => {
-                                    const totalRevenue = productSkus.reduce((sum, sku) => sum + (sku.total_revenue || 0), 0);
-                                    const totalOrders = productSkus.reduce((sum, sku) => sum + (sku.order_count || 0), 0);
-                                    return formatCurrency(totalOrders > 0 ? totalRevenue / totalOrders : 0);
-                                })()}
+                                {formatCurrency(productRevenue.avgOrderValue)}
                             </p>
                         </div>
                     </div>

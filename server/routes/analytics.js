@@ -999,12 +999,12 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			var dates = uniqueDates.filter(date => date >= uniqueDate);
 			var adMonth = adsMonth.get(uniqueDate)?.spend_amount || 0;
 			var cac = adMonth / customers.length || 0;
+			var totalRevenue = 0, totalProfit = 0;
 			dates.forEach((date, i) => {
 				var orders = rangeOrders.filter(order => order.created_at.includes(date) && customerIds.includes(order.customer_id));
-				var totalRevenue = 0, totalProfit = 0;
 				orders.forEach(order => {
-					totalRevenue += order.total_price;
-					totalProfit += order.total_price;
+					totalRevenue += parseFloat(order.total_price);
+					totalProfit += parseFloat(order.total_price);
 					var product = allProducts.get(order.product_id);
 					if (product && product.ad_spend) {
 						totalProfit -= product.ad_spend / (product.sale_quantity == 0 ? 1 : product.sale_quantity);

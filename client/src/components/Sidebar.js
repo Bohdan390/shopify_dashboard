@@ -13,6 +13,7 @@ import {
 import GlobalStoreSelector from './GlobalStoreSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
+import Settings from './Settings';
 
 const Sidebar = () => {
   const location = useLocation();
@@ -25,7 +26,7 @@ const Sidebar = () => {
     { path: '/customer-ltv', icon: Users, label: 'Customer LTV' },
     { path: '/ad-spend', icon: DollarSign, label: 'Ad Spend' },
     { path: '/cost-of-goods', icon: Package, label: 'Cost of Goods' },
-    ...(selectedStore === 'meonutrition' ? [{ path: '/product-skus', icon: Hash, label: 'Product SKUs' }] : [{ path: '/product-analytics', icon: Package2, label: 'Product Analytics' }])
+    ...(selectedStore === 'meonutrition' ? [{ path: '/product-skus', icon: Hash, label: 'Product SKUs' }] : [{ path: '/product-analytics', icon: Package2, label: 'Product Analytics' }]),
     // Only show Product Trends for meonutrition store
     // ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
   ];
@@ -40,7 +41,6 @@ const Sidebar = () => {
 
       {/* Global Store Selector */}
       <GlobalStoreSelector />
-
       {/* Navigation */}
       <nav className="flex-1 mt-6">
         <div className="px-4">
@@ -60,6 +60,7 @@ const Sidebar = () => {
           ))}
         </div>
       </nav>
+
 
       {/* Logout Section */}
       <div className="p-4 border-t border-gray-200">

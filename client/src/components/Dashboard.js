@@ -17,6 +17,7 @@ import DashboardLoader from './loaders/DashboardLoader';
 import ChartsAndTableLoader from './loaders/ChartsAndTableLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -847,12 +848,7 @@ const Dashboard = () => {
 
 	const { summary, analytics } = dashboardData || {};
 
-	const formatCurrency = (amount) => {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD',
-		}).format(amount);
-	};
+	const { formatCurrency } = useCurrency();
 
 	const formatPercentage = (value) => {
 		if (value === undefined || value === null || isNaN(value)) {
@@ -1244,7 +1240,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value), name]}
+								formatter={(value, name) => [formatCurrency(value, 'USD'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1336,7 +1332,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value), name]}
+								formatter={(value, name) => [formatCurrency(value, 'SEK'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1406,7 +1402,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value), name]}
+								formatter={(value, name) => [formatCurrency(value, 'USD'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1455,7 +1451,7 @@ const Dashboard = () => {
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
 						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							💰 Total: {formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0))}
+							💰 Total: {formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
 						</div>
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
@@ -1497,7 +1493,7 @@ const Dashboard = () => {
 								))}
 							</Pie>
 							<Tooltip
-								formatter={(value) => formatCurrency(value)}
+								formatter={(value) => formatCurrency(value, 'SEK')}
 								contentStyle={{
 									backgroundColor: 'rgba(255, 255, 255, 0.95)',
 									border: '1px solid #e5e7eb',
@@ -1537,7 +1533,7 @@ const Dashboard = () => {
 									{refreshing ? (
 										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
 									) : (
-										<span className="font-semibold text-blue-900">{formatCurrency(summary?.totalRevenue || 0)}</span>
+										<span className="font-semibold text-blue-900">{formatCurrency(summary?.totalRevenue || 0, 'USD')}</span>
 									)}
 								</div>
 								<div className="flex justify-between">
@@ -1562,7 +1558,7 @@ const Dashboard = () => {
 										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
 									) : (
 										<span className={`font-semibold ${(summary?.totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-											{formatCurrency(summary?.totalProfit || 0)}
+											{formatCurrency(summary?.totalProfit || 0, 'USD')}
 										</span>
 									)}
 								</div>
@@ -1581,16 +1577,16 @@ const Dashboard = () => {
 							<div className="space-y-2 text-sm">
 								<div className="flex justify-between">
 									<span className="text-orange-700">Google Ads</span>
-									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0)}</span>
+									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0, 'SEK')}</span>
 								</div>
 								<div className="flex justify-between">
 									<span className="text-orange-700">Facebook Ads</span>
-									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalFacebookAds || 0)}</span>
+									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalFacebookAds || 0, 'SEK')}</span>
 								</div>
 								<div className="flex justify-between border-t border-orange-200 pt-2">
 									<span className="text-orange-700 font-medium">Total Ad Spend</span>
 									<span className="font-semibold text-orange-900">
-										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0))}
+										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
 									</span>
 								</div>
 							</div>
@@ -1602,18 +1598,18 @@ const Dashboard = () => {
 							<div className="space-y-2 text-sm">
 								<div className="flex justify-between">
 									<span className="text-purple-700">Cost of Goods</span>
-									<span className="font-semibold text-purple-900">{formatCurrency(summary?.totalCostOfGoods || 0)}</span>
+									<span className="font-semibold text-purple-900">{formatCurrency(summary?.totalCostOfGoods || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between">
 									<span className="text-purple-700">Ad Spend</span>
 									<span className="font-semibold text-purple-900">
-										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0))}
+										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
 									</span>
 								</div>
 								<div className="flex justify-between border-t border-purple-200 pt-2">
 									<span className="text-purple-700 font-medium">Total Costs</span>
 									<span className="font-semibold text-purple-900">
-										{formatCurrency((summary?.totalCostOfGoods || 0) + (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0))}
+										{formatCurrency((summary?.totalCostOfGoods || 0) + (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -1632,7 +1628,7 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-green-700">Avg Daily Revenue</span>
 									<span className="font-semibold text-green-900">
-										{formatCurrency((summary?.totalRevenue || 0) / (analytics?.length || 1))}
+										{formatCurrency((summary?.totalRevenue || 0) / (analytics?.length || 1), 'USD')}
 									</span>
 								</div>
 								<div className="flex justify-between">
@@ -1821,12 +1817,12 @@ const Dashboard = () => {
 										<td className="py-3 px-4 text-sm text-gray-600">
 											{new Date(day.date).toLocaleDateString()}
 										</td>
-										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue)}</td>
-										<td className="py-3 px-4">{formatCurrency(day.google_ads_spend)}</td>
-										<td className="py-3 px-4">{formatCurrency(day.facebook_ads_spend)}</td>
-										<td className="py-3 px-4">{formatCurrency(day.cost_of_goods)}</td>
+										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue, 'USD')}</td>
+										<td className="py-3 px-4">{formatCurrency(day.google_ads_spend, 'SEK')}</td>
+										<td className="py-3 px-4">{formatCurrency(day.facebook_ads_spend, 'SEK')}</td>
+										<td className="py-3 px-4">{formatCurrency(day.cost_of_goods, 'USD')}</td>
 										<td className={`py-3 px-4 font-medium ${day.profit >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
-											{formatCurrency(day.profit)}
+											{formatCurrency(day.profit, 'USD')}
 										</td>
 										<td className={`py-3 px-4 ${day.profit_margin >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
 											{formatPercentage(day.profit_margin)}
