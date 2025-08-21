@@ -456,7 +456,7 @@ const ProductAnalytics = () => {
       setAvailableCampaigns(campaignsResponse.data);
 
       // Fetch existing links for this product
-      const linksResponse = await api.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
       const productLinks = linksResponse.data.filter(link => link.product_sku === product.product_sku);
       setLinkedCampaigns(productLinks);
     } catch (error) {
@@ -481,7 +481,7 @@ const ProductAnalytics = () => {
       });
 
       // Refresh the links
-      const linksResponse = await api.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
       const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 
@@ -508,7 +508,7 @@ const ProductAnalytics = () => {
       });
 
       // Refresh the links
-      const linksResponse = await api.get('/api/analytics/product-campaign-links');
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
       const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
       setLinkedCampaigns(productLinks);
 

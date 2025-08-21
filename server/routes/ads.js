@@ -3,7 +3,6 @@ const router = express.Router();
 const { supabase } = require('../config/database-supabase');
 const windsorService = require('../services/windsorService');
 const common = require('../config/common');
-const socketManager = require('../services/socketManager');
 
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
@@ -27,7 +26,7 @@ router.post('/sync-windsor', async (req, res) => {
     const filterText = accountName ? `account: ${accountName}` : `store: ${storeId}`;
 
     // Get the socket instance from the request
-    const socket = req.body.socketId ? socketManager.activeSockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? common.socketManager.activeSockets.get(req.body.socketId) : null;
 
     var socketStatus = from == "global" ? "global_adsSyncProgress" : "adsSyncProgress";
 
