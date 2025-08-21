@@ -1,5 +1,8 @@
 const { supabase } = require("./database-supabase");
 
+// Create the activeSockets Map locally in this module
+const activeSockets = new Map();
+
 function createLocalDate(dateString) {
     var date = new Date(dateString)
     var year = date.getFullYear()
@@ -93,18 +96,117 @@ function broadcastToStore(sockets, event, data) {
         timestamp: Date.now()
     });
     
-    sockets.forEach(ws => {
+    let sentCount = 0;
+    let totalCount = sockets.size;
+    
+    sockets.forEach((ws, id) => {
         if (ws.readyState === 1) { // WebSocket.OPEN
-            ws.send(message);
+            try {
+                ws.send(message);
+                sentCount++;
+            } catch (error) {
+                console.error(`❌ Error sending to socket ${id}:`, error);
+                // Remove broken socket
+                sockets.delete(id);
+            }
+        } else {
+            console.log(`⚠️ Socket ${id} not ready (state: ${ws.readyState}), removing...`);
+            sockets.delete(id);
         }
     });
-    console.log(`📡 Broadcasted ${event} to ${sockets.size} clients`);
+    
+    console.log(`📡 Broadcasted ${event} to ${sentCount}/${totalCount} clients`);
+    console.log(`🔌 Active sockets after broadcast:`, Array.from(sockets.keys()));
+}
+
+// Enhanced socket management functions
+function addSocket(id, ws) {
+    activeSockets.set(id, ws);
+    console.log(`✅ Socket ${id} added. Total active: ${activeSockets.size}`);
+    console.log(`🔌 Active socket IDs:`, Array.from(activeSockets.keys()));
+    
+    // Store additional metadata
+    ws.connectedAt = Date.now();
+    ws.lastActivity = Date.now();
+}
+
+function removeSocket(id) {
+    if (activeSockets.has(id)) {
+        activeSockets.delete(id);
+        console.log(`❌ Socket ${id} removed. Total active: ${activeSockets.size}`);
+        console.log(`🔌 Remaining socket IDs:`, Array.from(activeSockets.keys()));
+    }
+}
+
+function getSocket(id) {
+    const socket = activeSockets.get(id);
+    if (!socket) {
+        console.warn(`⚠️ Socket ${id} not found in activeSockets`);
+        console.log(`🔌 Available socket IDs:`, Array.from(activeSockets.keys()));
+        
+        // Log additional debugging info
+        console.log('🔍 Socket lookup failed. Possible causes:');
+        console.log('   - Server restarted and lost connections');
+        console.log('   - Socket disconnected unexpectedly');
+        console.log('   - Multiple server instances running');
+        console.log('   - Client using stale socket ID');
+    }
+    return socket;
+}
+
+function getActiveSocketsInfo() {
+    const info = {
+        total: activeSockets.size,
+        ids: Array.from(activeSockets.keys()),
+        states: {},
+        metadata: {}
+    };
+    
+    activeSockets.forEach((ws, id) => {
+        info.states[id] = ws.readyState;
+        info.metadata[id] = {
+            connectedAt: ws.connectedAt,
+            lastActivity: ws.lastActivity,
+            storeId: ws.storeId,
+            readyState: ws.readyState
+        };
+    });
+    
+    return info;
+}
+
+// Socket health check and cleanup
+function cleanupDeadSockets() {
+    let cleanedCount = 0;
+    const now = Date.now();
+    
+    activeSockets.forEach((ws, id) => {
+        // Remove sockets that are not in OPEN state
+        if (ws.readyState !== 1) {
+            console.log(`🧹 Cleaning up dead socket ${id} (state: ${ws.readyState})`);
+            activeSockets.delete(id);
+            cleanedCount++;
+        }
+        // Remove sockets that haven't had activity in 5 minutes
+        else if (ws.lastActivity && (now - ws.lastActivity) > 300000) {
+            console.log(`🧹 Cleaning up inactive socket ${id} (inactive for ${Math.round((now - ws.lastActivity) / 1000)}s)`);
+            activeSockets.delete(id);
+            cleanedCount++;
+        }
+    });
+    
+    if (cleanedCount > 0) {
+        console.log(`🧹 Cleaned up ${cleanedCount} dead/inactive sockets`);
+        console.log(`🔌 Remaining active sockets:`, Array.from(activeSockets.keys()));
+    }
+    
+    return cleanedCount;
 }
 
 module.exports = {
     productSkus: [],
-    activeSockets: new Map(),
+    activeSockets: activeSockets, // Export the local Map
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
     diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern,
-    broadcastToStore
+    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, cleanupDeadSockets
 }
