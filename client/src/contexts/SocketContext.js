@@ -15,9 +15,17 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState(null);
   const eventListeners = useRef(new Map());
+  const retryTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const maxRetries = 10; // Maximum number of retries before giving up
 
-  useEffect(() => {
-    // Create WebSocket connection ONLY ONCE when app loads
+  const connectWebSocket = () => {
+    // Clear any existing retry timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
     const getWebSocketUrl = () => {
       if (process.env.NODE_ENV === 'production') {
         // Convert HTTP/HTTPS to WS/WSS
@@ -28,7 +36,7 @@ export const SocketProvider = ({ children }) => {
     };
 
     const wsUrl = getWebSocketUrl();
-    console.log('🔌 Creating SINGLE WebSocket connection to:', wsUrl);
+    console.log(`🔌 Creating WebSocket connection to: ${wsUrl} (Attempt ${retryCountRef.current + 1}/${maxRetries})`);
 
     const newSocket = new WebSocket(wsUrl);
 
@@ -37,6 +45,7 @@ export const SocketProvider = ({ children }) => {
       console.log('🔌 WebSocket connected');
       setSocketId(`ws_${Date.now()}`);
       setIsConnected(true);
+      retryCountRef.current = 0; // Reset retry count on successful connection
       
       // Test if WebSocket is working - use newSocket directly since state isn't set yet
       console.log('🧪 Testing WebSocket functionality...');
@@ -48,6 +57,18 @@ export const SocketProvider = ({ children }) => {
       console.log('🔌 WebSocket disconnected:', event.code, event.reason);
       setIsConnected(false);
       setSocketId(null);
+      
+      // Attempt to reconnect if not a manual close and under max retries
+      if (event.code !== 1000 && retryCountRef.current < maxRetries) {
+        retryCountRef.current++;
+        console.log(`🔄 Attempting to reconnect in 5 seconds... (${retryCountRef.current}/${maxRetries})`);
+        
+        retryTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, 5000);
+      } else if (retryCountRef.current >= maxRetries) {
+        console.error('❌ Maximum retry attempts reached. WebSocket connection failed.');
+      }
     };
 
     newSocket.onerror = (error) => {
@@ -90,12 +111,25 @@ export const SocketProvider = ({ children }) => {
     };
 
     setSocket(newSocket);
+  };
+
+  useEffect(() => {
+    // Create initial WebSocket connection
+    connectWebSocket();
 
     // Cleanup on unmount
     return () => {
       console.log('🔌 Cleaning up WebSocket connection');
-      if (newSocket.readyState === WebSocket.OPEN) {
-        newSocket.close();
+      
+      // Clear retry timeout
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      
+      // Close socket if open
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close(1000, 'Component unmounting'); // Normal closure
       }
     };
   }, []);
@@ -163,6 +197,29 @@ export const SocketProvider = ({ children }) => {
     return false;
   };
 
+  // Manual reconnect function
+  const reconnect = () => {
+    console.log('🔄 Manual reconnect requested');
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(1000, 'Manual reconnect');
+    } else {
+      retryCountRef.current = 0; // Reset retry count for manual reconnect
+      connectWebSocket();
+    }
+  };
+
+  // Get connection status with retry info
+  const getConnectionStatus = () => {
+    return {
+      isConnected,
+      socketId,
+      retryCount: retryCountRef.current,
+      maxRetries,
+      isRetrying: !!retryTimeoutRef.current,
+      readyState: socket ? socket.readyState : null
+    };
+  };
+
   // Emit event function
   const emitEvent = (eventName, data) => {
     return sendMessage(eventName, data);
@@ -177,6 +234,8 @@ export const SocketProvider = ({ children }) => {
     addEventListener,
     checkSocketHealth,
     testSocket,
+    reconnect,
+    getConnectionStatus,
     emitEvent
   };
 

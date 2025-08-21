@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, Package, Calendar, Filter, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from "../config/axios"
 import ProductAnalyticsLoader from './loaders/ProductAnalyticsLoader';
 import ProductAnalyticsTableLoader from './loaders/ProductAnalyticsTableLoader';
@@ -299,6 +300,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 };
 
 const ProductAnalytics = () => {
+  const navigate = useNavigate();
   const formatLocalDate = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -351,6 +353,13 @@ const ProductAnalytics = () => {
   const [showProductGroupsModal, setShowProductGroupsModal] = useState(false);
 
   // Listen for ads sync completion from GlobalStoreSelector
+  
+  // Redirect meonutrition stores to product-skus page
+  useEffect(() => {
+    if (selectedStore === 'meonutrition') {
+      navigate('/product-skus');
+    }
+  }, [selectedStore, navigate]);
   
   const fetchProductAnalytics = async (isTableOnly = false) => {
     try {
@@ -822,6 +831,19 @@ const ProductAnalytics = () => {
 
   if (loading) {
     return <ProductAnalyticsLoader />
+  }
+  
+  // Show loading while redirecting meonutrition stores
+  if (selectedStore === 'meonutrition') {
+    return (
+      <div className="p-8">
+        <div className="text-center text-gray-500">
+          <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <p>Redirecting to Product SKU Management...</p>
+          <p className="text-sm mt-2">Product Analytics is not available for Meo Nutrition store</p>
+        </div>
+      </div>
+    );
   }
   
   return (

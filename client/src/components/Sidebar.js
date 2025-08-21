@@ -7,13 +7,16 @@ import {
   Package,
   Package2,
   Users,
+  Hash,
   LogOut
 } from 'lucide-react';
 import GlobalStoreSelector from './GlobalStoreSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { useStore } from '../contexts/StoreContext';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { selectedStore } = useStore();
   const { logout } = useAuth();
   const navigation = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
@@ -22,7 +25,7 @@ const Sidebar = () => {
     { path: '/customer-ltv', icon: Users, label: 'Customer LTV' },
     { path: '/ad-spend', icon: DollarSign, label: 'Ad Spend' },
     { path: '/cost-of-goods', icon: Package, label: 'Cost of Goods' },
-    { path: '/product-analytics', icon: Package2, label: 'Product Analytics' },
+    ...(selectedStore === 'meonutrition' ? [{ path: '/product-skus', icon: Hash, label: 'Product SKUs' }] : [{ path: '/product-analytics', icon: Package2, label: 'Product Analytics' }])
     // Only show Product Trends for meonutrition store
     // ...(selectedStore === 'meonutrition' ? [{ path: '/product-trends', icon: TrendingUp, label: 'Product Trends' }] : []),
   ];

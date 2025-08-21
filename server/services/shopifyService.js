@@ -221,6 +221,25 @@ class ShopifyService {
 				});
 			}
 
+			var productSkusData = [], productsData = [];
+			if (this.storeId == "meonutrition") {
+				const {count: productSkuCount} = await supabase.from("product_skus").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
+				for (var i = 0; i < productSkuCount; i+= 1000) {
+					const {data: skuDatas, error: skuError} = await supabase.from("product_skus").select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
+					if (skuError) throw skuError;
+					productSkusData.push(...skuDatas);
+				}
+
+				const {count: productsCount} = await supabase.from("products").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
+				for (var i = 0; i < productsCount; i+= 1000) {
+					const {data: productsDatas, error: productsError} = await supabase.from("products").select("product_id").eq("store_id", this.storeId).range(i, i + 999);
+					if (productsError) throw productsError;
+					productsData.push(...productsDatas);
+				}
+			}
+
+			console.log(productSkusData.length, productsData.length);
+
 			// Transform all orders to database format
 			const orderDataArray = [];
 			const uniqueCustomers = new Map();
@@ -246,10 +265,29 @@ class ShopifyService {
 					throw customersError;
 				}
 				allCustomers.push(...customers);
+
+				if (socket) {
+					this.sendWebSocketMessage(socket, socketStatus, {
+						stage: 'saving',
+						message: `Getting Customers...`,
+						progress: 0 + Math.floor((currentChunk / Math.ceil(customerCount / chunk)) * 20),
+						total: customerCount,
+						current: i + customers.length
+					});
+				}
+			}
+			if (socket) {
+				this.sendWebSocketMessage(socket, socketStatus, {
+					stage: 'saving',
+					message: `Getting Customers...`,
+					progress: 20,
+					total: customerCount,
+					current: customerCount
+				});
 			}
 			const uniqueProducts = new Map();
 			const lineItemsData = [];
-			var updateProductSkus = [];
+			var updateProductSkus = [], uniqueProductSkus = new Map();
 			orders.forEach((order) => {
 				// Extract customer data if customer exists
 				var priceStr = {};
@@ -316,6 +354,24 @@ class ShopifyService {
 						}
 						if (!order.financial_status) {
 							order.financial_status = "unpaid";
+						}
+
+						if (this.storeId == "meonutrition") {
+							var productSku = productSkusData.find(productSku => productSku.sku_id == lineItem.sku);
+							if (productSku) {
+								if (!productSku.product_ids.includes(productId) && !productsData.find(_product => _product.product_id == productId)) {
+									productSku.product_ids += "," + productId;
+									if (!uniqueProductSkus.has(productSku.sku_id)) {
+										uniqueProductSkus.set(productSku.sku_id, {
+											sku_id: productSku.sku_id,
+											product_ids: productSku.product_ids
+										});
+									}
+									else {
+										uniqueProductSkus.get(productSku.sku_id).product_ids += "," + productId;
+									}
+								}
+							}
 						}
 						// Prepare line item data
 						lineItemsData.push({
@@ -410,6 +466,13 @@ class ShopifyService {
 			
 			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', this.storeId).in('product_sku', updateProductSkus);
 			
+			console.log(uniqueProductSkus.values());
+			if (this.storeId == "meonutrition") {
+				await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
+					onConflict: 'sku_id',
+					ignoreDuplicates: false
+				});
+			}
 			const startTime = Date.now();
 
 			if (lineItemsData.length > 0) {
@@ -417,7 +480,7 @@ class ShopifyService {
 					this.sendWebSocketMessage(socket, socketStatus, {
 						stage: 'saving',
 						message: `💾 Saving ${lineItemsData.length} line items...`,
-						progress: 10,
+						progress: 30,
 						total: orders.length,
 						current: orders.length
 					});
