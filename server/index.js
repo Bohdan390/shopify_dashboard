@@ -49,15 +49,15 @@ app.use((req, res, next) => {
 const { supabase } = require('./config/database-supabase');
 
 // Import socket manager
-const socketManager = require('./services/socketManager');
-common.socketManager = socketManager;
+const cronJobManager = require('./services/CronJobManager');
 // WebSocket connection handling
-socketManager.startCronJob();
+cronJobManager.startCronJob();
 wss.on('connection', (ws) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   console.log('🔌 New WebSocket connection:', ws.id);
-  common.socketManager.addSocket(ws);
+  common.activeSockets.set(ws.id, ws);
+  console.log(common.activeSockets.keys());
   // Handle incoming messages
   ws.on('message', (message) => {
     try {
@@ -73,7 +73,7 @@ wss.on('connection', (ws) => {
   
   ws.on('close', () => {
     console.log(`🔌 WebSocket ${ws.id} disconnected`);
-    common.socketManager.removeSocket(ws);
+    common.activeSockets.delete(ws.id);
   });
   
   ws.on('error', (error) => {
@@ -123,7 +123,7 @@ app.get('/health', (req, res) => {
 app.get('/api/sync/status/:storeId', (req, res) => {
   const { storeId } = req.params;
   try {
-    const status = common.socketManager.getSyncStatus(storeId);
+    const status = cronJobManager.getSyncStatus(storeId);
     res.json({ 
       success: true, 
       storeId,

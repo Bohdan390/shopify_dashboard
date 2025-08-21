@@ -26,7 +26,7 @@ router.post('/sync-windsor', async (req, res) => {
     const filterText = accountName ? `account: ${accountName}` : `store: ${storeId}`;
 
     // Get the socket instance from the request
-    const socket = req.body.socketId ? common.socketManager.activeSockets.get(req.body.socketId) : null;
+    const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
 
     var socketStatus = from == "global" ? "global_adsSyncProgress" : "adsSyncProgress";
 

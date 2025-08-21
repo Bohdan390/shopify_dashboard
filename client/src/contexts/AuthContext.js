@@ -170,13 +170,12 @@ export const AuthProvider = ({ children }) => {
         setSessionExpiry(data.expiryTime);
         setSessionToken(data.sessionToken);
         setLastActivity(Date.now());
-        
         // Save to localStorage
         localStorage.setItem('shopify_auth', JSON.stringify({
           token: data.sessionToken,
           expiry: data.expiryTime
         }));
-        
+        window.location.href = '/dashboard';
         return true;
       } else {
         return false;
