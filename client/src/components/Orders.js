@@ -969,6 +969,7 @@ const Orders = () => {
 									{ value: 50, label: '50' },
 									{ value: 100, label: '100' }
 								]}
+								selectClass="pagesize-select"
 								placeholder="Select"
 								disabled={searchLoading || tableLoading}
 								className="w-24"
@@ -1471,9 +1472,6 @@ const Orders = () => {
 											{getSortIcon('created_at')}
 										</div>
 									</th>
-									<th className="text-center py-3 px-4 font-medium text-gray-700 select-none w-16">
-										Expand
-									</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -1527,13 +1525,6 @@ const Orders = () => {
 											</td>
 											<td className="py-3 px-4 text-sm text-gray-600">
 												{formatDate(order.created_at)}
-											</td>
-											<td className="py-3 px-4 text-center">
-												<ChevronDown 
-													className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-														expandedOrders.has(order.shopify_order_id) ? 'rotate-180' : ''
-													}`} 
-												/>
 											</td>
 										</tr>
 										

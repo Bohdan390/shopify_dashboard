@@ -1,5 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Box,
+  Chip
+} from '@mui/material';
+import { KeyboardArrowDown } from '@mui/icons-material';
 
 const BeautifulSelect = ({ 
   value, 
@@ -9,138 +17,117 @@ const BeautifulSelect = ({
   disabled = false,
   className = "",
   style = {},
-  size = "md" // sm, md, lg
+  selectClass = "",
+  size = "medium", // small, medium, large
+  variant = "default" // default, pagination
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const selectRef = useRef(null);
-  const dropdownRef = useRef(null);
+  const [open, setOpen] = useState(false);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (selectRef.current && !selectRef.current.contains(event.target)) {
-        setIsOpen(false);
-        setHighlightedIndex(-1);
-      }
-    };
+  const handleChange = (event) => {
+    onChange(event.target.value);
+  };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const handleClose = () => {
+    setOpen(false);
+  };
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (!isOpen) return;
-
-      switch (event.key) {
-        case 'ArrowDown':
-          event.preventDefault();
-          setHighlightedIndex(prev => 
-            prev < options.length - 1 ? prev + 1 : prev
-          );
-          break;
-        case 'ArrowUp':
-          event.preventDefault();
-          setHighlightedIndex(prev => prev > 0 ? prev - 1 : prev);
-          break;
-        case 'Enter':
-          event.preventDefault();
-          if (highlightedIndex >= 0) {
-            handleSelect(options[highlightedIndex]);
-          }
-          break;
-        case 'Escape':
-          setIsOpen(false);
-          setHighlightedIndex(-1);
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, highlightedIndex, options]);
-
-  const handleSelect = (option) => {
-    onChange(option.value);
-    setIsOpen(false);
-    setHighlightedIndex(-1);
+  const handleOpen = () => {
+    setOpen(true);
   };
 
   const selectedOption = options.find(option => option.value === value);
 
-  const sizeClasses = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2 text-sm",
-    lg: "px-4 py-3 text-base"
+  const sizeMap = {
+    small: 'small',
+    medium: 'medium', 
+    large: 'large'
   };
 
   return (
-    <div className={`relative ${className}`} ref={selectRef}>
-      {/* Main Select Button */}
-      <button
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        style={style}
-        className={`
-          w-full bg-white border border-gray-300 rounded-lg 
-          ${sizeClasses[size]}
-          font-medium text-gray-700 
-          hover:border-gray-400 focus:outline-none focus:ring-2 
-          focus:ring-blue-500 focus:border-blue-500 
-          transition-all duration-200 cursor-pointer
-          shadow-sm hover:shadow-md
-          disabled:opacity-50 disabled:cursor-not-allowed
-          flex items-center justify-between
-          ${isOpen ? 'border-blue-500 ring-2 ring-blue-500' : ''}
-        `}
+    <FormControl 
+      className={className}
+      style={style}
+      size={sizeMap[size]}
+      disabled={disabled}
+      fullWidth
+    >
+      <Select
+        value={value || ''}
+        onChange={handleChange}
+        onOpen={handleOpen}
+        onClose={handleClose}
+        className={selectClass}
+        open={open}
+        displayEmpty
+        renderValue={(selected) => {
+          if (!selected) {
+            return <span style={{ color: '#6b7280' }}>{placeholder}</span>;
+          }
+          return selectedOption ? selectedOption.label : selected;
+        }}
+        IconComponent={KeyboardArrowDown}
+        sx={{
+          '& .MuiSelect-select': {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: variant === 'pagination' ? '4px 8px' : '8px 12px',
+            fontSize: variant === 'pagination' ? '13px' : '14px',
+            fontWeight: 500,
+            color: '#374151',
+            backgroundColor: '#ffffff',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            transition: 'all 0.2s',
+            minHeight: variant === 'pagination' ? '32px' : 'auto',
+            '&:hover': {
+              borderColor: '#9ca3af',
+              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+            },
+            '&:focus': {
+              borderColor: '#3b82f6',
+              boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+            }
+          },
+          '& .MuiOutlinedInput-notchedOutline': {
+            border: 'none'
+          },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            border: 'none'
+          },
+          '& .MuiSelect-icon': {
+            color: '#9ca3af',
+            transition: 'transform 0.2s'
+          },
+          '&.Mui-open .MuiSelect-icon': {
+            transform: 'rotate(180deg)'
+          }
+        }}
       >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown 
-          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
-          }`} 
-        />
-      </button>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in slide-in-from-top-2 duration-200"
-        >
-          <div className="max-h-60 overflow-y-auto">
-            {options.map((option, index) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleSelect(option)}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                className={`
-                  w-full px-4 py-2 text-left text-sm
-                  transition-all duration-150
-                  flex items-center justify-between
-                  ${highlightedIndex === index 
-                    ? 'bg-blue-50 text-blue-700' 
-                    : 'hover:bg-gray-50 text-gray-700'
-                  }
-                  ${option.value === value ? 'bg-blue-100 text-blue-700' : ''}
-                `}
-              >
-                <span className="truncate">{option.label}</span>
-                {option.value === value && (
-                  <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+        {options.map((option) => (
+          <MenuItem 
+            key={option.value} 
+            value={option.value}
+            sx={{
+              fontSize: variant === 'pagination' ? '13px' : '14px',
+              padding: variant === 'pagination' ? '6px 8px' : '8px 12px',
+              '&:hover': {
+                backgroundColor: '#f3f4f6'
+              },
+              '&.Mui-selected': {
+                backgroundColor: '#dbeafe',
+                color: '#1d4ed8',
+                '&:hover': {
+                  backgroundColor: '#bfdbfe'
+                }
+              }
+            }}
+          >
+            {option.label}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
   );
 };
 

@@ -687,10 +687,12 @@ const ProductSkus = () => {
                                 { value: 50, label: '50' },
                                 { value: 100, label: '100' }
                             ]}
+                            selectClass="pagesize-select"
                             placeholder="Select"
                             disabled={loading}
-                            className="w-24"
+                            className="w-28"
                             size="sm"
+                            variant="pagination"
                         />
                         <span className="text-sm text-gray-500">per page</span>
                     </div>

@@ -34,3 +34,8 @@
 g:focus, path:focus {
   outline: none;
 }
+
+.pagesize-select .MuiSelect-select {
+  padding: 5px 12px !important;
+  width: 60px;
+}

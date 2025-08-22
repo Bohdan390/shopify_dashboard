@@ -1677,8 +1677,9 @@ const Dashboard = () => {
 										{ value: 100, label: '100' }
 									]}
 									placeholder="Select"
-									className="w-20"
-									size="sm"
+									className="w-24"
+									size="small"
+									variant="pagination"
 								/>
 								<span className="text-sm text-gray-600">entries</span>
 							</div>
@@ -1865,7 +1866,7 @@ const Dashboard = () => {
 									]}
 									placeholder="Select"
 									className="w-20"
-									size="sm"
+									size="small"
 								/>
 								<span className="text-sm text-gray-600">entries</span>
 							</div>

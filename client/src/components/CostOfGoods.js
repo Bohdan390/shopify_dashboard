@@ -910,6 +910,7 @@ const CostOfGoods = () => {
 									{ value: 50, label: '50' },
 									{ value: 100, label: '100' }
 								]}
+                selectClass="pagesize-select"
 								placeholder="Select"
 								disabled={searchLoading || tableLoading}
 								className="w-24"
