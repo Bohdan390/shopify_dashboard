@@ -259,8 +259,8 @@ const CustomerLTV = () => {
     const handleProductLtv = async () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
-            console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id, 'Is connected:', isConnected);
-            if (socket && socket.readyState === WebSocket.OPEN && isConnected) {
+            console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id);
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 clearTimeout(timeOut);
                 socket.send(JSON.stringify({
                     type: "refresh_product_skus",

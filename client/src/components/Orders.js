@@ -1569,13 +1569,13 @@ const Orders = () => {
 																				<tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
 																					<td className="py-3 px-4">
 																						<div>
-																							<div className="text-sm font-medium text-gray-900">{item.title || 'N/A'}</div>
+																							<div className="text-sm font-medium text-gray-900">{item.product_title || 'N/A'}</div>
 																							{item.variant_title && (
 																								<div className="text-xs text-gray-500">{item.variant_title}</div>
 																							)}
 																						</div>
 																					</td>
-																					<td className="py-3 px-4 text-sm text-gray-600">{item.sku || 'N/A'}</td>
+																					<td className="py-3 px-4 text-sm text-gray-600">{item.sku_title || 'N/A'}</td>
 																					<td className="py-3 px-4 text-center text-sm text-gray-600">{item.quantity}</td>
 																					<td className="py-3 px-4 text-right text-sm text-gray-600">{formatCurrency(item.price)}</td>
 																					<td className="text-right py-3 px-4 text-sm font-medium text-gray-900">{formatCurrency(item.price * item.quantity)}</td>
