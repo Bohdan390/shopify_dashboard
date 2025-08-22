@@ -6,280 +6,300 @@ import BeautifulSelect from './BeautifulSelect';
 import {
     Plus, Edit, Trash2, Search, RefreshCw,
     Package, Hash, FileText, TrendingUp, Save, X, XCircle,
-    DollarSign, ShoppingCart, BarChart3, Calendar, Filter
+    DollarSign, ShoppingCart, BarChart3, Calendar, Filter, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-// Custom Calendar Component
+// Custom Calendar Component (reused from Dashboard)
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
-    const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [selectedDateState, setSelectedDateState] = useState(selectedDate ? new Date(selectedDate) : null);
-    const [showYearSelector, setShowYearSelector] = useState(false);
-    const [showMonthSelector, setShowMonthSelector] = useState(false);
+	const [currentMonth, setCurrentMonth] = useState(new Date());
+	const [selectedDateState, setSelectedDateState] = useState(selectedDate ? new Date(selectedDate) : null);
+	const [showYearSelector, setShowYearSelector] = useState(false);
+	const [showMonthSelector, setShowMonthSelector] = useState(false);
+  
+	useEffect(() => {
+	  if (selectedDate) {
+		setSelectedDateState(new Date(selectedDate));
+		setCurrentMonth(new Date(selectedDate));
+	  }
+	}, [selectedDate]);
+  
+	// Close year selector when clicking outside
+	useEffect(() => {
+	  const handleClickOutside = (event) => {
+		if (showYearSelector && !event.target.closest('.year-selector')) {
+		  setShowYearSelector(false);
+		}
+	  };
+  
+	  document.addEventListener('mousedown', handleClickOutside);
+	  return () => {
+		document.removeEventListener('mousedown', handleClickOutside);
+	  };
+	}, [showYearSelector]);
+  
+	// Close month selector when clicking outside
+	useEffect(() => {
+	  const handleClickOutside = (event) => {
+		if (showMonthSelector && !event.target.closest('.month-selector')) {
+		  setShowMonthSelector(false);
+		}
+	  };
+  
+	  document.addEventListener('mousedown', handleClickOutside);
+	  return () => {
+		document.removeEventListener('mousedown', handleClickOutside);
+	  };
+	}, [showMonthSelector]);
+  
+	// Close calendar modal when clicking outside
+	useEffect(() => {
+	  const handleClickOutside = (event) => {
+		if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal')) {
+		  onClose();
+		}
+	  };
+  
+	  document.addEventListener('mousedown', handleClickOutside);
+	  return () => {
+		document.removeEventListener('mousedown', handleClickOutside);
+	  };
+	}, [isOpen, onClose]);
+  
+	const getDaysInMonth = (date) => {
+	  const year = date.getFullYear();
+	  const month = date.getMonth();
+	  const firstDay = new Date(year, month, 1);
+	  const lastDay = new Date(year, month + 1, 0);
+	  const daysInMonth = lastDay.getDate();
+	  const startingDay = firstDay.getDay();
+  
+	  const days = [];
+	  // Add empty cells for days before the first day of the month
+	  for (let i = 0; i < startingDay; i++) {
+		days.push(null);
+	  }
+	  // Add all days of the month
+	  for (let i = 1; i <= daysInMonth; i++) {
+		days.push(new Date(year, month, i));
+	  }
+	  return days;
+	};
+  
+	const formatDate = (date) => {
+	  // Use local timezone to avoid date shifting
+	  const year = date.getFullYear();
+	  const month = String(date.getMonth() + 1).padStart(2, '0');
+	  const day = String(date.getDate()).padStart(2, '0');
+	  return `${year}-${month}-${day}`;
+	};
+  
+	const isToday = (date) => {
+	  const today = new Date();
+	  return date && date.toDateString() === today.toDateString();
+	};
+  
+	const isSelected = (date) => {
+	  return date && selectedDateState && date.toDateString() === selectedDateState.toDateString();
+	};
+  
+	const handleDateClick = (date) => {
+	  if (date) {
+		setSelectedDateState(date);
+		onDateSelect(formatDate(date));
+		onClose();
+	  }
+	};
+  
+	const goToPreviousMonth = () => {
+	  setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+	};
+  
+	const goToNextMonth = () => {
+	  setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+	};
+  
+	const goToPreviousYear = () => {
+	  setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1));
+	};
+  
+	const goToNextYear = () => {
+	  setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
+	};
+  
+	const selectYear = (year) => {
+	  setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+	  setShowYearSelector(false);
+	};
+  
+	const selectMonth = (month) => {
+	  const newMonth = new Date(currentMonth.getFullYear(), month, 1);
+	  setCurrentMonth(newMonth);
+	  setShowMonthSelector(false);
+	};
+  
+	const monthNames = [
+	  'January', 'February', 'March', 'April', 'May', 'June',
+	  'July', 'August', 'September', 'October', 'November', 'December'
+	];
+  
+	const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+	if (!isOpen) return null;
+  
+	return (
+	  <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
+			  <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
+				  {/* Header */}
+				  <div className="flex items-center justify-between mb-4">
+					  <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+					  <button
+						  onClick={onClose}
+						  className="text-gray-400 hover:text-gray-600 transition-colors"
+					  >
+						  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+						  </svg>
+					  </button>
+				  </div>
+  
+				  {/* Enhanced Navigation */}
+				  <div className="mb-4">
+					  {/* Year Navigation */}
+					  <div className="flex items-center justify-between mb-2">
+						  <button
+							  onClick={goToPreviousYear}
+							  className="p-1 hover:bg-gray-100 rounded transition-colors"
+							  title="Previous Year"
+						  >
+							  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+							  </svg>
+						  </button>
+						  <button
+							  onClick={() => setShowYearSelector(!showYearSelector)}
+							  className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+						  >
+							  {currentMonth.getFullYear()}
+						  </button>
+						  <button
+							  onClick={goToNextYear}
+							  className="p-1 hover:bg-gray-100 rounded transition-colors"
+							  title="Next Year"
+						  >
+							  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
+							  </svg>
+						  </button>
+					  </div>
+  
+					  {/* Year Selector Dropdown */}
+					  {showYearSelector && (
+						  <div className="relative year-selector">
+							  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
+								  <div className="grid grid-cols-3 gap-1">
+									  {Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
+										  <button
+											  key={year}
+											  onClick={() => selectYear(year)}
+											  className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												  }`}
+										  >
+											  {year}
+										  </button>
+									  ))}
+								  </div>
+							  </div>
+						  </div>
+					  )}
+  
+					  {/* Month Navigation */}
+					  <div className="flex items-center justify-between mb-4">
+						  <button
+							  onClick={goToPreviousMonth}
+							  className="p-1 hover:bg-gray-100 rounded transition-colors"
+							  title="Previous Month"
+						  >
+							  <ChevronLeft className="w-5 h-5 text-gray-500" />
+						  </button>
+						  <button
+							  onClick={() => setShowMonthSelector(!showMonthSelector)}
+							  className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors month-selector"
+						  >
+							  {monthNames[currentMonth.getMonth()]}
+						  </button>
+						  <button
+							  onClick={goToNextMonth}
+							  className="p-1 hover:bg-gray-100 rounded transition-colors"
+							  title="Next Month"
+						  >
+							  <ChevronRight className="w-5 h-5 text-gray-500" />
+						  </button>
+					  </div>
+  
+					  {/* Month Selector Dropdown */}
+					  {showMonthSelector && (
+						  <div className="relative month-selector">
+							  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
+								  <div className="grid grid-cols-3 gap-1">
+									  {monthNames.map((month, index) => (
+										  <button
+											  key={index}
+											  onClick={() => selectMonth(index)}
+											  className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
+												  }`}
+										  >
+											  {month}
+										  </button>
+									  ))}
+								  </div>
+							  </div>
+						  </div>
+					  )}
+				  </div>
+  
+				  {/* Day Headers */}
+				  <div className="grid grid-cols-7 gap-1 mb-2">
+					  {dayNames.map(day => (
+						  <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+							  {day}
+						  </div>
+					  ))}
+				  </div>
+  
+				  {/* Calendar Grid */}
+				  <div className="grid grid-cols-7 gap-1">
+					  {getDaysInMonth(currentMonth).map((date, index) => (
+						  <button
+							  key={index}
+							  onClick={() => handleDateClick(date)}
+							  disabled={!date}
+							  className={`
+				  p-2 text-sm font-medium rounded-lg transition-all duration-200
+				  ${!date ? 'invisible' : ''}
+				  ${date && isToday(date) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
+				  ${date && isSelected(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
+				  ${date && !isToday(date) && !isSelected(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
+				`}
+						  >
+							  {date ? date.getDate() : ''}
+						  </button>
+					  ))}
+				  </div>
+  
+				  {/* Today Button */}
+				  <div className="mt-4 pt-4 border-t border-gray-200">
+					  <button
+						  onClick={() => handleDateClick(new Date())}
+						  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
+					  >
+						  Today
+					  </button>
+				  </div>
+			  </div>
+		  </div>
+	);
+  };
 
-    useEffect(() => {
-        if (selectedDate) {
-            setSelectedDateState(new Date(selectedDate));
-            setCurrentMonth(new Date(selectedDate));
-        }
-    }, [selectedDate]);
-
-    // Close year selector when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showYearSelector && !event.target.closest('.year-selector')) {
-                setShowYearSelector(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showYearSelector]);
-
-    // Close month selector when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showMonthSelector && !event.target.closest('.month-selector')) {
-                setShowMonthSelector(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showMonthSelector]);
-
-    // Close calendar modal when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal')) {
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [isOpen, onClose]);
-
-    const getDaysInMonth = (date) => {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startingDay = firstDay.getDay();
-
-        const days = [];
-        // Add empty cells for days before the first day of the month
-        for (let i = 0; i < startingDay; i++) {
-            days.push(null);
-        }
-        // Add all days of the month
-        for (let i = 1; i <= daysInMonth; i++) {
-            days.push(new Date(year, month, i));
-        }
-        return days;
-    };
-
-    const formatDate = (date) => {
-        // Use local timezone to avoid date shifting
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    const isToday = (date) => {
-        const today = new Date();
-        return date && date.toDateString() === today.toDateString();
-    };
-
-    const isSelected = (date) => {
-        return date && selectedDateState && date.toDateString() === selectedDateState.toDateString();
-    };
-
-    const handleDateClick = (date) => {
-        if (date) {
-            setSelectedDateState(date);
-            onDateSelect(formatDate(date));
-            onClose();
-        }
-    };
-
-    const goToPreviousMonth = () => {
-        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-    };
-
-    const goToNextMonth = () => {
-        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-    };
-
-    const goToPreviousYear = () => {
-        setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1));
-    };
-
-    const goToNextYear = () => {
-        setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
-    };
-
-    const selectYear = (year) => {
-        setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
-        setShowYearSelector(false);
-    };
-
-    const selectMonth = (month) => {
-        const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-        setCurrentMonth(newMonth);
-        setShowMonthSelector(false);
-    };
-
-    if (!isOpen) return null;
-
-    const monthNames = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
-    const days = getDaysInMonth(currentMonth);
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full calendar-modal">
-                <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-600 p-2"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    {/* Month/Year Navigation */}
-                    <div className="flex items-center justify-between mb-4">
-                        <button
-                            onClick={goToPreviousYear}
-                            className="p-1 hover:bg-gray-100 rounded"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <button
-                            onClick={() => setShowMonthSelector(true)}
-                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
-                        >
-                            {monthNames[currentMonth.getMonth()]}
-                        </button>
-                        <button
-                            onClick={goToNextYear}
-                            className="p-1 hover:bg-gray-100 rounded"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between mb-4">
-                        <button
-                            onClick={goToPreviousMonth}
-                            className="p-1 hover:bg-gray-100 rounded"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <button
-                            onClick={() => setShowYearSelector(true)}
-                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
-                        >
-                            {currentMonth.getFullYear()}
-                        </button>
-                        <button
-                            onClick={goToNextMonth}
-                            className="p-1 hover:bg-gray-100 rounded"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-1 mb-4">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
-                                {day}
-                            </div>
-                        ))}
-                        {days.map((day, index) => (
-                            <button
-                                key={index}
-                                onClick={() => handleDateClick(day)}
-                                disabled={!day}
-                                className={`p-2 text-sm rounded-lg transition-colors ${
-                                    !day
-                                        ? 'invisible'
-                                        : isToday(day)
-                                        ? 'bg-blue-100 text-blue-700 font-semibold'
-                                        : isSelected(day)
-                                        ? 'bg-blue-600 text-white font-semibold'
-                                        : 'hover:bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                {day ? day.getDate() : ''}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Month Selector */}
-                    {showMonthSelector && (
-                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 month-selector-modal">
-                            <div className="grid grid-cols-3 gap-2">
-                                {monthNames.map((month, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => selectMonth(index)}
-                                        className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
-                                    >
-                                        {month}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Year Selector */}
-                    {showYearSelector && (
-                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 year-selector">
-                            <div className="grid grid-cols-3 gap-2">
-                                {Array.from({ length: 21 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
-                                    <button
-                                        key={year}
-                                        onClick={() => selectYear(year)}
-                                        className={`px-3 py-2 text-sm rounded ${
-                                            year === currentMonth.getFullYear()
-                                                ? 'bg-blue-600 text-white'
-                                                : 'text-gray-700 hover:bg-gray-100'
-                                        }`}
-                                    >
-                                        {year}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
 let isLoading = false;
 const ProductSkus = () => {
     const { selectedStore } = useStore();
@@ -400,10 +420,12 @@ const ProductSkus = () => {
     };
 
     const handleStartDateSelect = (date) => {
+        setRefresh(true)
         setDateRange(prev => ({ ...prev, startDate: date }));
     };
 
     const handleEndDateSelect = (date) => {
+        setRefresh(true)
         setDateRange(prev => ({ ...prev, endDate: date }));
     };
     // Redirect if store is not meonutrition

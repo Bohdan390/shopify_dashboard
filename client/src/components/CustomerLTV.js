@@ -261,6 +261,7 @@ const CustomerLTV = () => {
             // Check if socket is truly functional
             console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id, 'Is connected:', isConnected);
             if (socket && socket.readyState === WebSocket.OPEN && isConnected) {
+                clearTimeout(timeOut);
                 socket.send(JSON.stringify({
                     type: "refresh_product_skus",
                     data: selectedProductSku
@@ -268,6 +269,9 @@ const CustomerLTV = () => {
             }
             else {
                 console.log('🔌 Socket not connected, attempting to reconnect...');
+                timeOut = setTimeout(() => {
+                    handleProductLtv();
+                }, 2000);
             }
         }
     }

@@ -1776,7 +1776,7 @@ const AdSpend = () => {
 														)
 													}
 													<BeautifulSelect
-														value={campaignCurrencies[campaign.campaign_id] || 'USD'}
+														value={campaign.currency_symbol}
 														onChange={(currency) => handleCampaignCurrencyChange(campaign.campaign_id, currency)}
 														options={[
 															{ value: 'USD', label: 'USD ($)' },

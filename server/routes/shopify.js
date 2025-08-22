@@ -267,6 +267,17 @@ router.get('/orders', async (req, res) => {
   }
 });
 
+router.get('/order-line-items', async (req, res) => {
+  const {order_id} = req.query
+  const {data, error} = await supabase.from("order_line_items").select("*").eq("shopify_order_id", order_id)
+  console.log(order_id, data.length)
+  if (error) {
+    console.error('Error getting order line items:', error);
+    res.status(500).json({ error: 'Failed to get order line items' });
+  }
+  res.json(data);
+})
+
 // Get order statistics
 router.get('/stats', async (req, res) => {
   try {
