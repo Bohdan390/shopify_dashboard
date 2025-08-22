@@ -404,7 +404,7 @@ const Orders = () => {
 	const fetchOrderLineItems = async (orderId) => {
 		try {
 			setLoadingLineItems(prev => new Set([...prev, orderId]));
-			const response = await api.get(`/api/shopify/orders/${orderId}/line-items`);
+			const response = await api.get(`/api/shopify/order-line-items?order_id=${orderId}`);
 			
 			// Handle different response structures
 			let lineItems = [];
@@ -1419,11 +1419,11 @@ const Orders = () => {
 								<tr className="border-b border-gray-200 bg-gray-50">
 									<th
 										className={`text-left py-3 px-4 font-medium text-gray-700 select-none ${!tableLoading ? 'cursor-pointer hover:bg-gray-100' : 'cursor-not-allowed opacity-50'}`}
-										onClick={!tableLoading ? () => handleSort('order_number') : undefined}
+										onClick={!tableLoading ? () => handleSort('shopify_order_id') : undefined}
 									>
 										<div className="flex items-center gap-2">
 											Order #
-											{getSortIcon('order_number')}
+											{getSortIcon('shopify_order_id')}
 										</div>
 									</th>
 									<th
@@ -1478,15 +1478,15 @@ const Orders = () => {
 							</thead>
 							<tbody>
 								{orders.map((order) => (
-									<Fragment key={order.order_number}>
+									<Fragment key={order.shopify_order_id}>
 										<tr 
-											onClick={() => handleRowClick(order.order_number)}
+											onClick={() => handleRowClick(order.shopify_order_id)}
 											className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
 												isOrderUrgent(order) ? 'bg-red-50 border-l-4 border-l-red-500' : ''
 											}`}
 										>
 											<td className="py-3 px-4">
-												<span className="font-medium text-gray-900">{order.order_number}</span>
+												<span className="font-medium text-gray-900">{order.shopify_order_id}</span>
 											</td>
 											<td className="py-3 px-4">
 												<div>
@@ -1531,23 +1531,23 @@ const Orders = () => {
 											<td className="py-3 px-4 text-center">
 												<ChevronDown 
 													className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-														expandedOrders.has(order.order_number) ? 'rotate-180' : ''
+														expandedOrders.has(order.shopify_order_id) ? 'rotate-180' : ''
 													}`} 
 												/>
 											</td>
 										</tr>
 										
 										{/* Expanded Line Items Row */}
-										{expandedOrders.has(order.order_number) && (
+										{expandedOrders.has(order.shopify_order_id) && (
 											<tr className="bg-gray-50">
 												<td colSpan="7" className="p-0">
 													<div className="p-6">
-														{loadingLineItems.has(order.order_number) ? (
+														{loadingLineItems.has(order.shopify_order_id) ? (
 															<div className="flex items-center justify-center py-8">
 																<LoadingSpinner size="md" variant="spinner" />
 																<span className="ml-3 text-gray-600">Loading line items...</span>
 															</div>
-														) : orderLineItems[order.order_number] && Array.isArray(orderLineItems[order.order_number]) && orderLineItems[order.order_number].length > 0 ? (
+														) : orderLineItems[order.shopify_order_id] && Array.isArray(orderLineItems[order.shopify_order_id]) && orderLineItems[order.shopify_order_id].length > 0 ? (
 															<div>
 																<h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
 																	<ShoppingCart className="w-5 h-5 text-blue-600" />
@@ -1565,7 +1565,7 @@ const Orders = () => {
 																			</tr>
 																		</thead>
 																		<tbody>
-																			{orderLineItems[order.order_number].map((item, index) => (
+																			{orderLineItems[order.shopify_order_id].map((item, index) => (
 																				<tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
 																					<td className="py-3 px-4">
 																						<div>
