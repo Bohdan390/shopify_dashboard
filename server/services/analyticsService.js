@@ -48,13 +48,13 @@ class AnalyticsService {
 			// Get Google Ads spend
 			const { data: googleAdsData, error: googleAdsError } = await supabase
 				.from('ad_spend_detailed')
-				.select('spend_amount')
+				.select('spend_amount, currency')
 				.eq('date', date)
 				.eq('platform', 'google')
 				.eq('store_id', storeId);
 
 			if (googleAdsError) throw googleAdsError;
-			const googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			const googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 
 			// Get Facebook Ads spend
 			const { data: facebookAdsData, error: facebookAdsError } = await supabase
@@ -65,7 +65,7 @@ class AnalyticsService {
 				.eq('store_id', storeId);
 
 			if (facebookAdsError) throw facebookAdsError;
-			const facebookAdsSpend = facebookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			const facebookAdsSpend = facebookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 
 			// Get cost of goods
 			const { data: cogData, error: cogError } = await supabase
@@ -870,7 +870,7 @@ class AnalyticsService {
 			// Get Google Ads spend
 			const { data: adsData, error: adsError } = await supabase
 				.from('ad_spend_detailed')
-				.select('spend_amount, platform')
+				.select('spend_amount, platform, currency')
 				.eq('date', date)
 				.in('platform', ['google', 'facebook'])
 				.eq('store_id', storeId);
@@ -885,8 +885,8 @@ class AnalyticsService {
 					faceBookAdsData.push(ad);
 				}
 			});
-			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
-			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
+			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			// Calculate total ad spend
@@ -1334,7 +1334,7 @@ class AnalyticsService {
 						var productSku = common.extractProductSku(adCampaign.product_title);
 						var productTrend = monthlyProductTrends.find(p => p.product_sku === productSku);
 						if (productTrend) {
-							productTrend.ad_spend += parseFloat(ad.spend_amount || 0);
+							productTrend.ad_spend += parseFloat(ad.spend_amount * ad.currency);
 							productTrend.total_profit -= productTrend.ad_spend;
 						}
 					})

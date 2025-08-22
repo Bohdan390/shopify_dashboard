@@ -848,7 +848,7 @@ const Dashboard = () => {
 
 	const { summary, analytics } = dashboardData || {};
 
-	const { formatCurrency } = useCurrency();
+	const { formatCurrency, displayCurrency } = useCurrency();
 
 	const formatPercentage = (value) => {
 		if (value === undefined || value === null || isNaN(value)) {
@@ -1240,7 +1240,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value, 'USD'), name]}
+								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1332,7 +1332,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value, 'SEK'), name]}
+								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1402,7 +1402,7 @@ const Dashboard = () => {
 								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 							/>
 							<Tooltip
-								formatter={(value, name) => [formatCurrency(value, 'USD'), name]}
+								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
 								labelFormatter={(label, payload) => {
 									if (payload && payload[0] && payload[0].payload.dateRange) {
 										return payload[0].payload.dateRange;
@@ -1451,7 +1451,7 @@ const Dashboard = () => {
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
 						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							💰 Total: {formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
+							💰 Total: {displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
 						</div>
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
@@ -1493,7 +1493,7 @@ const Dashboard = () => {
 								))}
 							</Pie>
 							<Tooltip
-								formatter={(value) => formatCurrency(value, 'SEK')}
+								formatter={(value) => displayCurrency(value, 'USD')}
 								contentStyle={{
 									backgroundColor: 'rgba(255, 255, 255, 0.95)',
 									border: '1px solid #e5e7eb',
@@ -1581,12 +1581,12 @@ const Dashboard = () => {
 								</div>
 								<div className="flex justify-between">
 									<span className="text-orange-700">Facebook Ads</span>
-									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalFacebookAds || 0, 'SEK')}</span>
+									<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalFacebookAds || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between border-t border-orange-200 pt-2">
 									<span className="text-orange-700 font-medium">Total Ad Spend</span>
 									<span className="font-semibold text-orange-900">
-										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
+										{displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -1603,7 +1603,7 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-purple-700">Ad Spend</span>
 									<span className="font-semibold text-purple-900">
-										{formatCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'SEK')}
+										{displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 								<div className="flex justify-between border-t border-purple-200 pt-2">
@@ -1818,8 +1818,8 @@ const Dashboard = () => {
 											{new Date(day.date).toLocaleDateString()}
 										</td>
 										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue, 'USD')}</td>
-										<td className="py-3 px-4">{formatCurrency(day.google_ads_spend, 'SEK')}</td>
-										<td className="py-3 px-4">{formatCurrency(day.facebook_ads_spend, 'SEK')}</td>
+										<td className="py-3 px-4">{displayCurrency(day.google_ads_spend, 'USD')}</td>
+										<td className="py-3 px-4">{displayCurrency(day.facebook_ads_spend, 'USD')}</td>
 										<td className="py-3 px-4">{formatCurrency(day.cost_of_goods, 'USD')}</td>
 										<td className={`py-3 px-4 font-medium ${day.profit >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
 											{formatCurrency(day.profit, 'USD')}
