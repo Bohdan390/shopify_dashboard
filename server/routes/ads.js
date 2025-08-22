@@ -73,40 +73,49 @@ router.get('/spend-detailed', async (req, res) => {
   try {
     const { startDate, endDate, platform, store_id, product_id, page = 1, pageSize = 20, sortBy = 'date', sortOrder = 'desc' } = req.query;
     
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    
-    let query = supabase
-      .from('ad_spend_detailed')
-      .select('*', { count: 'exact' })
-      .order(sortBy, { ascending: sortOrder === 'asc' });
-
-    if (startDate && endDate) {
-      query = query.gte('date', startDate).lte('date', endDate);
-    }
+    let countQuery = supabase
+    .from('ad_spend_detailed')
+    .select('*', { count: 'exact' });
 
     if (platform) {
-      query = query.eq('platform', platform);
+      countQuery = countQuery.eq('platform', platform);
     }
 
     if (store_id) {
-      query = query.eq('store_id', store_id);
+      countQuery = countQuery.eq('store_id', store_id);
     }
 
-    if (product_id) {
-      query = query.eq('product_id', product_id);
+    if (startDate && endDate) {
+      countQuery = countQuery.gte('date', startDate).lte('date', endDate);
     }
 
-    // Apply pagination
-    query = query.range(offset, offset + parseInt(pageSize) - 1);
+    const { count, error: countError } = await countQuery;
 
-    const { data, error, count } = await query;
+    if (countError) {
+      console.error('❌ Error counting ad spend data:', countError);
+      throw countError;
+    }
+
+    let totalPages = 0;
+    if (count > 0) {
+      totalPages = Math.ceil(count / parseInt(pageSize));
+    }
+
+    const { data, error } = await supabase.rpc('get_ad_spend_detailed_with_currency', {
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_platform: platform || null,
+      p_store_id: store_id || null,
+      p_sort_by: sortBy,
+      p_sort_order: sortOrder,
+      p_page: page,
+      p_page_size: pageSize
+    });
 
     if (error) {
       console.error('❌ Error fetching ad spend data:', error);
       throw error;
     }
-
-    const totalPages = Math.ceil((count || 0) / parseInt(pageSize));
 
     res.json({ 
       data: data || [],
@@ -117,18 +126,45 @@ router.get('/spend-detailed', async (req, res) => {
         totalItems: count || 0
       }
     });
-
   } catch (error) {
     console.error('❌ Error getting ad spend data:', error);
     res.status(500).json({ error: 'Failed to get ad spend data' });
   }
 });
 
-// Get campaigns
+// Get campaigns with pagination
 router.get('/campaigns', async (req, res) => {
   try {
-    const { platform, store_id, product_id } = req.query;
+    const { platform, store_id, product_id, page = 1, pageSize = 10 } = req.query;
     
+    // Calculate offset for pagination
+    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    
+    // First, get the total count
+    let countQuery = supabase
+      .from('ad_campaigns')
+      .select('*', { count: 'exact' });
+
+    if (platform) {
+      countQuery = countQuery.eq('platform', platform);
+    }
+
+    if (store_id) {
+      countQuery = countQuery.eq('store_id', store_id);
+    }
+
+    if (product_id) {
+      countQuery = countQuery.eq('product_id', product_id);
+    }
+
+    const { count, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('❌ Error counting campaigns:', countError);
+      throw countError;
+    }
+
+    // Now get the paginated data
     let query = supabase
       .from('ad_campaigns')
       .select('*')
@@ -146,6 +182,9 @@ router.get('/campaigns', async (req, res) => {
       query = query.eq('product_id', product_id);
     }
 
+    // Apply pagination
+    query = query.range(offset, offset + parseInt(pageSize) - 1);
+
     const { data, error } = await query;
 
     if (error) {
@@ -153,7 +192,20 @@ router.get('/campaigns', async (req, res) => {
       throw error;
     }
 
-    res.json({ data: data || [] });
+    // Calculate pagination info
+    const totalItems = count || 0;
+    const totalPages = Math.ceil(totalItems / parseInt(pageSize));
+    const currentPage = parseInt(page);
+
+    res.json({ 
+      data: data || [],
+      pagination: {
+        currentPage,
+        pageSize: parseInt(pageSize),
+        totalPages,
+        totalItems
+      }
+    });
 
   } catch (error) {
     console.error('❌ Error getting campaigns:', error);
@@ -162,9 +214,41 @@ router.get('/campaigns', async (req, res) => {
 });
 
 // Get summary stats (aggregated data without pagination)
+router.post('/update-campaign-currency', async (req, res) => {
+  const { campaign_id, currency_symbol, store_id } = req.body;
+  if (currency_symbol) {
+    var currencies = {
+      "USD": 1,
+      "SEK": 0.1,
+      "EUR": 1.16
+    }
+    const rate = currencies[currency_symbol];
+    const { error } = await supabase
+    .from('ad_spend_detailed')
+    .update({ currency_symbol, currency: rate })
+    .eq('campaign_id', campaign_id)
+    .eq('store_id', store_id);
+
+    if (error) {
+      console.error('❌ Error updating campaign currency:', error);
+      throw error;
+    }
+
+    const {campaignError} = await supabase.from('ad_campaigns')
+      .update({currency_symbol, currency: rate})
+      .eq('campaign_id', campaign_id)
+      .eq('store_id', store_id);
+    if (campaignError) {
+      console.error('❌ Error updating campaign currency:', campaignError);
+      throw campaignError;
+    }
+  }
+  res.json({ message: 'Campaign currency updated successfully' });
+})
+
 router.get('/summary-stats', async (req, res) => {
   try {
-    const { startDate, endDate, platform, store_id, product_id } = req.query;
+    const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search } = req.query;
     
     // Get revenue data from orders using the RPC function
     let revenueData = { totalRevenue: 0 };
@@ -187,76 +271,50 @@ router.get('/summary-stats', async (req, res) => {
     }
 
     // First, get the count to see how much data we have
-    let countQuery = supabase
-      .from('ad_spend_detailed')
-      .select('*', { count: 'exact', head: true });
+    let { data: adSpendData, error: adSpendError } = await supabase.rpc("aggregate_ad_spend_by_campaign", {
+      start_date: startDate + 'T00:00:00',
+      end_date: endDate + 'T23:59:59.999',
+      p_campaign_names: null,
+      p_store_id: store_id,
+    });
 
-    if (startDate && endDate) {
-      countQuery = countQuery.gte('date', startDate).lte('date', endDate);
-    }
-
-    // if (platform) {
-    //   countQuery = countQuery.eq('platform', platform);
-    // }
-
-    if (store_id) {
-      countQuery = countQuery.eq('store_id', store_id);
-    }
-
-    if (product_id) {
-      countQuery = countQuery.eq('product_id', product_id);
-    }
-
-    const { count, error: countError } = await countQuery;
     
-    if (countError) {
-      console.error('❌ Error counting summary stats:', countError);
-      throw countError;
+    if (adSpendError) {
+      console.error('❌ Error fetching ad spend data:', adSpendError);
+      throw adSpendError;
     }
 
-    // Fetch all data in chunks of 1000 (Supabase limit)
-    let allData = [];
-    const chunkSize = 1000;
-    const totalChunks = Math.ceil((count || 0) / chunkSize);
+    var totalSpend = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_spend), 0);
+    var totalGoogleAmount = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_google_amount), 0);
+    var totalFacebookAmount = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_facebook_amount), 0);
+    var roiPercentage = (revenueData.totalRevenue / totalSpend);
 
-    for (let i = 0; i < totalChunks; i++) {
-      const offset = i * chunkSize;
-      
-      let query = supabase
-        .from('ad_spend_detailed')
-        .select('spend_amount, platform, impressions, clicks, conversions, date')
-        .range(offset, offset + chunkSize - 1);
-
-      if (startDate && endDate) {
-        query = query.gte('date', startDate).lte('date', endDate);
-      }
-
-      // if (platform) {
-      //   query = query.eq('platform', platform);
-      // }
-
-      if (store_id) {
-        query = query.eq('store_id', store_id);
-      }
-
-      if (product_id) {
-        query = query.eq('product_id', product_id);
-      }
-
-      const { data: chunkData, error } = await query;
-
-      if (error) {
-        console.error('❌ Error fetching summary stats chunk:', error);
-        throw error;
-      }
-
-      allData = allData.concat(chunkData || []);
+    if (search) {
+      adSpendData = adSpendData.filter(item => item.campaign_id.toLowerCase().includes(search.toLowerCase()) || item.platform.toLowerCase().includes(search.toLowerCase()));
     }
 
-    // Return both ad spend data and revenue data
+    adSpendData = adSpendData.sort((a, b) => {
+      if (sortBy === 'total_spend') {
+        return sortOrder === 'asc' ? a.total_spend - b.total_spend : b.total_spend - a.total_spend;
+      }
+      else if (sortBy === 'total_clicks') {
+        return sortOrder === 'asc' ? a.total_clicks - b.total_clicks : b.total_clicks - a.total_clicks;
+      }
+      return 0;
+    });
+      // Return both ad spend data and revenue data
+
+    var paginatedAdSpendData = adSpendData.slice((page - 1) * pageSize, (page) * pageSize);
+
+    console.log(adSpendData.length, paginatedAdSpendData.length, page, pageSize)
     res.json({ 
-      data: allData,
-      revenue: revenueData.totalRevenue
+      totalSpend: common.roundPrice(totalSpend),
+      totalGoogleAmount: common.roundPrice(totalGoogleAmount),
+      totalFacebookAmount: common.roundPrice(totalFacebookAmount),
+      roiPercentage: common.roundPrice(roiPercentage),
+      revenue: common.roundPrice(revenueData.totalRevenue),
+      campaigns: paginatedAdSpendData,
+      totalCount: adSpendData.length
     });
 
   } catch (error) {

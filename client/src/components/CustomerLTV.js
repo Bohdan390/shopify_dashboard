@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../config/axios';
-import { useSocket } from '../contexts/SocketContext';
+import { useSocket, SocketProvider } from '../contexts/SocketContext';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
 import SearchableSelect from './SearchableSelect';
@@ -24,6 +24,7 @@ const CustomerLTV = () => {
     const [ltvStartMonth, setLtvStartMonth] = useState(1);
     const [ltvEndMonth, setLtvEndMonth] = useState(new Date().getMonth() + 1);
     const [ltvViewMode, setLtvViewMode] = useState('table');
+    const [socketConnected, setSocketConnected] = useState(false);
 
     // Product SKU State
     const [productSkus, setProductSkus] = useState([]);
@@ -79,7 +80,7 @@ const CustomerLTV = () => {
 
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
-
+            console.log(123)
             await api.post('/api/analytics/sync-customer-ltv-cohorts', {
                 startDate,
                 endDate,
@@ -127,7 +128,7 @@ const CustomerLTV = () => {
     const fetchCustomerLtvAnalytics = useCallback(async () => {
         if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || !selectedProductSku) return;
         fetchIndividualProductLtv();
-    }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku]);
+    }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku, socketConnected]);
 
     // Format number for display
     const formatNumber = (value) => {
@@ -241,7 +242,7 @@ const CustomerLTV = () => {
         }
     }, [ltvSyncSuccess]);
     // Get socket from context
-    const { socket, checkSocketHealth, testSocket, emitEvent, selectStore, addEventListener, socketId } = useSocket();
+    const { socket, selectStore, addEventListener, reconnect, isConnected } = useSocket();
 
     useEffect(() => {
         console.log('🔌 Socket status check:', {
@@ -257,16 +258,25 @@ const CustomerLTV = () => {
     const handleProductLtv = async () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
-            console.log(socket.readyState, socket.id)
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                console.log('✅ Socket is healthy, executing fetchIndividualProductLtv');
-                clearTimeout(timeOut);
-                fetchIndividualProductLtv();
+            console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id, 'Is connected:', isConnected);
+            
+            if (socket && socket.readyState === WebSocket.OPEN && isConnected && selectedProductSku) {
+                socket.send(JSON.stringify({
+                    type: "refresh_product_skus",
+                    data: selectedProductSku
+                }));
+                timeOut = setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
             }
             else {
-                timeOut = setTimeout(() => {
-                    handleProductLtv();
-                }, 2000);
+                // Socket is not connected, attempt to reconnect
+                // This will trigger the reconnection logic in the SocketContext
+                // and the useEffect below will retry the operation once connected
+                console.log('🔌 Socket not connected, attempting to reconnect...');
+                window.location.reload()
+                // reconnect();
+                setSocketConnected(false);
             }
         }
     }
@@ -280,8 +290,12 @@ const CustomerLTV = () => {
         }
         
         // Add event listener for syncProgress
+        addEventListener('refresh_product_skus', () => {
+            console.log('🔌 Refreshing product skus');
+            clearTimeout(timeOut);
+            setSocketConnected(true);
+        });
         const removeListener = addEventListener('syncProgress', (data) => {
-            console.log('📨 syncProgress received:', data);
             if (data.stage && data.stage === 'calculating') {
                 setLtvSyncProgress({
                     stage: data.stage,
@@ -303,6 +317,7 @@ const CustomerLTV = () => {
                 }, 500);
             }
             else if (data.stage == "get_customer_ltv_cohorts") {
+                console.log('🔌 LTV data received', JSON.parse(data.data));
                 setLtvLoading(false);
                 setLtvData(JSON.parse(data.data) || []);
             }

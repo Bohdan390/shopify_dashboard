@@ -166,6 +166,14 @@ class WindsorService {
       const campaigns = new Map();
       const adSpendRecords = [];
       
+      var originCampaigns = [];
+      const {count: campaignsCount} = await this.supabase.from('ad_campaigns').select('*', { count: 'exact' }).eq("store_id", storeId);
+      if (campaignsCount > 0) {
+        for (var i = 0; i < campaignsCount; i += 1000) {
+          const {data} = await this.supabase.from('ad_campaigns').select("campaign_id, currency, currency_symbol").eq("store_id", storeId).range(i, i + 999);
+          originCampaigns.push(...data);
+        }
+      }
       for (const record of adData) {
         // Create campaign record
         const campaignKey = `${record.campaign_id}_${record.platform}`;
@@ -181,6 +189,16 @@ class WindsorService {
           });
         }
         
+        var originCampaign = originCampaigns.find(item => item.campaign_id == record.campaign_id);
+        if (originCampaign) {
+          record.currency = originCampaign.currency;
+          record.currency_symbol = originCampaign.currency_symbol;
+        }
+        else {
+          record.currency = record.platform == "google" ? 1 : 0.1;
+          record.currency_symbol = record.platform == "google" ? "USD" : "SEK";
+        }
+
         // Create ad spend record
         adSpendRecords.push({
           date: record.date,
@@ -192,7 +210,9 @@ class WindsorService {
           conversions: record.conversions,
           conversion_value: record.conversion_value,
           store_id: storeId || record.account_name,
-          product_id: null
+          product_id: null,
+          currency: record.currency,
+          currency_symbol: record.currency_symbol
         });
       }
       

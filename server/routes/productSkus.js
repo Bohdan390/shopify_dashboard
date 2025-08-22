@@ -13,7 +13,7 @@ const supabase = createClient(
 router.get('/:storeId', async (req, res) => {
   try {
     const { storeId } = req.params;
-    const { page = 1, pageSize = 20, search = '', sortBy = 'sale_price', sortDirection = 'asc' } = req.query;
+    const { page = 1, pageSize = 20, search = '', sortBy = 'sale_price', sortDirection = 'asc', startDate, endDate, refresh } = req.query;
 
     var chunk  = 1000;
 
@@ -54,7 +54,10 @@ router.get('/:storeId', async (req, res) => {
     // await supabase.from("product_skus").insert(Array.from(productSkus.values()));
     // console.log(123)
     // return;
-    
+    if (refresh == "true") {
+        common.productSkus = [];
+    }
+    console.log(common.productSkus.length, refresh)
     let query = supabase
       .from('product_skus')
       .select('*')
@@ -73,8 +76,6 @@ router.get('/:storeId', async (req, res) => {
       .eq('store_id', storeId);
 
     var allProductSkus = []
-    var startDate = '2023-01-01';
-    var endDate = '2025-12-31';
     if (common.productSkus.length == 0) {
         const { data, error } = await supabase.rpc('get_product_sku_revenue', {
             p_store_id: storeId,
@@ -139,8 +140,10 @@ router.get('/:storeId', async (req, res) => {
             if (!product.cost_of_goods) product.cost_of_goods = 0;
             linkedCampaigns.forEach(link => {
                 var campaign = adSpend.find(item => item.campaign_id == link.campaign_id);
-                product.total_profit -= campaign.total_spend;
-                product.ad_spend += campaign.total_spend;
+                if (campaign) {
+                    product.total_profit -= campaign.total_spend;
+                    product.ad_spend += campaign.total_spend;
+                }
             });
             costOfGoodsSold.forEach(cost => {
                 if (product.product_ids.includes(cost.product_id)) {
