@@ -932,9 +932,8 @@ const AdSpend = () => {
 							selectClass="pagesize-select"
 							placeholder="Select"
 							disabled={loading}
-							className="w-28"
-							size="small"
-							variant="pagination"
+							className="w-24"
+								size="sm"
 						/>
 						<span className="text-sm text-gray-500">per page</span>
 					</div>

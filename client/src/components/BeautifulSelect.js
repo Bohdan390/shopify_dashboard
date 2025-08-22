@@ -44,13 +44,7 @@ const BeautifulSelect = ({
   };
 
   return (
-    <FormControl 
-      className={className}
-      style={style}
-      size={sizeMap[size]}
-      disabled={disabled}
-      fullWidth
-    >
+    
       <Select
         value={value || ''}
         onChange={handleChange}
@@ -127,7 +121,6 @@ const BeautifulSelect = ({
           </MenuItem>
         ))}
       </Select>
-    </FormControl>
   );
 };
 
