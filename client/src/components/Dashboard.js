@@ -1499,7 +1499,6 @@ const Dashboard = () => {
 								radius={[4, 4, 0, 0]}
 								animationDuration={1000}
 								onMouseEnter={(data, index) => {
-									// Enhanced hover effect
 								}}
 							/>
 							<Bar
@@ -1509,7 +1508,6 @@ const Dashboard = () => {
 								radius={[4, 4, 0, 0]}
 								animationDuration={1000}
 								onMouseEnter={(data, index) => {
-									// Enhanced hover effect
 								}}
 							/>
 						</BarChart>
