@@ -65,6 +65,7 @@ const CustomerLTV = () => {
 
     // Fetch individual product LTV data
     const fetchIndividualProductLtv = async () => {
+        console.log('🔌 Fetching individual product LTV', socket.readyState, isLtvLoading);
         if (isLtvLoading) return;
         isLtvLoading = true;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -80,7 +81,6 @@ const CustomerLTV = () => {
 
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
-            console.log(123)
             await api.post('/api/analytics/sync-customer-ltv-cohorts', {
                 startDate,
                 endDate,
@@ -88,6 +88,7 @@ const CustomerLTV = () => {
                 socketId: socket?.id, // Use the WebSocket ID
                 sku: selectedProductSku
             });
+            console.log("isfinsiehd-----------")
             isLtvLoading = false;
         } catch (error) {
             console.error('❌ Error fetching customer analytics:', error);
@@ -259,24 +260,14 @@ const CustomerLTV = () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
             console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id, 'Is connected:', isConnected);
-            
-            if (socket && socket.readyState === WebSocket.OPEN && isConnected && selectedProductSku) {
+            if (socket && socket.readyState === WebSocket.OPEN && isConnected) {
                 socket.send(JSON.stringify({
                     type: "refresh_product_skus",
                     data: selectedProductSku
                 }));
-                timeOut = setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
             }
             else {
-                // Socket is not connected, attempt to reconnect
-                // This will trigger the reconnection logic in the SocketContext
-                // and the useEffect below will retry the operation once connected
                 console.log('🔌 Socket not connected, attempting to reconnect...');
-                window.location.reload()
-                // reconnect();
-                setSocketConnected(false);
             }
         }
     }
@@ -290,10 +281,9 @@ const CustomerLTV = () => {
         }
         
         // Add event listener for syncProgress
-        addEventListener('refresh_product_skus', () => {
+        addEventListener('refresh_product_skus', (data) => {
             console.log('🔌 Refreshing product skus');
-            clearTimeout(timeOut);
-            setSocketConnected(true);
+            fetchIndividualProductLtv();
         });
         const removeListener = addEventListener('syncProgress', (data) => {
             if (data.stage && data.stage === 'calculating') {

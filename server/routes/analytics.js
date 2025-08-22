@@ -653,7 +653,19 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 
 		// Clear existing data for the date range
-		const socket = req.body.socketId ? common.activeSockets.get(req.body.socketId) : null;
+		const ip =
+		req.headers['x-forwarded-for']?.split(',')[0] || // first IP in chain
+		req.connection?.remoteAddress ||
+		req.socket?.remoteAddress ||
+		req.ip;
+
+		const sockets = Array.from(common.activeSockets.values()).filter(_ws => _ws.clientIp === ip);
+		if (sockets.length > 0) {
+			console.log('🔌 Socket found: ', ip, sockets.length);
+		}
+		else {
+			console.log('🔌 No socket found for IP:', ip);
+		}
 		// Calculate and insert new customer LTV cohorts
 
 		const {data: syncTracking, error: syncTrackingError} = await supabase.from('sync_tracking').select('last_sync_date').eq('store_id', storeId).limit(1);
@@ -670,6 +682,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 			synced = true;
 		}
 
+		res.json({message: "true"})
 		const {data: lastSync, error: lastSyncError} = await supabase.from('customer_ltv_cohorts').select('created_at').eq('store_id', storeId).eq('product_sku', sku).limit(1);
 		if (lastSyncError) {
 			console.error('❌ Error fetching last synced date:', lastSyncError);
@@ -684,21 +697,19 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 
 		let result = {}
 
-		res.json({
-			message: 'Customer LTV cohorts synced successfully',
-		});
-
 		if (!synced) {
-			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket);
+			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets);
 		}
 		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'get_customer_ltv_cohorts',
-				message: 'Customer LTV cohorts synced successfully',
-				data: JSON.stringify(result.data)
-			});
+		if (sockets) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'get_customer_ltv_cohorts',
+					message: 'Customer LTV cohorts synced successfully',
+					data: JSON.stringify(result.data)
+				});
+			})
 		}
 		} else {
 			throw new Error(result.error);
@@ -715,19 +726,21 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 });
 
 // Helper function to calculate customer LTV cohorts
-async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, socket = null) {
+async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets = []) {
 	try {
 		// Get all orders for the store to determine customer first order dates
 		var chunkSize = 1000;
 
 		// Emit initial progress
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: 'Starting Customer LTV calculation...',
-				progress: 0,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: 'Starting Customer LTV calculation...',
+					progress: 0,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		// var {data: adsMonth, error: adsMonthError} = await supabase.rpc("get_monthly_ad_spend", {
@@ -762,13 +775,15 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.gte('created_at', `${startDate}-01T00:00:00Z`)
 			.lte('created_at', `${endDate}-31T23:59:59Z`);
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '',
-				progress: 5,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '',
+					progress: 5,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		var rangeOrders = [];
@@ -782,23 +797,27 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				.range(i, i + chunkSize - 1);
 			if (rangeOrdersError) throw rangeOrdersError;
 			rangeOrders.push(...orders);
-			if (socket) {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'calculating',
-					message: '📥 Fetching customers data...',
-					progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(1)),
-					total: 'unlimited'
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'calculating',
+						message: '📥 Fetching customers data...',
+						progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(1)),
+						total: 'unlimited'
+					});
+				})
 			}
 		}
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '📥 Fetching customers data...',
-				progress: 30,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching customers data...',
+					progress: 30,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		var allCustomers = [];
@@ -820,23 +839,27 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				.range(i, i + chunkSize - 1);
 			if (customersError) throw customersError;
 			allCustomers.push(...customers);
-			if (socket) {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'calculating',
-					message: '📥 Fetching customers data...',
-					progress: Number((30 + (i / customerCount) * 20).toFixed(1)),
-					total: 'unlimited'
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'calculating',
+						message: '📥 Fetching customers data...',
+						progress: Number((30 + (i / customerCount) * 20).toFixed(1)),
+						total: 'unlimited'
+					});
+				})
 			}
 		}
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '📥 Fetching ads data...',
-				progress: 50,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching ads data...',
+					progress: 50,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		const {count: adsProductCampaignCount} = await supabase
@@ -855,23 +878,27 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				.range(i, i + chunkSize - 1);
 			if (productCampaignLinksError) throw productCampaignLinksError;
 			allProductCampaignLinks.push(...productCampaignLinks);
-			if (socket) {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'calculating',
-					message: '📥 Fetching products data...',
-					progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
-					total: 'unlimited'
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'calculating',
+						message: '📥 Fetching products data...',
+						progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+						total: 'unlimited'
+					});
+				})
 			}
 		}
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '📥 Fetching products data...',
-				progress: 60,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '📥 Fetching products data...',
+					progress: 60,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		const {count: productCount} = await supabase
@@ -899,13 +926,15 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			allCostOfGoods.push(...costOfGoods);
 		}
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '� Calculating LTV cohorts...',
-				progress: 70,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '� Calculating LTV cohorts...',
+					progress: 70,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		var adsIds = allProductCampaignLinks.map(productCampaignLink => productCampaignLink.campaign_id);
@@ -928,13 +957,15 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				}
 			})
 			allAdsSpend.push(...adsSpend);
-			if (socket) {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'calculating',
-					message: '� Calculating LTV cohorts...',
-					progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
-					total: 'unlimited'
-				});
+			if (sockets.length > 0) {
+				sockets.forEach((socket) => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'calculating',
+						message: '� Calculating LTV cohorts...',
+						progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+						total: 'unlimited'
+					});
+				})
 			}
 		}
 		allProductCampaignLinks.forEach(productCampaignLink => {
@@ -953,13 +984,15 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			})
 		})
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '🔄 Calculating LTV cohorts...',
-				progress: 80,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '🔄 Calculating LTV cohorts...',
+					progress: 80,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		var startYear = parseInt(startDate.split('-')[0]);
@@ -1034,22 +1067,26 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					updated_at: new Date().toISOString()
 				});
 			})
-			if (socket) {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'calculating',
-					message: '🔄 Calculating LTV cohorts...',
-					progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(1)),
-					total: 'unlimited'
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'calculating',
+						message: '🔄 Calculating LTV cohorts...',
+						progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(1)),
+						total: 'unlimited'
+					});
+				})
 			}
 		}
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'calculating',
-				message: '💾 Saving LTV data...',
-				progress: 90,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'calculating',
+					message: '💾 Saving LTV data...',
+					progress: 90,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		const { error: deleteError } = await supabase
@@ -1066,24 +1103,28 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					.from('customer_ltv_cohorts')
 					.insert(ltvData.slice(i, i + chunkSize));
 				if (insertError) throw insertError;
-				if (socket) {
-					sendWebSocketMessage(socket, 'syncProgress', {
-						stage: 'calculating',
-						message: '💾 Saving LTV data...',
-						progress: 100,
-						total: 'unlimited'
-					});
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '💾 Saving LTV data...',
+							progress: 100,
+							total: 'unlimited'
+						});
+					})
 				}
 			}
 		}
 
-		if (socket) {
-			sendWebSocketMessage(socket, 'syncProgress', {
-				stage: 'completed',
-				message: '✅ LTV calculation completed!',
-				progress: 100,
-				total: 'unlimited'
-			});
+		if (sockets.length > 0) {
+			sockets.forEach(socket => {
+				sendWebSocketMessage(socket, 'syncProgress', {
+					stage: 'completed',
+					message: '✅ LTV calculation completed!',
+					progress: 100,
+					total: 'unlimited'
+				});
+			})
 		}
 
 		// Update sync tracking table for LTV sync
