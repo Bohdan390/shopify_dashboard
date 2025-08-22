@@ -34,15 +34,45 @@ class AnalyticsService {
 	async calculateDailyAnalytics(date, storeId = 'buycosari') {
 		try {
 			// Get revenue for the date
-			const { data: revenueData, error: revenueError } = await supabase
+			const { count: ordersCount, error: ordersCountError } = await supabase
 				.from('orders')
-				.select('total_price')
-				.eq('financial_status', 'paid')
+				.select('*', { count: 'exact' })
 				.eq('store_id', storeId)
 				.gte('created_at', `${date}T00:00:00`)
 				.lt('created_at', `${date}T23:59:59.999`);
 
-			if (revenueError) throw revenueError;
+			if (ordersCountError) throw ordersCountError;
+
+			const { data: customerCount, error: customerError } = await supabase.rpc('get_customer_count', {
+				store_id: storeId,
+				start_date: date + 'T00:00:00',
+				end_date: date + 'T23:59:59.999'
+			});
+			
+			if (customerError) throw customerError;
+			
+			var chunk = 1000;
+
+			let revenueData = [];
+			for (var i = 0; i < ordersCount; i += chunk) {
+				const { data: ordersData, error: revenueError } = await supabase
+				.from('orders')
+				.select('total_price, financial_status')
+				.eq('store_id', storeId)
+				.gte('created_at', `${date}T00:00:00`)
+				.lt('created_at', `${date}T23:59:59.999`)
+				.range(i, i + chunk - 1);
+
+				if (revenueError) throw revenueError;
+				ordersData.forEach(order => {
+					if (order.financial_status === 'paid') {
+						revenueData.push({
+							total_price: order.total_price,
+						});
+					}
+				});
+			}
+			
 			const revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
 
 			// Get Google Ads spend
@@ -86,6 +116,8 @@ class AnalyticsService {
 			const analyticsData = {
 				date,
 				store_id: storeId,
+				orders_count: ordersCount,
+				customers_count: customerCount.customer_count,
 				revenue: common.roundPrice(revenue),
 				google_ads_spend: common.roundPrice(googleAdsSpend),
 				facebook_ads_spend: common.roundPrice(facebookAdsSpend),
@@ -126,6 +158,8 @@ class AnalyticsService {
 
 			return {
 				date,
+				ordersCount,
+				customerCount,
 				revenue,
 				googleAdsSpend,
 				facebookAdsSpend,
@@ -561,16 +595,44 @@ class AnalyticsService {
 			for (const date of allDates) {
 				try {
 					// Calculate revenue for this date ONLY
-					const { data: revenueData, error: revenueError } = await supabase
+					const { count: ordersCount, error: ordersCountError } = await supabase
+					.from('orders')
+					.select('*', { count: 'exact' })
+					.eq('store_id', storeId)
+					.gte('created_at', `${date}T00:00:00`)
+					.lt('created_at', `${date}T23:59:59.999`);
+
+					if (ordersCountError) throw ordersCountError;
+
+					const { data: customerCount, error: customerError } = await supabase.rpc('get_customer_count', {
+						store_id: storeId,
+						start_date: date + 'T00:00:00',
+						end_date: date + 'T23:59:59.999'
+					});
+					
+					var chunk = 1000;
+
+					let revenueData = [];
+					for (var i = 0; i < ordersCount; i += chunk) {
+						const { data: ordersData, error: revenueError } = await supabase
 						.from('orders')
-						.select('total_price, total_tax, total_discounts')
-						.eq('financial_status', 'paid')
+						.select('total_price, financial_status')
 						.eq('store_id', storeId)
 						.gte('created_at', `${date}T00:00:00`)
-						.lt('created_at', `${date}T23:59:59.999`);
+						.lt('created_at', `${date}T23:59:59.999`)
+						.range(i, i + chunk - 1);
 
-					if (revenueError) throw revenueError;
-					const revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
+						if (revenueError) throw revenueError;
+						ordersData.forEach(order => {
+							if (order.financial_status === 'paid') {
+								revenueData.push({
+									total_price: order.total_price,
+								});
+							}
+						});
+					}
+
+					let revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
 
 					// Get existing analytics to preserve ads and COGS data
 					const { data: existingAnalytics, error: existingError } = await supabase
@@ -601,6 +663,8 @@ class AnalyticsService {
 					const analyticsData = {
 						date: date,
 						store_id: storeId,
+						orders_count: ordersCount,
+						customers_count: customerCount.customer_count,
 						revenue: common.roundPrice(revenue), // Updated revenue
 						google_ads_spend: common.roundPrice(existingGoogleAds), // Preserve existing ads
 						facebook_ads_spend: common.roundPrice(existingFacebookAds), // Preserve existing ads

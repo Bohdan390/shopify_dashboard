@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
 	Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar,
-	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart
+	PieChart, Pie, Cell, AreaChart, Area, Brush, ReferenceLine, Legend, ComposedChart, LineChart
 } from 'recharts';
 import api from "../config/axios"
 import { useSocket } from '../contexts/SocketContext';
@@ -19,6 +19,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 
+const G = require('../config/global');
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
 	const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -369,6 +370,15 @@ const Dashboard = () => {
 	const [syncProgress, setSyncProgress] = useState(null);
 	const [recalcProgress, setRecalcProgress] = useState(null);
 
+	// Metrics filtering state
+	const [metricsPeriod, setMetricsPeriod] = useState('daily');
+	const [metricsDateRange, setMetricsDateRange] = useState({
+		startDate: '',
+		endDate: ''
+	});
+	const [showMetricsStartCalendar, setShowMetricsStartCalendar] = useState(false);
+	const [showMetricsEndCalendar, setShowMetricsEndCalendar] = useState(false);
+
 
 
 	const handleDateRangeChange = async () => {
@@ -582,6 +592,16 @@ const Dashboard = () => {
 		}
 	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
 
+	// Initialize metrics date range with main dashboard date range
+	useEffect(() => {
+		if (dateRange.startDate && dateRange.endDate && !metricsDateRange.startDate && !metricsDateRange.endDate) {
+			setMetricsDateRange({
+				startDate: dateRange.startDate,
+				endDate: dateRange.endDate
+			});
+		}
+	}, [dateRange.startDate, dateRange.endDate, metricsDateRange.startDate, metricsDateRange.endDate]);
+
 
 
 	// Update pagination when analytics data changes
@@ -707,6 +727,32 @@ const Dashboard = () => {
 			setTimeout(() => setSyncStep(''), 2000); // Clear error after 2 seconds
 			alert('Failed to sync orders. Please try again.');
 		}
+	};
+
+	// Refresh metrics data based on selected period and date range
+	const refreshMetricsData = useCallback(async () => {
+		if (!metricsDateRange.startDate || !metricsDateRange.endDate) {
+			// If no custom date range, use the main dashboard date range
+			setMetricsDateRange({
+				startDate: dateRange.startDate,
+				endDate: dateRange.endDate
+			});
+		}
+		
+		// Trigger a refresh of the dashboard data
+		await fetchDashboardData(true);
+	}, [metricsDateRange, dateRange, fetchDashboardData]);
+
+	// Handle metrics period change
+	const handleMetricsPeriodChange = (newPeriod) => {
+		setMetricsPeriod(newPeriod);
+		// The charts will automatically update due to the metricsChartData calculation
+	};
+
+	// Handle metrics date range change
+	const handleMetricsDateRangeChange = (startDate, endDate) => {
+		setMetricsDateRange({ startDate, endDate });
+		// The charts will automatically update due to the metricsChartData calculation
 	};
 
 	const openSyncModal = () => {
@@ -871,6 +917,8 @@ const Dashboard = () => {
 			const chunk = data.slice(i, i + daysDiff);
 			const totalRevenue = chunk.reduce((sum, item) => sum + (item.revenue || 0), 0);
 			const totalProfit = chunk.reduce((sum, item) => sum + (item.profit || 0), 0);
+			const totalOrders = chunk.reduce((sum, item) => sum + (item.orders || 0), 0);
+			const totalCustomers = chunk.reduce((sum, item) => sum + (item.customers || 0), 0);
 
 			// Create date range label
 			const startDate = new Date(chunk[0].date);
@@ -886,6 +934,8 @@ const Dashboard = () => {
 				daysCount: chunk.length,
 				revenue: totalRevenue,
 				profit: totalProfit,
+				orders: totalOrders,
+				customers: totalCustomers,
 				google_ads_spend: chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0), 0),
 				facebook_ads_spend: chunk.reduce((sum, item) => sum + (item.facebook_ads_spend || 0), 0),
 				total_ad_spend: totalAdSpend,
@@ -923,11 +973,126 @@ const Dashboard = () => {
 	};
 
 	// Get aggregated chart data and add total ad spend
-	const chartData = aggregateChartData(analytics || []).map(item => ({
-		...item,
-		total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
-		profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))
-	}));
+	const chartData = aggregateChartData(analytics || []).map(item => {
+		// Generate realistic mock data for orders and customers based on revenue
+		return {
+			...item,
+			orders: item.orders_count,
+			customers: item.customers_count,
+			total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
+			profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)),
+			// New metrics calculations
+			aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders_count : 0,
+			ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0,
+			ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0,
+			mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
+		};
+	});
+
+	// Filter and aggregate metrics data based on selected period
+	const getMetricsData = (data, period) => {
+		if (!data || data.length === 0) return [];
+		// Filter data by date range if specified
+		let filteredData = data;
+
+		if (period === 'daily') {
+			filteredData = filteredData.map(item => {
+				return {
+					...item,
+					total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
+					aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders_count : 0,
+					ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0,
+					ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0,
+					mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
+				};
+			});
+			return filteredData;
+		}
+
+		// Group data by period
+		const groupedData = {};
+		filteredData.forEach(item => {
+			const date = new Date(item.date);
+			let key;
+
+			if (period === 'weekly') {
+				// Group by week (Monday to Sunday)
+				const dayOfWeek = date.getDay() == 0 ? 7 : date.getDay();
+				let monday = G.createLocalDateWithTime(new Date(date.getTime() - (dayOfWeek - 1) * 24 * 60 * 60 * 1000));
+				if (monday.getTime() < G.createLocalDateWithTime(dateRange.startDate).getTime()) {
+					monday = G.createLocalDateWithTime(new Date(dateRange.startDate));
+				}
+				key = monday.getFullYear() + "-" + String(monday.getMonth() + 1).padStart(2, '0') + "-" + String(monday.getDate()).padStart(2, '0');
+			} else if (period === 'monthly') {
+				// Group by month
+				key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+				var startDate = G.createLocalDateWithTime(dateRange.startDate);
+				if (startDate.getTime() > G.createLocalDateWithTime(key + "-01").getTime()) {
+					key = startDate.getFullYear() + "-" + String(startDate.getMonth() + 1).padStart(2, '0') + "-" + String(startDate.getDate()).padStart(2, '0');
+				}
+			}
+
+			if (!groupedData[key]) {
+				groupedData[key] = {
+					date: key,
+					revenue: 0,
+					profit: 0,
+					orders: 0,
+					customers: 0,
+					google_ads_spend: 0,
+					facebook_ads_spend: 0,
+					cost_of_goods: 0,
+					google_ads_spend: 0,
+					facebook_ads_spend: 0,
+					dateRange: period === 'weekly' ? (() => {
+						const startDate = G.createLocalDateWithTime(key);
+						var dayOfWeek = 7 - (startDate.getDay() == 0 ? 7 : startDate.getDay());
+						let endDate = new Date(startDate.getTime() + dayOfWeek * 24 * 60 * 60 * 1000);
+						if (endDate.getTime() > G.createLocalDateWithTime(dateRange.endDate).getTime()) {
+							endDate = G.createLocalDateWithTime(dateRange.endDate);
+						}
+						return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+					})() : (() => {
+						const startDate = G.createLocalDateWithTime(key);
+						let endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
+						if (endDate.getTime() > G.createLocalDateWithTime(dateRange.endDate).getTime()) {
+							endDate = G.createLocalDateWithTime(dateRange.endDate);
+						}
+						return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+					})()
+				};
+			}
+
+			// Aggregate values
+			groupedData[key].revenue += item.revenue || 0;
+			groupedData[key].profit += item.profit || 0;
+			groupedData[key].orders += item.orders_count || 0;
+			groupedData[key].customers += item.customers_count || 0;
+			groupedData[key].google_ads_spend += item.google_ads_spend || 0;
+			groupedData[key].facebook_ads_spend += item.facebook_ads_spend || 0;
+			groupedData[key].cost_of_goods += item.cost_of_goods || 0;
+		});
+
+		// Convert grouped data to array and calculate metrics
+		return Object.values(groupedData).map(item => {
+			
+			return {
+				...item,
+				total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
+				profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)),
+				aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders : 0,
+				ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers : 0,
+				ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers : 0,
+				mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
+			};
+		});
+	};
+
+	// Get metrics data based on selected period and date range
+	const metricsChartData = getMetricsData(
+		analytics || [], 
+		metricsPeriod, 
+	);
 
 	if (loading && !refreshing) {
 		return <DashboardLoader />;
@@ -1059,58 +1224,6 @@ const Dashboard = () => {
 					<h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
 					<p className="text-gray-600 mt-1">Overview of your Shopify business performance</p>
 				</div>
-				<div className="flex gap-4" style={{ display: "flex", alignItems: "center" }}>
-					{/* Period Selector */}
-					{/* Custom Date Range */}
-					{showCustomDateRange && (
-						<div className="flex flex-col gap-2">
-							<div className="flex gap-2">
-								<div className="flex flex-col">
-									<label className="text-xs text-gray-600 mb-1">Start Date</label>
-									<button
-										onClick={() => setShowStartCalendar(true)}
-										className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-									>
-										<span>{dateRange.startDate || 'Select start date'}</span>
-										<svg className="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-										</svg>
-									</button>
-								</div>
-								<span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
-								<div className="flex flex-col">
-									<label className="text-xs text-gray-600 mb-1">End Date</label>
-									<button
-										onClick={() => setShowEndCalendar(true)}
-										className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-									>
-										<span>{dateRange.endDate || 'Select end date'}</span>
-										<svg className="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-										</svg>
-									</button>
-								</div>
-								<button
-									onClick={() => { handleDateRangeChange() }}
-									disabled={loading || !dateRange.startDate || !dateRange.endDate}
-									className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-3 py-2 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed self-end"
-								>
-									Apply
-								</button>
-							</div>
-							{/* Date Range Display */}
-							{(dateRange.startDate || dateRange.endDate) && (
-								<div className="text-xs text-gray-500">
-									Selected: {dateRange.startDate || 'Not set'} to {dateRange.endDate || 'Not set'}
-								</div>
-							)}
-						</div>
-					)}
-
-
-					{/* Recalculate Analytics Button */}
-
-				</div>
 			</div>
 
 			<div className="card mb-6">
@@ -1205,6 +1318,43 @@ const Dashboard = () => {
 						Selected: {dateRange.startDate} to {dateRange.endDate}
 					</div>
 				</div>
+				<div className="flex flex-wrap items-center gap-4 bg-white mt-4">
+					<div className="flex items-center gap-2">
+						<span className="text-sm font-medium text-gray-700">Metrics Period:</span>
+						<div className="flex bg-gray-100 rounded-lg p-1">
+							<button
+								onClick={() => handleMetricsPeriodChange('daily')}
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+									metricsPeriod === 'daily'
+										? 'bg-white text-blue-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-800'
+								}`}
+							>
+								Daily
+							</button>
+							<button
+								onClick={() => handleMetricsPeriodChange('weekly')}
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+									metricsPeriod === 'weekly'
+										? 'bg-white text-blue-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-800'
+								}`}
+							>
+								Weekly
+							</button>
+							<button
+								onClick={() => handleMetricsPeriodChange('monthly')}
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+									metricsPeriod === 'monthly'
+										? 'bg-white text-blue-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-800'
+								}`}
+							>
+								Monthly
+							</button>
+						</div>
+					</div>
+				</div>
 			</div>
 
 			{/* Charts and Table Loading State */}
@@ -1218,21 +1368,16 @@ const Dashboard = () => {
 				<div className="card">
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Revenue & Ad Spend Trend</h3>
-						{chartData.length < (analytics?.length || 0) && (
-							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days
-							</div>
-						)}
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={chartData}>
+						<ComposedChart data={metricsChartData}>
 							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
 							<XAxis
 								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, chartData.length)}
-								angle={chartData.length > 20 ? -45 : 0}
-								textAnchor={chartData.length > 20 ? "end" : "middle"}
-								height={chartData.length > 20 ? 80 : 60}
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
 								tick={{ fontSize: 12 }}
 							/>
 							<YAxis
@@ -1280,7 +1425,7 @@ const Dashboard = () => {
 								stroke="#3b82f6"
 								strokeWidth={2}
 								name="Revenue"
-								dot={chartData.length <= 50}
+								dot={metricsChartData.length <= 50}
 								activeDot={{ r: 6 }}
 								animationDuration={1000}
 							/>
@@ -1290,7 +1435,7 @@ const Dashboard = () => {
 								stroke="#ef4444"
 								strokeWidth={2}
 								name="Ad Spend"
-								dot={chartData.length <= 50}
+								dot={metricsChartData.length <= 50}
 								activeDot={{ r: 6 }}
 								animationDuration={1000}
 							/>
@@ -1300,7 +1445,7 @@ const Dashboard = () => {
 								dataKey="date"
 								height={30}
 								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, chartData.length)}
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
 							/>
 						</ComposedChart>
 					</ResponsiveContainer>
@@ -1310,21 +1455,16 @@ const Dashboard = () => {
 				<div className="card">
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Breakdown</h3>
-						{chartData.length < (analytics?.length || 0) && (
-							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-								📊 Showing {chartData.length} aggregated points from {(analytics?.length || 0)} days
-							</div>
-						)}
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
-						<BarChart data={chartData}>
+						<BarChart data={metricsChartData}>
 							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
 							<XAxis
 								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, chartData.length)}
-								angle={chartData.length > 20 ? -45 : 0}
-								textAnchor={chartData.length > 20 ? "end" : "middle"}
-								height={chartData.length > 20 ? 80 : 60}
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
 								tick={{ fontSize: 12 }}
 							/>
 							<YAxis
@@ -1382,19 +1522,16 @@ const Dashboard = () => {
 				<div className="card">
 					<div className="flex justify-between items-center mb-4">
 						<h3 className="text-lg font-semibold text-gray-900">Profit Trend Analysis</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							📈 {summary?.totalProfit >= 0 ? 'Profitable' : 'Loss'} Period
-						</div>
 					</div>
 					<ResponsiveContainer width="100%" height={300}>
-						<AreaChart data={chartData}>
+						<AreaChart data={metricsChartData}>
 							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
 							<XAxis
 								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, chartData.length)}
-								angle={chartData.length > 20 ? -45 : 0}
-								textAnchor={chartData.length > 20 ? "end" : "middle"}
-								height={chartData.length > 20 ? 80 : 60}
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
 								tick={{ fontSize: 12 }}
 							/>
 							<YAxis
@@ -1442,7 +1579,7 @@ const Dashboard = () => {
 								dataKey="date"
 								height={30}
 								stroke="#10b981"
-								tickFormatter={(value) => formatChartDate(value, chartData.length)}
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
 							/>
 						</AreaChart>
 					</ResponsiveContainer>
@@ -1511,6 +1648,299 @@ const Dashboard = () => {
 			</div>
 				</>
 			)}
+
+			{/* New Metrics Graphs */}
+			<div className="mt-8">
+
+				{/* Metrics Date Filter Controls */}
+
+				{/* Data Points Info */}
+				<div className="mb-4 text-center">
+					<div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-600">
+						<span>📊</span>
+						<span>Showing {metricsChartData.length} {metricsPeriod === 'daily' ? 'days' : metricsPeriod === 'weekly' ? 'weeks' : 'months'} of data</span>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+				{/* AOV (Average Order Value) */}
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">AOV (Average Order Value)</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							💰 Revenue ÷ Orders
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<ComposedChart data={metricsChartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+							<XAxis
+								dataKey="date"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
+							/>
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${value.toFixed(0)}`}
+							/>
+							<Tooltip
+								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+								labelFormatter={(label, payload) => {
+									if (payload && payload[0] && payload[0].payload.dateRange) {
+										return payload[0].payload.dateRange;
+									}
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+							<ReferenceLine y={0} stroke="#666" />
+
+							{/* Line chart for AOV */}
+							<Line
+								type="monotone"
+								dataKey="aov"
+								stroke="#3b82f6"
+								strokeWidth={2}
+								name="AOV"
+								dot={metricsChartData.length <= 50}
+								activeDot={{ r: 6 }}
+								animationDuration={1000}
+							/>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#8884d8"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+							/>
+						</ComposedChart>
+					</ResponsiveContainer>
+				</div>
+
+				{/* LTV (Lifetime Value per Customer) */}
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">LTV (Lifetime Value per Customer)</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							👥 Revenue ÷ Customers
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<ComposedChart data={metricsChartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+							<XAxis
+								dataKey="date"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
+							/>
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${value.toFixed(0)}`}
+							/>
+							<Tooltip
+								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+								labelFormatter={(label, payload) => {
+									if (payload && payload[0] && payload[0].payload.dateRange) {
+										return payload[0].payload.dateRange;
+									}
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+							<ReferenceLine y={0} stroke="#666" />
+
+							{/* Line chart for LTV */}
+							<Line
+								type="monotone"
+								dataKey="ltv"
+								stroke="#10b981"
+								strokeWidth={2}
+								name="LTV"
+								dot={metricsChartData.length <= 50}
+								activeDot={{ r: 6 }}
+								animationDuration={1000}
+							/>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#8884d8"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+							/>
+						</ComposedChart>
+					</ResponsiveContainer>
+				</div>
+
+				{/* LTV Profit (Lifetime Value Profit) */}
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">LTV Profit (Profit per Customer)</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							💵 (Revenue - Costs) ÷ Customers
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<ComposedChart data={metricsChartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+							<XAxis
+								dataKey="date"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
+							/>
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `$${value.toFixed(0)}`}
+							/>
+							<Tooltip
+								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+								labelFormatter={(label, payload) => {
+									if (payload && payload[0] && payload[0].payload.dateRange) {
+										return payload[0].payload.dateRange;
+									}
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+							<ReferenceLine y={0} stroke="#666" />
+
+							{/* Line chart for LTV Profit */}
+							<Line
+								type="monotone"
+								dataKey="ltvProfit"
+								stroke="#8b5cf6"
+								strokeWidth={2}
+								name="LTV Profit"
+								dot={metricsChartData.length <= 50}
+								activeDot={{ r: 6 }}
+								animationDuration={1000}
+							/>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#8884d8"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+							/>
+						</ComposedChart>
+					</ResponsiveContainer>
+				</div>
+
+				{/* MER (Marketing Efficiency Ratio) */}
+				<div className="card">
+					<div className="flex justify-between items-center mb-4">
+						<h3 className="text-lg font-semibold text-gray-900">MER (Marketing Efficiency Ratio)</h3>
+						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+							📊 Revenue ÷ Marketing Spend
+						</div>
+					</div>
+					<ResponsiveContainer width="100%" height={300}>
+						<ComposedChart data={metricsChartData}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+							<XAxis
+								dataKey="date"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								angle={metricsChartData.length > 20 ? -45 : 0}
+								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+								height={metricsChartData.length > 20 ? 80 : 60}
+								tick={{ fontSize: 12 }}
+							/>
+							<YAxis
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value) => `${value.toFixed(1)}x`}
+							/>
+							<Tooltip
+								formatter={(value, name) => [`${value.toFixed(2)}x`, name]}
+								labelFormatter={(label, payload) => {
+									if (payload && payload[0] && payload[0].payload.dateRange) {
+										return payload[0].payload.dateRange;
+									}
+									return new Date(label).toLocaleDateString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric'
+									});
+								}}
+								contentStyle={{
+									backgroundColor: 'rgba(255, 255, 255, 0.95)',
+									border: '1px solid #e5e7eb',
+									borderRadius: '8px',
+									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+								}}
+							/>
+							<Legend />
+							<ReferenceLine y={1} stroke="#666" />
+
+							{/* Line chart for MER */}
+							<Line
+								type="monotone"
+								dataKey="mer"
+								stroke="#f59e0b"
+								strokeWidth={2}
+								name="MER"
+								dot={metricsChartData.length <= 50}
+								activeDot={{ r: 6 }}
+								animationDuration={1000}
+							/>
+
+							{/* Brush for data selection */}
+							<Brush
+								dataKey="date"
+								height={30}
+								stroke="#8884d8"
+								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+							/>
+						</ComposedChart>
+					</ResponsiveContainer>
+				</div>
+			</div>
+			</div>
+
 			{/* Analytics Summary */}
 			<div className="mt-8">
 				<div className="card">
@@ -1676,10 +2106,10 @@ const Dashboard = () => {
 										{ value: 50, label: '50' },
 										{ value: 100, label: '100' }
 									]}
+									selectClass='pagesize-select'
 									placeholder="Select"
-									className="w-24"
+									className="w-20"
 									size="small"
-									variant="pagination"
 								/>
 								<span className="text-sm text-gray-600">entries</span>
 							</div>
@@ -1864,6 +2294,7 @@ const Dashboard = () => {
 										{ value: 50, label: '50' },
 										{ value: 100, label: '100' }
 									]}
+									selectClass='pagesize-select'
 									placeholder="Select"
 									className="w-20"
 									size="small"
@@ -2139,6 +2570,29 @@ const Dashboard = () => {
 				}}
 				selectedDate={recalcDate}
 				label="Select Recalculation Date"
+			/>
+
+			{/* Custom Calendars for Metrics Date Selection */}
+			<CustomCalendar
+				isOpen={showMetricsStartCalendar}
+				onClose={() => setShowMetricsStartCalendar(false)}
+				onDateSelect={(date) => {
+					handleMetricsDateRangeChange(date, metricsDateRange.endDate);
+					setShowMetricsStartCalendar(false);
+				}}
+				selectedDate={metricsDateRange.startDate}
+				label="Select Metrics Start Date"
+			/>
+
+			<CustomCalendar
+				isOpen={showMetricsEndCalendar}
+				onClose={() => setShowMetricsEndCalendar(false)}
+				onDateSelect={(date) => {
+					handleMetricsDateRangeChange(metricsDateRange.startDate, date);
+					setShowMetricsEndCalendar(false);
+				}}
+				selectedDate={metricsDateRange.endDate}
+				label="Select Metrics End Date"
 			/>
 
 			{/* Additional Interactive Charts */}

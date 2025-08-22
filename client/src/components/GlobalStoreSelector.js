@@ -254,6 +254,7 @@ const GlobalStoreSelector = () => {
 					options={storeOptions}
 					placeholder="Select Store"
 					size="small"
+					selectClass='select-store'
 					className="w-full"
 				/>
 
@@ -351,6 +352,7 @@ const GlobalStoreSelector = () => {
 					}}
 					options={storeOptions}
 					placeholder="Select Store"
+					selectClass='select-store'
 					size="small"
 					className="w-full"
 				/>

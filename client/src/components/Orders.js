@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { ShoppingCart, Search, Filter, Calendar, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Checkbox, FormControlLabel } from '@mui/material';
 import api from "../config/axios"
 import BeautifulSelect from './BeautifulSelect';
 import OrdersLoader from './loaders/OrdersLoader';
@@ -1213,19 +1214,38 @@ const Orders = () => {
 					</div>
 					
 					{/* Special Unfulfilled Filter */}
-					<div className="border border-orange-200 rounded-lg p-4">
-						<label className="flex items-center gap-3 cursor-pointer">
-							<input
-								type="checkbox"
-								checked={unfulfilledFilter}
-								onChange={(e) => setUnfulfilledFilter(e.target.checked)}
-								disabled={searchLoading || tableLoading}
-								className="w-5 h-5 text-orange-600 bg-white border-orange-300 rounded focus:ring-orange-500 focus:ring-2"
-							/>
-							<span className="text-sm font-semibold text-orange-800">
-								Orders Not Fulfilled - Order Made More Than 48 Hours Ago
-							</span>
-						</label>
+					<div className="border border-orange-200 rounded-lg">
+						<FormControlLabel
+							control={
+								<Checkbox
+									checked={unfulfilledFilter}
+									onChange={(e) => setUnfulfilledFilter(e.target.checked)}
+									disabled={searchLoading || tableLoading}
+									sx={{
+										color: '#ea580c', // orange-600
+										'&.Mui-checked': {
+											color: '#ea580c', // orange-600
+										},
+										'&.Mui-disabled': {
+											color: '#d1d5db', // gray-300
+										}
+									}}
+								/>
+							}
+							label={
+								<span className="text-sm font-semibold text-orange-800">
+									Orders Not Fulfilled - Order Made More Than 48 Hours Ago
+								</span>
+							}
+							sx={{
+								margin: 0,
+								'& .MuiFormControlLabel-label': {
+									color: '#92400e', // orange-800
+									fontWeight: 600,
+									fontSize: '0.875rem'
+								}
+							}}
+						/>
 					</div>
 					
 					{/* Action Buttons */}

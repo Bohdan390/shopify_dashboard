@@ -39,3 +39,6 @@ g:focus, path:focus {
   padding: 5px 12px !important;
   width: 60px;
 }
+.select-store {
+  width: 100% !important;
+}
