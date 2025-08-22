@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Search, Filter, Calendar, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { ShoppingCart, Search, Filter, Calendar, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import api from "../config/axios"
 import BeautifulSelect from './BeautifulSelect';
 import OrdersLoader from './loaders/OrdersLoader';
@@ -360,6 +360,11 @@ const Orders = () => {
 	const [showStartCalendar, setShowStartCalendar] = useState(false);
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
+	// Collapsible table state
+	const [expandedOrders, setExpandedOrders] = useState(new Set());
+	const [orderLineItems, setOrderLineItems] = useState({});
+	const [loadingLineItems, setLoadingLineItems] = useState(new Set());
+
 	useEffect(() => {
 		fetchOrders();
 		fetchOverallStats();
@@ -394,6 +399,64 @@ const Orders = () => {
 	useEffect(() => {
 		fetchOrders(1, false, true);
 	}, [pageSize]);
+
+	// Fetch order line items from server
+	const fetchOrderLineItems = async (orderId) => {
+		try {
+			setLoadingLineItems(prev => new Set([...prev, orderId]));
+			const response = await api.get(`/api/shopify/orders/${orderId}/line-items`);
+			
+			// Handle different response structures
+			let lineItems = [];
+			console.log('API Response for order', orderId, ':', response.data);
+			
+			if (response.data) {
+				if (Array.isArray(response.data)) {
+					lineItems = response.data;
+				} else if (response.data.line_items && Array.isArray(response.data.line_items)) {
+					lineItems = response.data.line_items;
+				} else if (response.data.items && Array.isArray(response.data.items)) {
+					lineItems = response.data.items;
+				} else {
+					console.warn('Unexpected line items response structure:', response.data);
+					lineItems = [];
+				}
+			}
+			
+			console.log('Processed line items:', lineItems);
+			
+			setOrderLineItems(prev => ({...prev, [orderId]: lineItems}));
+		} catch (error) {
+			console.error('Error fetching line items:', error);
+			// Set empty array to prevent infinite loading
+			setOrderLineItems(prev => ({...prev, [orderId]: []}));
+		} finally {
+			setLoadingLineItems(prev => {
+				const newSet = new Set(prev);
+				newSet.delete(orderId);
+				return newSet;
+			});
+		}
+	};
+
+	// Handle row expansion/collapse
+	const handleRowClick = (orderId) => {
+		if (expandedOrders.has(orderId)) {
+			// Collapse
+			setExpandedOrders(prev => {
+				const newSet = new Set(prev);
+				newSet.delete(orderId);
+				return newSet;
+			});
+		} else {
+			// Expand
+			setExpandedOrders(prev => new Set([...prev, orderId]));
+			// Fetch line items if not already loaded
+			if (!orderLineItems[orderId]) {
+				fetchOrderLineItems(orderId);
+			}
+		}
+	};
 
 	// Automatically reload data when search is cleared
 	useEffect(() => {
@@ -940,8 +1003,8 @@ const Orders = () => {
 
 					{/* Page numbers */}
 					<div className="flex items-center space-x-1">
-						{pageNumbers.map((page, index) => (
-							<React.Fragment key={index}>
+												{pageNumbers.map((page, index) => (
+							<Fragment key={index}>
 								{page === '...' ? (
 									<span className="px-2 text-gray-500">...</span>
 								) : (
@@ -958,7 +1021,7 @@ const Orders = () => {
 										{page}
 									</button>
 								)}
-							</React.Fragment>
+							</Fragment>
 						))}
 					</div>
 
@@ -1408,57 +1471,131 @@ const Orders = () => {
 											{getSortIcon('created_at')}
 										</div>
 									</th>
+									<th className="text-center py-3 px-4 font-medium text-gray-700 select-none w-16">
+										Expand
+									</th>
 								</tr>
 							</thead>
 							<tbody>
 								{orders.map((order) => (
-									<tr key={order.order_number} className={`border-b border-gray-100 hover:bg-gray-50 ${
-										isOrderUrgent(order) ? 'bg-red-50 border-l-4 border-l-red-500' : ''
-									}`}>
-										<td className="py-3 px-4">
-											<span className="font-medium text-gray-900">{order.order_number}</span>
-										</td>
-										<td className="py-3 px-4">
-											<div>
-												<div className="text-sm text-gray-900">{order.customer_email}</div>
-											</div>
-										</td>
-										<td className="py-3 px-4">
-											<span className="font-medium text-gray-900">
-												{formatCurrency(order.total_price)}
-												{
-													order.financial_status === 'partially_refunded' && (
-														<span className="text-xs text-gray-500">
-															({formatCurrency(order.refund_price)})
-														</span>
-													)
-												}
-											</span>
-										</td>
-										<td className="py-3 px-4">
-											<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.financial_status)}`}>
-												{order.financial_status}
-											</span>
-										</td>
-										<td className="py-3 px-4">
-											<div className="flex items-center gap-2">
-												<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${order.fulfillment_status === 'fulfilled'
-													? 'bg-success-100 text-success-800'
-													: 'bg-gray-100 text-gray-800'
-													}`}>
-													{order.fulfillment_status || 'unfulfilled'}
+									<Fragment key={order.order_number}>
+										<tr 
+											onClick={() => handleRowClick(order.order_number)}
+											className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+												isOrderUrgent(order) ? 'bg-red-50 border-l-4 border-l-red-500' : ''
+											}`}
+										>
+											<td className="py-3 px-4">
+												<span className="font-medium text-gray-900">{order.order_number}</span>
+											</td>
+											<td className="py-3 px-4">
+												<div>
+													<div className="text-sm text-gray-900">{order.customer_email}</div>
+												</div>
+											</td>
+											<td className="py-3 px-4">
+												<span className="font-medium text-gray-900">
+													{formatCurrency(order.total_price)}
+													{
+														order.financial_status === 'partially_refunded' && (
+															<span className="text-xs text-gray-500">
+																({formatCurrency(order.refund_price)})
+															</span>
+														)
+													}
 												</span>
-												{isOrderUrgent(order) && (
-													<span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-														🚨 Urgent
+											</td>
+											<td className="py-3 px-4">
+												<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.financial_status)}`}>
+													{order.financial_status}
+												</span>
+											</td>
+											<td className="py-3 px-4">
+												<div className="flex items-center gap-2">
+													<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${order.fulfillment_status === 'fulfilled'
+														? 'bg-success-100 text-success-800'
+														: 'bg-gray-100 text-gray-800'
+														}`}>
+														{order.fulfillment_status || 'unfulfilled'}
 													</span>
-												)}
-											</div>
-										</td>
-										<td className="py-3 px-4 text-sm text-gray-600">
-											{formatDate(order.created_at)}
-										</td>
-									</tr>
+													{isOrderUrgent(order) && (
+														<span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+															🚨 Urgent
+														</span>
+													)}
+												</div>
+											</td>
+											<td className="py-3 px-4 text-sm text-gray-600">
+												{formatDate(order.created_at)}
+											</td>
+											<td className="py-3 px-4 text-center">
+												<ChevronDown 
+													className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+														expandedOrders.has(order.order_number) ? 'rotate-180' : ''
+													}`} 
+												/>
+											</td>
+										</tr>
+										
+										{/* Expanded Line Items Row */}
+										{expandedOrders.has(order.order_number) && (
+											<tr className="bg-gray-50">
+												<td colSpan="7" className="p-0">
+													<div className="p-6">
+														{loadingLineItems.has(order.order_number) ? (
+															<div className="flex items-center justify-center py-8">
+																<LoadingSpinner size="md" variant="spinner" />
+																<span className="ml-3 text-gray-600">Loading line items...</span>
+															</div>
+														) : orderLineItems[order.order_number] && Array.isArray(orderLineItems[order.order_number]) && orderLineItems[order.order_number].length > 0 ? (
+															<div>
+																<h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+																	<ShoppingCart className="w-5 h-5 text-blue-600" />
+																	Order Line Items
+																</h4>
+																<div className="overflow-x-auto">
+																	<table className="min-w-full bg-white rounded-lg border border-gray-200">
+																		<thead className="bg-gray-50">
+																			<tr>
+																				<th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Product</th>
+																				<th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">SKU</th>
+																				<th className="text-center py-3 px-4 font-medium text-gray-700 text-sm">Quantity</th>
+																				<th className="text-right py-3 px-4 font-medium text-gray-700 text-sm">Price</th>
+																				<th className="text-right py-3 px-4 font-medium text-gray-700 text-sm">Total</th>
+																			</tr>
+																		</thead>
+																		<tbody>
+																			{orderLineItems[order.order_number].map((item, index) => (
+																				<tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+																					<td className="py-3 px-4">
+																						<div>
+																							<div className="text-sm font-medium text-gray-900">{item.title || 'N/A'}</div>
+																							{item.variant_title && (
+																								<div className="text-xs text-gray-500">{item.variant_title}</div>
+																							)}
+																						</div>
+																					</td>
+																					<td className="py-3 px-4 text-sm text-gray-600">{item.sku || 'N/A'}</td>
+																					<td className="py-3 px-4 text-center text-sm text-gray-600">{item.quantity}</td>
+																					<td className="py-3 px-4 text-right text-sm text-gray-600">{formatCurrency(item.price)}</td>
+																					<td className="text-right py-3 px-4 text-sm font-medium text-gray-900">{formatCurrency(item.price * item.quantity)}</td>
+																				</tr>
+																			))}
+																		</tbody>
+																	</table>
+																</div>
+															</div>
+														) : (
+															<div className="text-center py-8 text-gray-500">
+																<ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+																<p>No line items found for this order</p>
+															</div>
+														)}
+													</div>
+												</td>
+											</tr>
+										)}
+									</Fragment>
 								))}
 							</tbody>
 						</table>

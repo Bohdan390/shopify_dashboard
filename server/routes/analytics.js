@@ -659,7 +659,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		req.socket?.remoteAddress ||
 		req.ip;
 
-		const sockets = Array.from(common.activeSockets.values()).filter(_ws => _ws.clientIp === ip);
+		const sockets = Array.from(common.activeSockets.values());
 		if (sockets.length > 0) {
 			console.log('🔌 Socket found: ', ip, sockets.length);
 		}
