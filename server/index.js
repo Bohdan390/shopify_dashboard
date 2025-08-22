@@ -75,6 +75,8 @@ wss.on('connection', (ws) => {
         // Store the storeId with the socket for later use
         ws.storeId = data.data.storeId;
         console.log(`🏪 Socket ${ws.id} selected store: ${data.data.storeId}`);
+      } else if (data.type === 'refresh_product_skus') {
+        ws.send(JSON.stringify({ type: 'refresh_product_skus' }));
       } else if (data.type === 'triggerManualSync') {
         console.log(`🔄 Manual sync triggered by socket ${ws.id} for store: ${ws.storeId || 'unknown'}`);
       }

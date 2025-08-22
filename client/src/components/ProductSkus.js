@@ -6,15 +6,297 @@ import BeautifulSelect from './BeautifulSelect';
 import {
     Plus, Edit, Trash2, Search, RefreshCw,
     Package, Hash, FileText, TrendingUp, Save, X, XCircle,
-    DollarSign, ShoppingCart, BarChart3
+    DollarSign, ShoppingCart, BarChart3, Calendar, Filter
 } from 'lucide-react';
 
+// Custom Calendar Component
+const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [selectedDateState, setSelectedDateState] = useState(selectedDate ? new Date(selectedDate) : null);
+    const [showYearSelector, setShowYearSelector] = useState(false);
+    const [showMonthSelector, setShowMonthSelector] = useState(false);
+
+    useEffect(() => {
+        if (selectedDate) {
+            setSelectedDateState(new Date(selectedDate));
+            setCurrentMonth(new Date(selectedDate));
+        }
+    }, [selectedDate]);
+
+    // Close year selector when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showYearSelector && !event.target.closest('.year-selector')) {
+                setShowYearSelector(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showYearSelector]);
+
+    // Close month selector when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showMonthSelector && !event.target.closest('.month-selector')) {
+                setShowMonthSelector(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showMonthSelector]);
+
+    // Close calendar modal when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal')) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen, onClose]);
+
+    const getDaysInMonth = (date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = firstDay.getDay();
+
+        const days = [];
+        // Add empty cells for days before the first day of the month
+        for (let i = 0; i < startingDay; i++) {
+            days.push(null);
+        }
+        // Add all days of the month
+        for (let i = 1; i <= daysInMonth; i++) {
+            days.push(new Date(year, month, i));
+        }
+        return days;
+    };
+
+    const formatDate = (date) => {
+        // Use local timezone to avoid date shifting
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const isToday = (date) => {
+        const today = new Date();
+        return date && date.toDateString() === today.toDateString();
+    };
+
+    const isSelected = (date) => {
+        return date && selectedDateState && date.toDateString() === selectedDateState.toDateString();
+    };
+
+    const handleDateClick = (date) => {
+        if (date) {
+            setSelectedDateState(date);
+            onDateSelect(formatDate(date));
+            onClose();
+        }
+    };
+
+    const goToPreviousMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    };
+
+    const goToNextMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    };
+
+    const goToPreviousYear = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1));
+    };
+
+    const goToNextYear = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
+    };
+
+    const selectYear = (year) => {
+        setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+        setShowYearSelector(false);
+    };
+
+    const selectMonth = (month) => {
+        const newMonth = new Date(currentMonth.getFullYear(), month, 1);
+        setCurrentMonth(newMonth);
+        setShowMonthSelector(false);
+    };
+
+    if (!isOpen) return null;
+
+    const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const days = getDaysInMonth(currentMonth);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full calendar-modal">
+                <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600 p-2"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Month/Year Navigation */}
+                    <div className="flex items-center justify-between mb-4">
+                        <button
+                            onClick={goToPreviousYear}
+                            className="p-1 hover:bg-gray-100 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => setShowMonthSelector(true)}
+                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+                        >
+                            {monthNames[currentMonth.getMonth()]}
+                        </button>
+                        <button
+                            onClick={goToNextYear}
+                            className="p-1 hover:bg-gray-100 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between mb-4">
+                        <button
+                            onClick={goToPreviousMonth}
+                            className="p-1 hover:bg-gray-100 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={() => setShowYearSelector(true)}
+                            className="px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+                        >
+                            {currentMonth.getFullYear()}
+                        </button>
+                        <button
+                            onClick={goToNextMonth}
+                            className="p-1 hover:bg-gray-100 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div className="grid grid-cols-7 gap-1 mb-4">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
+                                {day}
+                            </div>
+                        ))}
+                        {days.map((day, index) => (
+                            <button
+                                key={index}
+                                onClick={() => handleDateClick(day)}
+                                disabled={!day}
+                                className={`p-2 text-sm rounded-lg transition-colors ${
+                                    !day
+                                        ? 'invisible'
+                                        : isToday(day)
+                                        ? 'bg-blue-100 text-blue-700 font-semibold'
+                                        : isSelected(day)
+                                        ? 'bg-blue-600 text-white font-semibold'
+                                        : 'hover:bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                {day ? day.getDate() : ''}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Month Selector */}
+                    {showMonthSelector && (
+                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 month-selector-modal">
+                            <div className="grid grid-cols-3 gap-2">
+                                {monthNames.map((month, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => selectMonth(index)}
+                                        className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+                                    >
+                                        {month}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Year Selector */}
+                    {showYearSelector && (
+                        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 year-selector">
+                            <div className="grid grid-cols-3 gap-2">
+                                {Array.from({ length: 21 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
+                                    <button
+                                        key={year}
+                                        onClick={() => selectYear(year)}
+                                        className={`px-3 py-2 text-sm rounded ${
+                                            year === currentMonth.getFullYear()
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {year}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+let isLoading = false;
 const ProductSkus = () => {
     const { selectedStore } = useStore();
     const navigate = useNavigate();
+    
+    // Date formatting function - moved before useState calls
+    const formatLocalDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    
     const [productSkus, setProductSkus] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [refresh, setRefresh] = useState(null);
     const [pagination, setPagination] = useState({
         currentPage: 1,
         pageSize: 10,
@@ -27,6 +309,19 @@ const ProductSkus = () => {
         totalQuantity: 0,
         avgOrderValue: 0
     });
+
+    // Date range state
+    const [dateRange, setDateRange] = useState(() => {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return {
+            startDate: formatLocalDate(thirtyDaysAgo),
+            endDate: formatLocalDate(today)
+        };
+    });
+    const [showStartCalendar, setShowStartCalendar] = useState(false);
+    const [showEndCalendar, setShowEndCalendar] = useState(false);
+    const [showDatePresets, setShowDatePresets] = useState(false);
 
     // Sort state
     const [sortConfig, setSortConfig] = useState({
@@ -59,8 +354,58 @@ const ProductSkus = () => {
     const [linkingCampaigns, setLinkingCampaigns] = useState(new Set()); // Track which campaigns are being linked/unlinked
     const [campaignSearchTerm, setCampaignSearchTerm] = useState(''); // Search term for campaigns in modal
 
-    let isLoading = false;
 
+    // Date range handlers
+    const handleDatePreset = (preset) => {
+        const today = new Date();
+        let startDate = new Date();
+
+        switch (preset) {
+            case 'today':
+                startDate = today;
+                break;
+            case 'yesterday':
+                startDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+                break;
+            case 'last7days':
+                startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                break;
+            case 'last30days':
+                startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+                break;
+            case 'last90days':
+                startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+                break;
+            case 'thisMonth':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                break;
+            case 'lastMonth':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                setDateRange({
+                    startDate: formatLocalDate(startDate),
+                    endDate: formatLocalDate(lastMonthEnd)
+                });
+                setShowDatePresets(false);
+                return;
+            default:
+                return;
+        }
+        setRefresh(true);
+        setDateRange({
+            startDate: formatLocalDate(startDate),
+            endDate: formatLocalDate(today)
+        });
+        setShowDatePresets(false);
+    };
+
+    const handleStartDateSelect = (date) => {
+        setDateRange(prev => ({ ...prev, startDate: date }));
+    };
+
+    const handleEndDateSelect = (date) => {
+        setDateRange(prev => ({ ...prev, endDate: date }));
+    };
     // Redirect if store is not meonutrition
     useEffect(() => {
         if (selectedStore && selectedStore !== 'meonutrition') {
@@ -80,7 +425,10 @@ const ProductSkus = () => {
                 pageSize: pagination.pageSize,
                 search: search,
                 sortBy: sortConfig.key,
-                sortDirection: sortConfig.direction
+                sortDirection: sortConfig.direction,
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+                refresh: refresh
             });
 
             const response = await api.get(`/api/product-skus/${selectedStore}?${params}`);
@@ -99,6 +447,9 @@ const ProductSkus = () => {
                     totalPages: response.data.pagination.totalPages,
                     totalItems: response.data.pagination.totalItems
                 }));
+                if (refresh) {
+                    setRefresh(null);
+                }
             }
         } catch (error) {
             console.error('Error fetching product SKUs:', error);
@@ -124,6 +475,13 @@ const ProductSkus = () => {
         }
     }, [sortConfig]);
 
+    // Handle date range changes
+    useEffect(() => {
+        if (selectedStore && dateRange.startDate && dateRange.endDate) {
+            fetchProductSkus(1, searchTerm);
+        }
+    }, [dateRange.startDate, dateRange.endDate]);
+
     // Close campaign linking modal when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -140,6 +498,18 @@ const ProductSkus = () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showLinkModal]);
+
+    // Close date presets dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showDatePresets && !event.target.closest('.date-presets-container')) {
+                setShowDatePresets(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showDatePresets]);
 
     // Fetch available products for selection
     const fetchAvailableProducts = async () => {
@@ -532,6 +902,8 @@ const ProductSkus = () => {
             const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
                 params: { storeId: selectedStore } 
             });
+            fetchProductSkus(pagination.currentPage, searchTerm);
+
             const skuLinks = linksResponse.data.filter(link => link.product_sku === sku.sku_id);
             setLinkedCampaigns(skuLinks);
         } catch (error) {
@@ -559,6 +931,8 @@ const ProductSkus = () => {
             const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
                 params: { storeId: selectedStore } 
             });
+            fetchProductSkus(pagination.currentPage, searchTerm);
+
             const skuLinks = linksResponse.data.filter(link => link.product_sku === selectedSku.sku_id);
             setLinkedCampaigns(skuLinks);
 
@@ -593,6 +967,9 @@ const ProductSkus = () => {
             const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
                 params: { storeId: selectedStore } 
             });
+
+            fetchProductSkus(pagination.currentPage, searchTerm);
+
             const skuLinks = linksResponse.data.filter(link => link.product_sku === selectedSku.sku_id);
             setLinkedCampaigns(skuLinks);
 
@@ -732,6 +1109,68 @@ const ProductSkus = () => {
                                 {formatCurrency(productRevenue.avgOrderValue)}
                             </p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Beautiful Date Range Filter with Calendar */}
+            <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+                <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                        <div className="flex flex-col">
+                            <label className="text-xs text-gray-600 mb-1">Start Date</label>
+                            <button
+                                onClick={() => setShowStartCalendar(true)}
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
+                            >
+                                <span>{dateRange.startDate || 'Select start date'}</span>
+                                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                            </button>
+                        </div>
+                        <span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
+                        <div className="flex flex-col">
+                            <label className="text-xs text-gray-600 mb-1">End Date</label>
+                            <button
+                                onClick={() => setShowEndCalendar(true)}
+                                className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
+                            >
+                                <span>{dateRange.endDate || 'Select end date'}</span>
+                                <Calendar className="w-4 h-4 text-gray-400 ml-2" />
+                            </button>
+                        </div>
+
+                        {/* Quick Filters Button */}
+                        <div className="flex flex-col">
+                            <label className="text-xs text-gray-600 mb-1">Quick Filters</label>
+                            <div className="relative date-presets-container">
+                                <button
+                                    onClick={() => setShowDatePresets(!showDatePresets)}
+                                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                                >
+                                    <Filter className="w-4 h-4" />
+                                    Presets
+                                </button>
+
+                                {showDatePresets && (
+                                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                                        <div className="py-1">
+                                            <button onClick={() => handleDatePreset('today')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Today</button>
+                                            <button onClick={() => handleDatePreset('yesterday')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Yesterday</button>
+                                            <button onClick={() => handleDatePreset('last7days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 7 Days</button>
+                                            <button onClick={() => handleDatePreset('last30days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 30 Days</button>
+                                            <button onClick={() => handleDatePreset('last90days')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last 90 Days</button>
+                                            <button onClick={() => handleDatePreset('thisMonth')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">This Month</button>
+                                            <button onClick={() => handleDatePreset('lastMonth')} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Last Month</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Date Range Display */}
+                    <div className="text-xs text-gray-500">
+                        Selected: {dateRange.startDate} to {dateRange.endDate}
                     </div>
                 </div>
             </div>
@@ -991,109 +1430,93 @@ const ProductSkus = () => {
                                         // Filter campaigns based on search term
                                         const filteredCampaigns = availableCampaigns.filter(campaign => {
                                             const searchLower = campaignSearchTerm.toLowerCase();
-                                            const campaignName = (campaign.campaign_name || campaign.campaign_id || '').toLowerCase();
-                                            const platform = (campaign.platform || '').toLowerCase();
-
-                                            return campaignName.includes(searchLower) || platform.includes(searchLower);
+                                            return (
+                                                campaign.campaign_name?.toLowerCase().includes(searchLower) ||
+                                                campaign.campaign_id?.toString().includes(searchLower) ||
+                                                campaign.platform?.toLowerCase().includes(searchLower)
+                                            );
                                         });
 
-                                        return filteredCampaigns.length > 0 ? (
-                                            <>
-                                                {/* Search Results Info */}
-                                                {campaignSearchTerm && (
-                                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                        <p className="text-sm text-blue-700">
-                                                            Showing {filteredCampaigns.length} of {availableCampaigns.length} campaigns matching "{campaignSearchTerm}"
-                                                        </p>
-                                                    </div>
-                                                )}
+                                        if (filteredCampaigns.length === 0) {
+                                            return (
+                                                <div className="text-center py-8">
+                                                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                                    <p className="text-gray-500">
+                                                        {campaignSearchTerm ? `No campaigns match "${campaignSearchTerm}"` : 'Sync your ad platforms first'}
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
 
-                                                {filteredCampaigns.map((campaign, index) => {
-                                                    const isLinked = linkedCampaigns.some(link => link.campaign_id === campaign.campaign_id);
-                                                    const linkedCampaign = linkedCampaigns.find(link => link.campaign_id === campaign.campaign_id);
+                                        return filteredCampaigns.map((campaign) => {
+                                            const isLinked = linkedCampaigns.some(link => link.campaign_id === campaign.campaign_id);
+                                            const isLinking = linkingCampaigns.has(campaign.campaign_id);
 
-                                                    return (
-                                                        <div
-                                                            key={campaign.campaign_id}
-                                                            className={`p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${isLinked
-                                                                ? 'border-green-300 bg-green-50 shadow-sm'
-                                                                : 'border-gray-200 bg-white hover:border-blue-300'
-                                                                }`}
-                                                        >
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex-1">
-                                                                    <div className="font-semibold text-gray-900 mb-2">{campaign.campaign_name || campaign.campaign_id}</div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${campaign.platform === 'facebook'
-                                                                            ? 'bg-blue-100 text-blue-800'
-                                                                            : 'bg-red-100 text-red-800'
-                                                                            }`}>
-                                                                            {campaign.platform === 'facebook' ? 'Facebook' : 'Google'}
-                                                                        </span>
-                                                                        {isLinked && (
-                                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                                ✓ Linked
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    {isLinked ? (
-                                                                        <button
-                                                                            onClick={() => handleUnlinkCampaign(linkedCampaign.id, campaign.campaign_id)}
-                                                                            disabled={linkingCampaigns.has(campaign.campaign_id)}
-                                                                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
-                                                                                ? 'bg-gray-400 text-white cursor-not-allowed'
-                                                                                : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg transform hover:scale-105'
-                                                                                }`}
-                                                                        >
-                                                                            {linkingCampaigns.has(campaign.campaign_id) ? (
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                                                                    Unlinking...
-                                                                                </div>
-                                                                            ) : (
-                                                                                'Unlink'
-                                                                            )}
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            onClick={() => handleLinkCampaign(campaign)}
-                                                                            disabled={linkingCampaigns.has(campaign.campaign_id)}
-                                                                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
-                                                                                ? 'bg-gray-400 text-white cursor-not-allowed'
-                                                                                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:scale-105'
-                                                                                }`}
-                                                                        >
-                                                                            {linkingCampaigns.has(campaign.campaign_id) ? (
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                                                                    Linking...
-                                                                                </div>
-                                                                            ) : (
-                                                                                '+ Link'
-                                                                            )}
-                                                                        </button>
-                                                                    )}
-                                                                </div>
+                                            return (
+                                                <div
+                                                    key={campaign.campaign_id}
+                                                    className={`p-4 border rounded-lg transition-all duration-200 ${
+                                                        isLinked
+                                                            ? 'border-green-200 bg-green-50'
+                                                            : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <h5 className="font-medium text-gray-900">
+                                                                    {campaign.campaign_name || campaign.campaign_id}
+                                                                </h5>
+                                                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                                                    isLinked
+                                                                        ? 'bg-green-100 text-green-800'
+                                                                        : 'bg-gray-100 text-gray-600'
+                                                                }`}>
+                                                                    {campaign.platform || 'Unknown'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm text-gray-500">
+                                                                ID: {campaign.campaign_id}
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
-                                            </>
-                                        ) : (
-                                            <div className="text-center py-12">
-                                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                    <Search className="w-8 h-8 text-gray-400" />
+                                                        <div className="flex items-center gap-2">
+                                                            {isLinked ? (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const link = linkedCampaigns.find(l => l.campaign_id === campaign.campaign_id);
+                                                                        if (link) {
+                                                                            handleUnlinkCampaign(link.id, campaign.campaign_id);
+                                                                        }
+                                                                    }}
+                                                                    disabled={isLinking}
+                                                                    className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                                                >
+                                                                    {isLinking ? (
+                                                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <X className="w-3 h-3" />
+                                                                    )}
+                                                                    Unlink
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleLinkCampaign(campaign)}
+                                                                    disabled={isLinking}
+                                                                    className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                                                >
+                                                                    {isLinking ? (
+                                                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <Plus className="w-3 h-3" />
+                                                                    )}
+                                                                    Link
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <p className="text-gray-500 font-medium">
-                                                    {campaignSearchTerm ? 'No campaigns found' : 'No campaigns available'}
-                                                </p>
-                                                <p className="text-sm text-gray-400 mt-1">
-                                                    {campaignSearchTerm ? `No campaigns match "${campaignSearchTerm}"` : 'Sync your ad platforms first'}
-                                                </p>
-                                            </div>
-                                        );
+                                            );
+                                        });
                                     })()}
                                 </div>
                             )}
@@ -1101,6 +1524,24 @@ const ProductSkus = () => {
                     </div>
                 </div>
             )}
+
+
+
+            {/* Custom Calendar Components */}
+            <CustomCalendar
+                isOpen={showStartCalendar}
+                onClose={() => setShowStartCalendar(false)}
+                onDateSelect={handleStartDateSelect}
+                selectedDate={dateRange.startDate}
+                label="Select Start Date"
+            />
+            <CustomCalendar
+                isOpen={showEndCalendar}
+                onClose={() => setShowEndCalendar(false)}
+                onDateSelect={handleEndDateSelect}
+                selectedDate={dateRange.endDate}
+                label="Select End Date"
+            />
 
             {/* Product SKUs Table */}
             <div className="bg-white rounded-lg shadow-sm border">
@@ -1266,6 +1707,23 @@ const ProductSkus = () => {
                     </>
                 )}
             </div>
+
+            {/* Calendar Modals */}
+            <CustomCalendar
+                isOpen={showStartCalendar}
+                onClose={() => setShowStartCalendar(false)}
+                onDateSelect={handleStartDateSelect}
+                selectedDate={dateRange.startDate}
+                label="Select Start Date"
+            />
+
+            <CustomCalendar
+                isOpen={showEndCalendar}
+                onClose={() => setShowEndCalendar(false)}
+                onDateSelect={handleEndDateSelect}
+                selectedDate={dateRange.endDate}
+                label="Select End Date"
+            />
         </div>
     );
 };

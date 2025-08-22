@@ -5,15 +5,18 @@ import {
 } from 'recharts';
 import {
 	DollarSign, TrendingUp, TrendingDown, ShoppingCart, RefreshCw,
-	Facebook, Chrome, Filter, Download, Settings, Calendar, ChevronLeft, ChevronRight
+	Facebook, Chrome, Filter, Download, Settings, Calendar, ChevronLeft, ChevronRight, Plus, BarChart3, Edit, Trash2, X
 } from 'lucide-react';
 import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
 import { useSocket } from '../contexts/SocketContext';
 import AdSpendLoader from './loaders/AdSpendLoader';
 import AdSpendTableLoader from './loaders/AdSpendTableLoader';
+import AdsCampaignTableLoader from './loaders/AdsCampaignTableLoader';
 import { useStore } from '../contexts/StoreContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import axios from 'axios';
+import LoadingSpinner from './LoadingSpinner';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -372,6 +375,7 @@ const AdSpend = () => {
 	const [showStartCalendar, setShowStartCalendar] = useState(false);
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
+	const [currencyChange, setCurrencyChange] = useState(null);
 	// Get socket from context
 	const { socket, addEventListener } = useSocket();
 
@@ -395,7 +399,7 @@ const AdSpend = () => {
 				// Refresh data after successful sync
 				setTimeout(() => {
 					fetchAdSpendData();
-					fetchSummaryStats();
+					fetchSummaryStats(campaignPagination.currentPage);
 					fetchChartData();
 					setSyncProgress(null);
 				}, 2000);
@@ -435,7 +439,7 @@ const AdSpend = () => {
 
 		// Fetch summary stats and chart data with a slight delay to ensure fresh data
 		setTimeout(() => {
-			fetchSummaryStats();
+			fetchSummaryStats(campaignPagination.currentPage);
 			fetchChartData();
 		}, 100);
 	}, [dateRange, filters, selectedStore, syncProgress]);
@@ -447,7 +451,7 @@ const AdSpend = () => {
 			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
 			// Refresh all data
 			fetchAdSpendData();
-			fetchSummaryStats();
+			fetchSummaryStats(campaignPagination.currentPage);
 			fetchChartData();
 		}
 	}, [adsSyncCompleted]);
@@ -517,50 +521,57 @@ const AdSpend = () => {
 	};
 
 	// Separate function to fetch summary stats (all data without pagination)
-	const fetchSummaryStats = async () => {
+	const fetchSummaryStats = async (page = campaignPagination.currentPage, sortConfigOverride = null) => {
+		setLoadingCampaigns(true);
 		try {
+			const currentSortConfig = sortConfigOverride || campaignSortConfig;
 			const params = new URLSearchParams({
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
-				store_id: selectedStore
+				store_id: selectedStore,
+				page: page,
+				pageSize: campaignPagination.pageSize,
+				sortBy: currentSortConfig.key,
+				sortOrder: currentSortConfig.direction
 			});
+			
+			// Add search parameter if search value exists
+			if (campaignSearch.trim()) {
+				params.append('search', campaignSearch.trim());
+			}
 
 			const response = await api.get(`/api/ads/summary-stats?${params}`);
-			const { data, revenue } = response.data;
+			const { totalSpend, totalGoogleAmount, totalFacebookAmount, roiPercentage, revenue, campaigns, totalCount } = response.data;
 
-			if (data && Array.isArray(data)) {
+			setCampaigns(campaigns);
+			setCampaignPagination(prev => ({
+				...prev,
+				totalPages: Math.ceil(totalCount / campaignPagination.pageSize),
+				totalItems: totalCount
+			}));
+
 				// Calculate summary stats including revenue for ROAS
-				const stats = data.reduce((acc, item) => {
-					const spend = parseFloat(item.spend_amount) || 0;
-					acc.totalSpend += spend;
-					acc.totalImpressions += parseInt(item.impressions) || 0;
-					acc.totalClicks += parseInt(item.clicks) || 0;
-					acc.totalConversions += parseFloat(item.conversions) || 0;
+			const stats = {
+				totalSpend: totalSpend,
+				facebookSpend: totalFacebookAmount,
+				googleSpend: totalGoogleAmount,
+				roas: roiPercentage,
+				totalRevenue: revenue
+			};
 
-					if (item.platform === 'facebook') {
-						acc.facebookSpend += spend;
-					} else if (item.platform === 'google') {
-						acc.googleSpend += spend;
-					}
+			setSummaryStats(stats);
 
-					return acc;
-				}, {
-					totalSpend: 0,
-					facebookSpend: 0,
-					googleSpend: 0,
-					totalImpressions: 0,
-					totalClicks: 0,
-					totalConversions: 0,
-					totalRevenue: parseFloat(revenue) || 0
-				});
+			// Calculate ROAS using actual revenue data (not conversions)
+			stats.roas = stats.totalSpend > 0 ? (stats.totalRevenue / stats.totalSpend) : 0;
 
-				// Calculate ROAS using actual revenue data (not conversions)
-				stats.roas = stats.totalSpend > 0 ? (stats.totalRevenue / stats.totalSpend) : 0;
+			setSummaryStats(stats);
 
-				setSummaryStats(stats);
-			}
+			console.log(stats)
 		} catch (error) {
 			console.error('Error fetching summary stats:', error);
+		}
+		finally {
+			setLoadingCampaigns(false);
 		}
 	};
 
@@ -702,7 +713,7 @@ const AdSpend = () => {
 		}
 	};
 
-	const { formatCurrency } = useCurrency();
+	const { formatCurrency, displayCurrency } = useCurrency();
 
 	const formatNumber = (num) => {
 		return new Intl.NumberFormat('en-US').format(num);
@@ -1004,6 +1015,299 @@ const AdSpend = () => {
 		);
 	};
 
+	// Campaign Management State
+	const [campaignCurrencies, setCampaignCurrencies] = useState({});
+	const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+	
+	// Campaign search state
+	const [campaignSearch, setCampaignSearch] = useState('');
+	
+	// Campaign pagination state
+	const [campaignPagination, setCampaignPagination] = useState({
+		currentPage: 1,
+		pageSize: 10,
+		totalPages: 1,
+		totalItems: 0
+	});
+
+	// Campaign sort configuration
+	const [campaignSortConfig, setCampaignSortConfig] = useState({
+		key: 'campaign_id',
+		direction: 'asc'
+	});
+
+	// Effect to handle search changes
+	useEffect(() => {
+		if (selectedStore && campaignSearch.trim() == "") {
+			// Reset to first page when search changes
+			setCampaignPagination(prev => ({ ...prev, currentPage: 1 }));
+			// Fetch campaigns with search
+			fetchSummaryStats(1);
+		}
+	}, [campaignSearch]);
+
+	// Separate effect for campaign pagination changes
+	useEffect(() => {
+		if (selectedStore && campaignPagination.currentPage > 0) {
+			fetchSummaryStats(campaignPagination.currentPage);
+		}
+	}, [campaignPagination.currentPage, campaignPagination.pageSize]);
+
+	// Load saved currencies from localStorage on component mount
+	useEffect(() => {
+		const saved = localStorage.getItem('campaignCurrencies');
+		if (saved) {
+			try {
+				const parsed = JSON.parse(saved);
+				setCampaignCurrencies(parsed);
+			} catch (error) {
+				console.error('Error parsing saved currencies:', error);
+			}
+		}
+	}, []);
+
+	// Save currencies to localStorage when they change
+	useEffect(() => {
+		if (Object.keys(campaignCurrencies).length > 0) {
+			localStorage.setItem('campaignCurrencies', JSON.stringify(campaignCurrencies));
+		}
+	}, [campaignCurrencies]);
+
+	const handleCampaignCurrencyChange = async (campaignId, currency) => {
+		setCampaignCurrencies(prev => ({ ...prev, [campaignId]: currency }));
+		setCurrencyChange(campaignId);
+		await api.post(`/api/ads/update-campaign-currency`, {
+			campaign_id: campaignId,
+			currency_symbol: currency,
+			store_id: selectedStore
+		});
+		setCurrencyChange(null);
+
+		fetchSummaryStats(campaignPagination.currentPage);
+	};
+
+	const handleCampaignSort = (key) => {
+		let direction = 'asc';
+		if (campaignSortConfig.key === key && campaignSortConfig.direction === 'asc') {
+			direction = 'desc';
+		}
+		const newSortConfig = { key, direction };
+		setCampaignSortConfig(newSortConfig);
+		// Reset to first page when sorting
+		setCampaignPagination(prev => ({ ...prev, currentPage: 1 }));
+		// Fetch campaigns with new sort
+		fetchSummaryStats(1, newSortConfig);
+	};
+
+	const handleCampaignSearch = () => {
+		// Reset to first page when searching
+		setCampaignPagination(prev => ({ ...prev, currentPage: 1 }));
+		// Fetch campaigns with search
+		fetchSummaryStats(1);
+	};
+
+	const getCampaignSortIcon = (key) => {
+		if (campaignSortConfig.key !== key) {
+			return (
+				<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+				</svg>
+			);
+		}
+		return campaignSortConfig.direction === 'asc' ? (
+			<svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+			</svg>
+		) : (
+			<svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+			</svg>
+		);
+	};
+
+	// Pagination functions
+	const updateCampaignPagination = (newPage) => {
+		setCampaignPagination(prev => ({
+			...prev,
+			currentPage: newPage
+		}));
+		fetchSummaryStats(newPage);
+	};
+
+	// Campaign Pagination Controls Component
+	const CampaignPaginationControls = () => {
+		if (campaignPagination.totalPages <= 1) return null;
+
+		// Generate smart page numbers
+		const generatePageNumbers = () => {
+			const current = campaignPagination.currentPage;
+			const total = campaignPagination.totalPages;
+			const pages = [];
+
+			// Always show first page
+			pages.push(1);
+
+			if (total <= 7) {
+				// If total pages <= 7, show all pages
+				for (let i = 2; i <= total; i++) {
+					pages.push(i);
+				}
+			} else {
+				// Smart pagination for larger page counts
+				if (current <= 4) {
+					// Near the beginning
+					for (let i = 2; i <= 5; i++) {
+						pages.push(i);
+					}
+					pages.push('...');
+					pages.push(total);
+				} else if (current >= total - 3) {
+					// Near the end
+					pages.push('...');
+					for (let i = total - 4; i <= total; i++) {
+						pages.push(i);
+					}
+				} else {
+					// In the middle
+					pages.push('...');
+					for (let i = current - 1; i <= current + 1; i++) {
+						pages.push(i);
+					}
+					pages.push('...');
+					pages.push(total);
+				}
+			}
+
+			return pages;
+		};
+
+		const pageNumbers = generatePageNumbers();
+
+		return (
+			<div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+				<div className="flex items-center gap-2">
+					{/* Pagination Info */}
+					<div className="flex items-center text-sm text-gray-700">
+						{loadingCampaigns && (
+							<div className="flex items-center mr-2">
+								<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+								<span className="text-blue-600">Loading...</span>
+							</div>
+						)}
+						<span>
+							Showing {((campaignPagination.currentPage - 1) * campaignPagination.pageSize) + 1} to{' '}
+							{Math.min(campaignPagination.currentPage * campaignPagination.pageSize, campaignPagination.totalItems)} of{' '}
+							{campaignPagination.totalItems} campaigns
+						</span>
+					</div>
+				</div>
+
+				<div className="flex items-center space-x-2">
+					{/* Page Size Selector */}
+					<div className="flex items-center gap-2">
+						<span className="text-sm font-medium text-gray-700">Show:</span>
+						<BeautifulSelect
+							value={campaignPagination.pageSize}
+							onChange={(value) => {
+								setCampaignPagination(prev => ({
+									...prev,
+									pageSize: parseInt(value),
+									currentPage: 1
+								}));
+								fetchSummaryStats(1);
+							}}
+							options={[
+								{ value: 10, label: '10' },
+								{ value: 20, label: '20' },
+								{ value: 50, label: '50' },
+								{ value: 100, label: '100' }
+							]}
+							placeholder="Select"
+							disabled={loadingCampaigns}
+							className="w-24"
+							size="sm"
+						/>
+						<span className="text-sm text-gray-500">per page</span>
+					</div>
+
+					{/* First page button */}
+					<button
+						onClick={() => updateCampaignPagination(1)}
+						disabled={campaignPagination.currentPage === 1 || loadingCampaigns}
+						className={`px-2 py-1 text-sm rounded-md ${campaignPagination.currentPage === 1 || loadingCampaigns
+							? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+							: 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+							}`}
+						title="First page"
+					>
+						«
+					</button>
+
+					{/* Previous button */}
+					<button
+						onClick={() => updateCampaignPagination(campaignPagination.currentPage - 1)}
+						disabled={campaignPagination.currentPage === 1 || loadingCampaigns}
+						className={`px-3 py-1 text-sm rounded-md ${campaignPagination.currentPage > 1 && !loadingCampaigns
+							? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+							: 'bg-gray-50 text-gray-400 cursor-not-allowed'
+							}`}
+					>
+						Previous
+					</button>
+
+					{/* Page numbers */}
+					<div className="flex items-center space-x-1">
+						{pageNumbers.map((page, index) => (
+							<React.Fragment key={index}>
+								{page === '...' ? (
+									<span className="px-2 text-gray-500">...</span>
+								) : (
+									<button
+										onClick={() => updateCampaignPagination(page)}
+										disabled={loadingCampaigns}
+										className={`px-3 py-1 text-sm rounded-md ${page === campaignPagination.currentPage
+											? 'bg-blue-600 text-white'
+											: loadingCampaigns
+												? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+												: 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+											}`}
+									>
+										{page}
+									</button>
+								)}
+							</React.Fragment>
+						))}
+					</div>
+
+					{/* Next button */}
+					<button
+						onClick={() => updateCampaignPagination(campaignPagination.currentPage + 1)}
+						disabled={campaignPagination.currentPage === campaignPagination.totalPages || loadingCampaigns}
+						className={`px-3 py-1 text-sm rounded-md ${campaignPagination.currentPage < campaignPagination.totalPages && !loadingCampaigns
+							? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+							: 'bg-gray-50 text-gray-400 cursor-not-allowed'
+							}`}
+					>
+						Next
+					</button>
+
+					{/* Last page button */}
+					<button
+						onClick={() => updateCampaignPagination(campaignPagination.totalPages)}
+						disabled={campaignPagination.currentPage === campaignPagination.totalPages || loadingCampaigns}
+						className={`px-2 py-1 text-sm rounded-md ${campaignPagination.currentPage === campaignPagination.totalPages || loadingCampaigns
+							? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+							: 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+							}`}
+						title="Last page"
+					>
+						»
+					</button>
+				</div>
+			</div>
+		);
+	};
+
 	return (
 		<div className="p-6 bg-gray-50 min-h-screen">
 			{loading && adSpendData.length === 0 ? (
@@ -1129,7 +1433,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Total Spend</p>
 									<p className="text-2xl font-bold text-gray-900">
-										{formatCurrency(summaryStats.totalSpend, 'SEK')}
+										{formatCurrency(summaryStats.totalSpend, 'USD')}
 									</p>
 								</div>
 							</div>
@@ -1141,7 +1445,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Facebook Spend</p>
 									<p className="text-2xl font-bold text-[#1877F2]">
-										{formatCurrency(summaryStats.facebookSpend, 'SEK')}
+										{displayCurrency(summaryStats.facebookSpend, "USD")}
 									</p>
 								</div>
 							</div>
@@ -1153,7 +1457,7 @@ const AdSpend = () => {
 								<div className="ml-4">
 									<p className="text-sm font-medium text-gray-600">Google Spend</p>
 									<p className="text-2xl font-bold text-[#f59e0b]">
-										{formatCurrency(summaryStats.googleSpend, 'SEK')}
+										{formatCurrency(summaryStats.googleSpend, 'USD')}
 									</p>
 								</div>
 							</div>
@@ -1185,7 +1489,7 @@ const AdSpend = () => {
 							</div>
 							<div>
 								<span className="text-gray-600">Total Ad Spend:</span>
-								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalSpend, 'SEK')}</span>
+								<span className="ml-2 font-medium">{formatCurrency(summaryStats.totalSpend, 'USD')}</span>
 							</div>
 							<div>
 								<span className="text-gray-600">ROAS Formula:</span>
@@ -1229,7 +1533,7 @@ const AdSpend = () => {
 											tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
 										/>
 										<Tooltip 
-											formatter={(value, name) => [formatCurrency(value, 'SEK'), name]}
+											formatter={(value, name) => [formatCurrency(value, 'USD'), name]}
 											labelFormatter={(label, payload) => {
 												if (payload && payload[0] && payload[0].payload.dateRange) {
 													return `${payload[0].payload.dateRange} (${payload[0].payload.daysCount} days)`;
@@ -1285,7 +1589,7 @@ const AdSpend = () => {
 							<div className="flex justify-between items-center mb-4">
 								<h3 className="text-lg font-semibold text-gray-900">Platform Distribution</h3>
 								<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-									💰 Total: {formatCurrency(summaryStats.totalSpend, 'SEK')}
+									💰 Total: {formatCurrency(summaryStats.totalSpend, 'USD')}
 								</div>
 							</div>
 							<ResponsiveContainer width="100%" height={300}>
@@ -1313,7 +1617,7 @@ const AdSpend = () => {
 										))}
 									</Pie>
 									<Tooltip
-										formatter={(value) => formatCurrency(value, 'SEK')}
+										formatter={(value) => formatCurrency(value, 'USD')}
 										contentStyle={{
 											backgroundColor: 'rgba(255, 255, 255, 0.95)',
 											border: '1px solid #e5e7eb',
@@ -1325,6 +1629,173 @@ const AdSpend = () => {
 								</PieChart>
 							</ResponsiveContainer>
 						</div>
+					</div>
+
+					{/* Ads Campaign Table */}
+					<div className="bg-white rounded-lg shadow-sm border mb-8">
+						<div className="px-6 py-4 border-b border-gray-200">
+							<div className="flex items-center justify-between">
+								<h3 className="text-lg font-semibold text-gray-900">Ads Campaigns</h3>
+								<div className="flex items-center gap-3">
+									{/* Search Input */}
+									<div className="relative">
+										<input
+											type="text"
+											placeholder="Search campaigns..."
+											value={campaignSearch}
+											onChange={(e) => setCampaignSearch(e.target.value)}
+											onKeyPress={(e) => e.key === 'Enter' && handleCampaignSearch()}
+											className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
+										/>
+										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+											<svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+											</svg>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Top Pagination for Campaigns */}
+						{campaignPagination.totalPages > 1 && <CampaignPaginationControls />}
+
+						{/* Search Results Info */}
+						{campaignSearch && (
+							<div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
+								<div className="flex items-center justify-between text-sm">
+									<div className="flex items-center gap-2">
+										<svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+										</svg>
+										<span className="text-blue-800 font-medium">
+											Search results for "{campaignSearch}"
+										</span>
+									</div>
+									<span className="text-blue-600">
+										{campaignPagination.totalItems} campaign{campaignPagination.totalItems !== 1 ? 's' : ''} found
+									</span>
+								</div>
+							</div>
+						)}
+
+						<div className="overflow-x-auto">
+							{loadingCampaigns ? (
+								<AdsCampaignTableLoader />
+							) : campaigns.length === 0 ? (
+								<div className="p-8 text-center text-gray-500">
+									<BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+									<p className="text-lg font-medium mb-2">No campaigns found</p>
+									<p className="text-sm">Create your first campaign to get started</p>
+								</div>
+							) : (
+								<table className="min-w-full divide-y divide-gray-200">
+									<thead className="bg-gray-50">
+										<tr>
+											<th 
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleCampaignSort('campaign_id')}
+											>
+												<div className="flex items-center gap-2">
+													Campaign Name
+													{getCampaignSortIcon('campaign_id')}
+												</div>
+											</th>
+											<th 
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleCampaignSort('total_spend')}
+											>
+												<div className="flex items-center gap-2">
+													Total Spend
+													{getCampaignSortIcon('total_spend')}
+												</div>
+											</th>
+											<th 
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleCampaignSort('platform')}
+											>
+												<div className="flex items-center gap-2">
+													Platform
+													{getCampaignSortIcon('platform')}
+												</div>
+											</th>
+											<th 
+												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+												onClick={() => handleCampaignSort('total_clicks')}
+											>
+												<div className="flex items-center gap-2">
+													Total Clicks
+													{getCampaignSortIcon('total_clicks')}
+												</div>
+											</th>
+											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												Display Currency
+											</th>
+										</tr>
+									</thead>
+									<tbody className="bg-white divide-y divide-gray-200">
+										{campaigns.map((campaign) => (
+											<tr key={campaign.campaign_id} className="hover:bg-gray-50">
+												<td className="px-6 py-4 whitespace-nowrap">
+													<div className="flex items-center">
+														<BarChart3 className="w-4 h-4 text-blue-600 mr-2" />
+														<span 
+															className="text-sm font-medium text-gray-900 truncate max-w-100"
+															title={campaign.campaign_name || campaign.campaign_id}
+														>
+															{campaign.campaign_name || campaign.campaign_id}
+														</span>
+													</div>
+												</td>
+												<td className="px-6 py-4 whitespace-nowrap">
+													<div className="text-sm font-medium text-gray-900">
+														{displayCurrency(campaign.total_spend / campaign.currency, campaign.currency_symbol)}
+													</div>
+												</td>
+												<td className="px-6 py-4 whitespace-nowrap">
+														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+															campaign.platform === 'facebook' 
+																? 'bg-blue-100 text-blue-800' 
+																: 'bg-amber-100 text-amber-800'
+														}`}>
+															{campaign.platform === 'facebook' ? (
+																<Facebook className="w-3 h-3 mr-1" />
+															) : (
+																<Chrome className="w-3 h-3 mr-1" />
+															)}
+															{campaign.platform}
+														</span>
+													</td>
+												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+													{campaign.total_clicks?.toLocaleString() || '0'}
+												</td>
+												<td className="px-6 py-4 whitespace-nowrap flex">
+													{
+														currencyChange == campaign.campaign_id && (
+															<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2 mt-2.5"></div>
+														)
+													}
+													<BeautifulSelect
+														value={campaignCurrencies[campaign.campaign_id] || 'USD'}
+														onChange={(currency) => handleCampaignCurrencyChange(campaign.campaign_id, currency)}
+														options={[
+															{ value: 'USD', label: 'USD ($)' },
+															{ value: 'SEK', label: 'SEK (kr)' },
+															{ value: 'EUR', label: 'EUR (€)' }
+														]}
+														className="w-32"
+														size="sm"
+													/>
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							)}
+						</div>
+
+						{/* Bottom Pagination for Campaigns */}
+						{campaignPagination.totalPages > 1 && <CampaignPaginationControls />}
 					</div>
 
 					{/* Campaign Table */}
@@ -1354,40 +1825,25 @@ const AdSpend = () => {
 											</th>
 											<th
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('campaign_id')}
 											>
 												<div className="flex items-center gap-2">
 													Campaign
-													{getSortIcon('campaign_id')}
 												</div>
 											</th>
 											<th
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('platform')}
 											>
 												<div className="flex items-center gap-2">
 													Platform
-													{getSortIcon('platform')}
 												</div>
 											</th>
 											<th
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('store_id')}
 											>
 												<div className="flex items-center gap-2">
 													Store
-													{getSortIcon('store_id')}
 												</div>
 											</th>
-											{/* <th
-												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('product_id')}
-											>
-												<div className="flex items-center gap-2">
-													Product
-													{getSortIcon('product_id')}
-												</div>
-											</th> */}
 											<th
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
 												onClick={() => handleSort('spend_amount')}
@@ -1395,15 +1851,6 @@ const AdSpend = () => {
 												<div className="flex items-center gap-2">
 													Spend
 													{getSortIcon('spend_amount')}
-												</div>
-											</th>
-											<th
-												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('impressions')}
-											>
-												<div className="flex items-center gap-2">
-													Impressions
-													{getSortIcon('impressions')}
 												</div>
 											</th>
 											<th
@@ -1417,11 +1864,11 @@ const AdSpend = () => {
 											</th>
 											<th
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
-												onClick={() => handleSort('conversions')}
+												onClick={() => handleSort('impressions')}
 											>
 												<div className="flex items-center gap-2">
-													Conversions
-													{getSortIcon('conversions')}
+													Impressions
+													{getSortIcon('impressions')}
 												</div>
 											</th>
 										</tr>
@@ -1453,7 +1900,12 @@ const AdSpend = () => {
 														{new Date(item.date).toLocaleDateString()}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{item.campaign_id}
+														<span 
+															className="truncate max-w-32 block"
+															title={item.campaign_id}
+														>
+															{item.campaign_id}
+														</span>
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap">
 														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -1476,16 +1928,13 @@ const AdSpend = () => {
 														{item.product_id || 'N/A'}
 													</td> */}
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														${parseFloat(item.spend_amount).toFixed(2)}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{item.impressions?.toLocaleString() || 'N/A'}
+														{displayCurrency(item.spend_amount, item.currency_symbol)}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 														{item.clicks?.toLocaleString() || 'N/A'}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{item.conversions?.toLocaleString() || 'N/A'}
+														{item.impressions?.toLocaleString() || 'N/A'}
 													</td>
 												</tr>
 											))

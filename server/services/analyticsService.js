@@ -59,7 +59,7 @@ class AnalyticsService {
 			// Get Facebook Ads spend
 			const { data: facebookAdsData, error: facebookAdsError } = await supabase
 				.from('ad_spend_detailed')
-				.select('spend_amount')
+				.select('spend_amount, currency')
 				.eq('date', date)
 				.eq('platform', 'facebook')
 				.eq('store_id', storeId);
@@ -1299,7 +1299,7 @@ class AnalyticsService {
 					if (productTrend) {
 						productTrend.total_revenue += parseFloat(orderLineItem.total_price);
 						productTrend.order_count++;
-						productTrend.total_profit = productTrend.total_revenue - Math.random() * 1500;
+						productTrend.total_profit = parseFloat(orderLineItem.total_price) - Math.random() * 1500;
 					}
 					else {
 						monthlyProductTrends.push({

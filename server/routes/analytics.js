@@ -464,10 +464,8 @@ router.post('/product-campaign-links', async (req, res) => {
 				.from('product_campaign_links')
 				.insert({
 					product_sku: productSku,
-					product_title,
 					campaign_id,
 					store_id,
-					product_sku: productSku,
 					campaign_name: finalCampaignName,
 					platform
 				});
@@ -916,17 +914,17 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		var adsMonth = new Map();
 		if (adsIds.length > 0) {
 			const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
-				.select('campaign_id, spend_amount, date')
+				.select('campaign_id, spend_amount, date, currency')
 				.eq('store_id', storeId)
 				.in('campaign_id', adsIds)
 			if (adsSpendError) throw adsSpendError;
 			adsSpend.forEach(ad => {
 				var d = ad.date.split("-")[0] + "-" + ad.date.split("-")[1];
 				if (adsMonth.has(d)) {
-					adsMonth.get(d).spend_amount += ad.spend_amount;
+					adsMonth.get(d).spend_amount += ad.spend_amount * ad.currency;
 				}
 				else {
-					adsMonth.set(d, { spend_amount: ad.spend_amount });
+					adsMonth.set(d, { spend_amount: ad.spend_amount * ad.currency });
 				}
 			})
 			allAdsSpend.push(...adsSpend);
