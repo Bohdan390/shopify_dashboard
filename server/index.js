@@ -52,9 +52,10 @@ const { supabase } = require('./config/database-supabase');
 const cronJobManager = require('./services/CronJobManager');
 // WebSocket connection handling
 cronJobManager.startCronJob();
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  ws.clientIp = req.socket.remoteAddress;
   console.log('🔌 New WebSocket connection:', ws.id);
   
   // Use the new socket management function
@@ -76,7 +77,9 @@ wss.on('connection', (ws) => {
         ws.storeId = data.data.storeId;
         console.log(`🏪 Socket ${ws.id} selected store: ${data.data.storeId}`);
       } else if (data.type === 'refresh_product_skus') {
-        ws.send(JSON.stringify({ type: 'refresh_product_skus' }));
+        ws.send(JSON.stringify({ type: 'refresh_product_skus', data: ws.id }));
+        ws.clientIp = req.socket.remoteAddress;
+        common.activeSockets.set(ws.id, ws);
       } else if (data.type === 'triggerManualSync') {
         console.log(`🔄 Manual sync triggered by socket ${ws.id} for store: ${ws.storeId || 'unknown'}`);
       }

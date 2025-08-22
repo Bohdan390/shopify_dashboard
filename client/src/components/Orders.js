@@ -308,6 +308,8 @@ const Orders = () => {
 	const [tableLoading, setTableLoading] = useState(false);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [statusFilter, setStatusFilter] = useState('all');
+	const [fulfillmentFilter, setFulfillmentFilter] = useState('all');
+	const [unfulfilledFilter, setUnfulfilledFilter] = useState(false);
 	const [pageSize, setPageSize] = useState(10);
 	const [error, setError] = useState(null);
 	const [showDatePresets, setShowDatePresets] = useState(false);
@@ -325,6 +327,8 @@ const Orders = () => {
 		totalRevenue: 0,
 		avgOrderValue: 0
 	});
+	const [urgentOrdersCount, setUrgentOrdersCount] = useState(0);
+	const [filteredOrderCount, setFilteredOrderCount] = useState(0);
 	const [sortConfig, setSortConfig] = useState({
 		key: 'created_at',
 		direction: 'desc'
@@ -369,11 +373,11 @@ const Orders = () => {
 		}
 	}, [syncCompleted, adsSyncCompleted]);
 
-	// Only search when status filter changes (not when typing)
+	// Only search when filters change (not when typing)
 	useEffect(() => {
 		setSearchLoading(true);
 		fetchOrders(1, false, true).finally(() => setSearchLoading(false));
-	}, [statusFilter]);
+	}, [statusFilter, fulfillmentFilter, unfulfilledFilter]);
 
 	// Automatically fetch data when date range changes
 	useEffect(() => {
@@ -429,6 +433,16 @@ const Orders = () => {
 				params.append('status', statusFilter);
 			}
 
+			// Add fulfillment filter if not 'all'
+			if (fulfillmentFilter !== 'all') {
+				params.append('fulfillmentStatus', fulfillmentFilter);
+			}
+
+			// Add unfulfilled filter for orders older than 48 hours
+			if (unfulfilledFilter) {
+				params.append('unfulfilledOlderThan', 48);
+			}
+
 			// Add date range parameters if both dates are selected
 			if (dateRange.startDate && dateRange.endDate) {
 				params.append('startDate', dateRange.startDate);
@@ -443,6 +457,11 @@ const Orders = () => {
 			const response = await api.get(`/api/shopify/orders?${params.toString()}`);
 			setOrders(response.data.orders);
 			setPagination(response.data.pagination);
+			setFilteredOrderCount(response.data.pagination.totalOrders);
+			
+			// Calculate urgent orders count
+			const urgentCount = response.data.orders.filter(order => isOrderUrgent(order)).length;
+			setUrgentOrdersCount(urgentCount);
 			
 			// Show success message for sorting if custom sort config was used
 		} catch (error) {
@@ -497,6 +516,50 @@ const Orders = () => {
 		if (e.key === 'Enter') {
 			handleSearch();
 		}
+	};
+
+	const clearAllFilters = () => {
+		setStatusFilter('all');
+		setFulfillmentFilter('all');
+		setUnfulfilledFilter(false);
+		setSearchTerm('');
+		setDateRange({
+			startDate: formatLocalDate(new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)),
+			endDate: formatLocalDate(new Date())
+		});
+		setPeriod('30');
+		setPeriodType('days');
+	};
+
+	const showUrgentOrders = () => {
+		setStatusFilter('all');
+		setFulfillmentFilter('unfulfilled');
+		setUnfulfilledFilter(true);
+		setSearchTerm('');
+		// Set a wide date range to capture all urgent orders
+		const now = new Date();
+		const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+		setDateRange({
+			startDate: formatLocalDate(threeMonthsAgo),
+			endDate: formatLocalDate(now)
+		});
+		setPeriod('90');
+		setPeriodType('days');
+	};
+
+	// Calculate 48 hours ago timestamp for unfulfilled filter
+	const get48HoursAgo = () => {
+		const now = new Date();
+		const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+		return fortyEightHoursAgo.toISOString();
+	};
+
+	// Check if an order is older than 48 hours and unfulfilled
+	const isOrderUrgent = (order) => {
+		if (order.fulfillment_status !== 'unfulfilled') return false;
+		const orderDate = new Date(order.created_at);
+		const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+		return orderDate < fortyEightHoursAgo;
 	};
 
 	// Preset period functions
@@ -585,6 +648,25 @@ const Orders = () => {
 		setPeriodType(newPeriodType);
 		setDateRange(newDateRange);
 	};
+
+	// Auto-adjust date range when unfulfilled filter is enabled
+	useEffect(() => {
+		if (unfulfilledFilter) {
+			// If unfulfilled filter is enabled, ensure we have a wide enough date range
+			// to capture orders older than 48 hours
+			const now = new Date();
+			const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+			
+			if (!dateRange.startDate || new Date(dateRange.startDate) > threeMonthsAgo) {
+				setDateRange({
+					startDate: formatLocalDate(threeMonthsAgo),
+					endDate: formatLocalDate(now)
+				});
+				setPeriod('90');
+				setPeriodType('days');
+			}
+		}
+	}, [unfulfilledFilter]);
 
 	const getPeriodDisplayLabel = () => {
 		switch (period) {
@@ -1065,6 +1147,51 @@ const Orders = () => {
 							/>
 						</div>
 					</div>
+					
+					{/* Special Unfulfilled Filter */}
+					<div className="border border-orange-200 rounded-lg p-4">
+						<label className="flex items-center gap-3 cursor-pointer">
+							<input
+								type="checkbox"
+								checked={unfulfilledFilter}
+								onChange={(e) => setUnfulfilledFilter(e.target.checked)}
+								disabled={searchLoading || tableLoading}
+								className="w-5 h-5 text-orange-600 bg-white border-orange-300 rounded focus:ring-orange-500 focus:ring-2"
+							/>
+							<span className="text-sm font-semibold text-orange-800">
+								Orders Not Fulfilled - Order Made More Than 48 Hours Ago
+							</span>
+						</label>
+					</div>
+					
+					{/* Action Buttons */}
+					<div className="flex justify-between items-center">
+						<div className="flex items-center gap-3">
+							{urgentOrdersCount > 0 && (
+								<div className="flex items-center gap-2">
+									<span className="text-sm text-red-600 font-medium">
+										🚨 {urgentOrdersCount} urgent orders need attention
+									</span>
+								</div>
+							)}
+							{urgentOrdersCount > 0 && (
+								<button
+									onClick={showUrgentOrders}
+									disabled={searchLoading || tableLoading}
+									className="text-sm text-red-600 hover:text-red-800 underline disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									Show All Urgent Orders
+								</button>
+							)}
+						</div>
+						<button
+							onClick={clearAllFilters}
+							disabled={searchLoading || tableLoading}
+							className="text-sm text-gray-600 hover:text-gray-800 underline disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							Clear All Filters
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -1090,7 +1217,7 @@ const Orders = () => {
 
 			{/* Success Message */}
 
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+			<div className="grid grid-cols-1 md:grid-cols-5 gap-6 mt-4">
 				<div className="stat-card">
 					<div className="flex items-center justify-between">
 						<div>
@@ -1162,9 +1289,50 @@ const Orders = () => {
 						</div>
 					</div>
 				</div>
+				
+				<div className="stat-card">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium text-gray-600">🚨 Urgent Orders</p>
+							<p className="text-2xl font-bold text-gray-900">
+								{refreshing ? (
+									<div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+								) : (
+									urgentOrdersCount
+								)}
+							</p>
+							<p className="text-xs text-gray-500 mt-1">
+								Unfulfilled &gt; 48h
+							</p>
+						</div>
+						<div className="p-3 rounded-lg bg-red-50">
+							<div className="w-6 h-6 text-red-600">🚨</div>
+						</div>
+					</div>
+				</div>
 			</div>
 			{/* Orders Table */}
 			<div className="card mt-4">
+				{/* Filter Summary */}
+				{(statusFilter !== 'all' || fulfillmentFilter !== 'all' || unfulfilledFilter || searchTerm.trim()) && (
+					<div className="px-4 py-3 border-b border-gray-200 bg-blue-50">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<Filter className="w-4 h-4 text-blue-600" />
+								<span className="text-sm font-medium text-blue-800">
+									Filtered Results: {filteredOrderCount} orders
+								</span>
+							</div>
+							<div className="text-xs text-blue-600">
+								{statusFilter !== 'all' && `Status: ${statusFilter} • `}
+								{fulfillmentFilter !== 'all' && `Fulfillment: ${fulfillmentFilter} • `}
+								{unfulfilledFilter && '🚨 Unfulfilled > 48h • '}
+								{searchTerm.trim() && `Search: "${searchTerm}"`}
+							</div>
+						</div>
+					</div>
+				)}
+				
 				{/* Top Pagination */}
 				<PaginationControls />
 
@@ -1244,7 +1412,9 @@ const Orders = () => {
 							</thead>
 							<tbody>
 								{orders.map((order) => (
-									<tr key={order.order_number} className="border-b border-gray-100 hover:bg-gray-50">
+									<tr key={order.order_number} className={`border-b border-gray-100 hover:bg-gray-50 ${
+										isOrderUrgent(order) ? 'bg-red-50 border-l-4 border-l-red-500' : ''
+									}`}>
 										<td className="py-3 px-4">
 											<span className="font-medium text-gray-900">{order.order_number}</span>
 										</td>
@@ -1271,12 +1441,19 @@ const Orders = () => {
 											</span>
 										</td>
 										<td className="py-3 px-4">
-											<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${order.fulfillment_status === 'fulfilled'
-												? 'bg-success-100 text-success-800'
-												: 'bg-gray-100 text-gray-800'
-												}`}>
-												{order.fulfillment_status || 'unfulfilled'}
-											</span>
+											<div className="flex items-center gap-2">
+												<span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${order.fulfillment_status === 'fulfilled'
+													? 'bg-success-100 text-success-800'
+													: 'bg-gray-100 text-gray-800'
+													}`}>
+													{order.fulfillment_status || 'unfulfilled'}
+												</span>
+												{isOrderUrgent(order) && (
+													<span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+														🚨 Urgent
+													</span>
+												)}
+											</div>
 										</td>
 										<td className="py-3 px-4 text-sm text-gray-600">
 											{formatDate(order.created_at)}

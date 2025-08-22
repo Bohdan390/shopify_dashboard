@@ -147,9 +147,23 @@ router.get('/products/:storeId', async (req, res) => {
 // Get recent orders with pagination, search, and sorting
 router.get('/orders', async (req, res) => {
   try {
-    const { limit = 100, offset = 0, page = 1, search = '', status = '', sortBy = 'created_at', sortDirection = 'desc', storeId = 'buycosari', startDate, endDate } = req.query;
+    const { limit = 100, offset = 0, page = 1, search = '', status = '', fulfillmentStatus = '', unfulfilledOlderThan = '', sortBy = 'created_at', sortDirection = 'desc', storeId = 'buycosari', startDate, endDate } = req.query;
+    
+    // Debug logging
+    console.log('🔍 Orders API Request:', {
+      limit, offset, page, search, status, fulfillmentStatus, 
+      unfulfilledOlderThan, sortBy, sortDirection, storeId, startDate, endDate
+    });
     const pageSize = parseInt(limit);
     const pageOffset = parseInt(offset) || (parseInt(page) - 1) * pageSize;
+    
+    // Validate required parameters
+    if (!startDate || !endDate) {
+      return res.status(400).json({ 
+        error: 'Start date and end date are required',
+        received: { startDate, endDate }
+      });
+    }
     
     // Validate sort parameters
     const allowedSortFields = ['order_number', 'customer_email', 'total_price', 'financial_status', 'fulfillment_status', 'created_at'];
@@ -175,6 +189,21 @@ router.get('/orders', async (req, res) => {
     if (status && status !== 'all') {
       query = query.eq('financial_status', status);
     }
+
+    // Add fulfillment status filter if provided
+    if (fulfillmentStatus && fulfillmentStatus !== 'all') {
+      query = query.eq('fulfillment_status', fulfillmentStatus);
+    }
+
+         // Add unfulfilled filter for orders older than specified time
+     if (unfulfilledOlderThan) {
+       const now = new Date();
+       const hoursAgo = new Date(now.getTime() - parseInt(unfulfilledOlderThan) * 60 * 60 * 1000);
+       console.log(`🔍 Unfulfilled filter: ${unfulfilledOlderThan} hours ago = ${hoursAgo.toISOString()}`);
+       query = query
+         .eq('fulfillment_status', 'unfulfilled')
+         .lt('created_at', hoursAgo.toISOString());
+     }
     
     // Get total count for pagination (with filters)
     let countQuery = supabase
@@ -190,6 +219,19 @@ router.get('/orders', async (req, res) => {
     
     if (status && status !== 'all') {
       countQuery = countQuery.eq('financial_status', status);
+    }
+
+    if (fulfillmentStatus && fulfillmentStatus !== 'all') {
+      countQuery = countQuery.eq('fulfillment_status', fulfillmentStatus);
+    }
+
+    if (unfulfilledOlderThan) {
+      const now = new Date();
+      const hoursAgo = new Date(now.getTime() - parseInt(unfulfilledOlderThan) * 60 * 60 * 1000);
+      console.log(`🔍 Count query unfulfilled filter: ${unfulfilledOlderThan} hours ago = ${hoursAgo.toISOString()}`);
+      countQuery = countQuery
+        .eq('fulfillment_status', 'unfulfilled')
+        .lt('created_at', hoursAgo.toISOString());
     }
     
     const { count, error: countError } = await countQuery;
