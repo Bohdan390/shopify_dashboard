@@ -270,7 +270,15 @@ router.get('/orders', async (req, res) => {
 router.get('/order-line-items', async (req, res) => {
   const {order_id} = req.query
   const {data, error} = await supabase.from("order_line_items").select("*").eq("shopify_order_id", order_id)
-  console.log(order_id, data.length)
+  var skus = data.map(item => item.sku.includes("-") ? item.sku.split("-")[0] + "-" + item.sku.split("-")[1] : item.sku)
+  var {data: productSkus, error: productSkusError} = await supabase.from("product_skus").select("sku_id, sku_title").in("sku_id", skus) 
+  if (productSkusError) {
+    console.error('Error getting product skus:', productSkusError);
+    res.status(500).json({ error: 'Failed to get product skus' });
+  }
+  data.forEach(item => {
+    item.sku_title = productSkus.find(product => item.sku.includes(product.sku_id))?.sku_title
+  })
   if (error) {
     console.error('Error getting order line items:', error);
     res.status(500).json({ error: 'Failed to get order line items' });
