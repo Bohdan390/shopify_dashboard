@@ -70,15 +70,6 @@ export const CurrencyProvider = ({ children }) => {
       };
       
       const options = currencyOptions[sourceCurrency];
-
-      if (sourceCurrency == "SEK") {
-        console.log(new Intl.NumberFormat(options.locale, {
-          style: 'currency',
-          currency: options.currency,
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }).format(amount))
-      }
       
       return new Intl.NumberFormat(options.locale, {
         style: 'currency',

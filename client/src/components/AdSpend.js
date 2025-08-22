@@ -929,10 +929,12 @@ const AdSpend = () => {
 								{ value: 50, label: '50' },
 								{ value: 100, label: '100' }
 							]}
+							selectClass="pagesize-select"
 							placeholder="Select"
 							disabled={loading}
-							className="w-24"
-							size="sm"
+							className="w-28"
+							size="small"
+							variant="pagination"
 						/>
 						<span className="text-sm text-gray-500">per page</span>
 					</div>
@@ -1222,10 +1224,12 @@ const AdSpend = () => {
 								{ value: 50, label: '50' },
 								{ value: 100, label: '100' }
 							]}
+							selectClass="pagesize-select"
 							placeholder="Select"
 							disabled={loadingCampaigns}
-							className="w-24"
-							size="sm"
+							className="w-28"
+							size="small"
+							variant="pagination"
 						/>
 						<span className="text-sm text-gray-500">per page</span>
 					</div>
@@ -1679,7 +1683,7 @@ const AdSpend = () => {
 							</div>
 						)}
 
-						<div className="overflow-x-auto">
+						<div className="table-container overflow-x-auto relative">
 							{loadingCampaigns ? (
 								<AdsCampaignTableLoader />
 							) : campaigns.length === 0 ? (
@@ -1735,7 +1739,7 @@ const AdSpend = () => {
 									</thead>
 									<tbody className="bg-white divide-y divide-gray-200">
 										{campaigns.map((campaign) => (
-											<tr key={campaign.campaign_id} className="hover:bg-gray-50">
+											<tr key={campaign.campaign_id} className="hover:bg-gray-50 relative">
 												<td className="px-6 py-4 whitespace-nowrap">
 													<div className="flex items-center">
 														<BarChart3 className="w-4 h-4 text-blue-600 mr-2" />
@@ -1769,23 +1773,25 @@ const AdSpend = () => {
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 													{campaign.total_clicks?.toLocaleString() || '0'}
 												</td>
-												<td className="px-6 py-4 whitespace-nowrap flex">
+												<td className="px-6 py-4 whitespace-nowrap flex items-center">
 													{
 														currencyChange == campaign.campaign_id && (
-															<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2 mt-2.5"></div>
+															<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
 														)
 													}
-													<BeautifulSelect
-														value={campaign.currency_symbol}
-														onChange={(currency) => handleCampaignCurrencyChange(campaign.campaign_id, currency)}
-														options={[
-															{ value: 'USD', label: 'USD ($)' },
-															{ value: 'SEK', label: 'SEK (kr)' },
-															{ value: 'EUR', label: 'EUR (€)' }
-														]}
-														className="w-32"
-														size="sm"
-													/>
+													<div className="relative">
+														<BeautifulSelect
+															value={campaign.currency_symbol}
+															onChange={(currency) => handleCampaignCurrencyChange(campaign.campaign_id, currency)}
+															options={[
+																{ value: 'USD', label: 'USD ($)' },
+																{ value: 'SEK', label: 'SEK (kr)' },
+																{ value: 'EUR', label: 'EUR (€)' }
+															]}
+															className="w-32"
+															size="small"
+														/>
+													</div>
 												</td>
 											</tr>
 										))}
@@ -1807,7 +1813,7 @@ const AdSpend = () => {
 						{/* Top Pagination */}
 						<PaginationControls />
 
-						<div className="overflow-x-auto relative">
+						<div className="table-container overflow-x-auto relative">
 							{loading ? (
 								<AdSpendTableLoader />
 							) : (

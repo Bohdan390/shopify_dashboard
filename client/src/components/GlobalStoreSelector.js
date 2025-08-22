@@ -253,7 +253,7 @@ const GlobalStoreSelector = () => {
 					}}
 					options={storeOptions}
 					placeholder="Select Store"
-					size="sm"
+					size="small"
 					className="w-full"
 				/>
 
@@ -351,7 +351,7 @@ const GlobalStoreSelector = () => {
 					}}
 					options={storeOptions}
 					placeholder="Select Store"
-					size="sm"
+					size="small"
 					className="w-full"
 				/>
 

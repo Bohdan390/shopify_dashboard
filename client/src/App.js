@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
 import Dashboard from './components/Dashboard';
 import Orders from './components/Orders';
 import AdSpend from './components/AdSpend';
@@ -59,6 +61,40 @@ function AppRoutes() {
 function App() {
   const toast = useRef(null);
   
+  // Create custom theme with Inter font
+  const theme = createTheme({
+    typography: {
+      fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      h1: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      h2: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      h3: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      h4: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      h5: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      h6: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      body1: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      body2: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      button: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+    },
+  });
+  
   // Set up global toast function
   React.useEffect(() => {
     window.showPrimeToast = (message, severity = 'info') => {
@@ -89,12 +125,15 @@ function App() {
                 v7_relativeSplatPath: true
               }}
             >
-              <div className="flex h-screen bg-gray-50">
-                <Sidebar />
-                <div className="flex-1 overflow-auto">
-                  <AppRoutes />
+              <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <div className="flex h-screen bg-gray-50">
+                  <Sidebar />
+                  <div className="flex-1 overflow-auto">
+                    <AppRoutes />
+                  </div>
                 </div>
-              </div>
+              </ThemeProvider>
             </Router>
           </CurrencyProvider>
         </SocketProvider>
