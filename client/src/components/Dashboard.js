@@ -1098,7 +1098,6 @@ const Dashboard = () => {
 		return <DashboardLoader />;
 	}
 
-	console.log(metricsChartData)
 	const handleDatePreset = (preset) => {
 		const today = new Date();
 		let startDate = new Date();
@@ -1995,7 +1994,7 @@ const Dashboard = () => {
 							<div className="space-y-2 text-sm">
 								<div className="flex justify-between">
 									<span className="text-orange-700">Google Ads</span>
-									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0, 'SEK')}</span>
+									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between">
 									<span className="text-orange-700">Facebook Ads</span>

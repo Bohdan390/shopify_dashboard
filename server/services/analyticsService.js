@@ -951,6 +951,7 @@ class AnalyticsService {
 			});
 			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
+			console.log(googleAdsSpend, facebookAdsSpend)
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			// Calculate total ad spend
