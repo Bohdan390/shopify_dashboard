@@ -365,7 +365,7 @@ router.get('/chart-data', async (req, res) => {
       
       let query = supabase
         .from('ad_spend_detailed')
-        .select('date, platform, spend_amount')
+        .select('date, platform, spend_amount, currency')
         .range(offset, offset + chunkSize - 1);
 
       if (startDate && endDate) {
@@ -404,9 +404,9 @@ router.get('/chart-data', async (req, res) => {
       }
       
       if (item.platform === 'facebook') {
-        chartData[date].facebook += parseFloat(item.spend_amount) || 0;
+        chartData[date].facebook += parseFloat(item.spend_amount * item.currency) || 0;
       } else if (item.platform === 'google') {
-        chartData[date].google += parseFloat(item.spend_amount) || 0;
+        chartData[date].google += parseFloat(item.spend_amount * item.currency) || 0;
       }
     });
 
