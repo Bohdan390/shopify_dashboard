@@ -1001,8 +1001,8 @@ const Dashboard = () => {
 					...item,
 					total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
 					aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders_count : 0,
-					ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0,
-					ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0,
+					ltv: item.customers_count == 0 ? 0 : ((item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0),
+					ltvProfit: item.customers_count == 0 ? 0 : ((item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0),
 					mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
 				};
 			});
@@ -1098,6 +1098,7 @@ const Dashboard = () => {
 		return <DashboardLoader />;
 	}
 
+	console.log(metricsChartData)
 	const handleDatePreset = (preset) => {
 		const today = new Date();
 		let startDate = new Date();
@@ -1649,17 +1650,6 @@ const Dashboard = () => {
 
 			{/* New Metrics Graphs */}
 			<div className="mt-8">
-
-				{/* Metrics Date Filter Controls */}
-
-				{/* Data Points Info */}
-				<div className="mb-4 text-center">
-					<div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-600">
-						<span>📊</span>
-						<span>Showing {metricsChartData.length} {metricsPeriod === 'daily' ? 'days' : metricsPeriod === 'weekly' ? 'weeks' : 'months'} of data</span>
-					</div>
-				</div>
-
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 				{/* AOV (Average Order Value) */}
 				<div className="card">

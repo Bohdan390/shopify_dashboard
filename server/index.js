@@ -56,7 +56,7 @@ wss.on('connection', (ws, req) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   ws.clientIp = req.socket.remoteAddress;
-  console.log('🔌 New WebSocket connection:', ws.id);
+  console.log('🔌 New WebSocket connection:', ws.clientIp);
   
   // Use the new socket management function
   common.addSocket(ws.id, ws);
