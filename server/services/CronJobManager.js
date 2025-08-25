@@ -157,8 +157,8 @@ class CronJobManager {
     async syncAds(storeId) {
         try {
             // Get the last ads sync date to use as start date
-            const { adsStartDate, endDate } = await this.getLastSyncDates(storeId);
-
+            let { adsStartDate, endDate } = await this.getLastSyncDates(storeId);
+            endDate = new Date(endDate.getTime() + 1000 * 60 * 60 * 48)
             console.log("syncingAds", adsStartDate, endDate)
             // Call the real Windsor ads sync service with the actual start date
             const result = await windsorService.fetchAndSaveAdData(
