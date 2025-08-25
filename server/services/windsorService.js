@@ -40,7 +40,7 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = {select_accounts: "google_ads__912-676-2735,facebook__2024454474573344"}
+        query = {select_accounts: "google_ads__912-676-2735,facebook__2024454474573344,facebook__972524497929970"}
       }
       else if (storeId == "buycosari") {
         query = {select_accounts: "google_ads__102-337-4754"}
