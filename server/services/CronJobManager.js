@@ -111,7 +111,7 @@ class CronJobManager {
             }
 
             const lastSyncDate = new Date(syncTracking[0].last_sync_date);
-            const lastAdsSyncDate = syncTracking[0].last_ads_sync_date ? syncTracking[0].last_ads_sync_date : new Date(2023, 1, 1);
+            const lastAdsSyncDate = new Date(syncTracking[0].last_ads_sync_date) ? new Date(syncTracking[0].last_ads_sync_date) : new Date(2023, 1, 1);
             const now = new Date();
 
             // For orders: use last_sync_date as start date
