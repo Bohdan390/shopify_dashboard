@@ -590,6 +590,7 @@ router.get('/cog', async (req, res) => {
     // gamoseries 2025-06-26
     // cosara 2025-05-27
 
+    // getProductCosts("meonutrition.com", "")
     const {data:products} = await supabase.from("products").select("product_id").neq('store_id', "meonutrition");
     var ids = products.map(item => item.product_id);
     await supabase.from("products").update({product_sku_id: ids}).in("product_id", ids);
@@ -650,6 +651,35 @@ router.get('/cog', async (req, res) => {
   }
 });
 
+const getProductCosts = async (shopifyDomain, accessToken) => {
+  try {
+    const response = await fetch(`https://${shopifyDomain}/admin/api/2024-10/products.json`, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    
+    // Extract cost information from variants
+      const url = `https://${shopifyDomain}/admin/api/2024-10/inventory_items/${data.products[0].variants[0].inventory_item_id}.json`;
+
+      const res = await fetch(url, {
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      });
+    
+      const inventoryItem = await res.json();
+      console.log(inventoryItem)
+    
+  } catch (error) {
+    console.error('Error fetching product costs:', error);
+    throw error;
+  }
+};
 // Add new cost of goods entry
 router.post('/cog', async (req, res) => {
   try {
