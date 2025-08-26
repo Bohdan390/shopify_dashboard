@@ -52,13 +52,13 @@ router.get('/health', async (req, res) => {
 // Get daily analytics for a date range
 router.get('/daily', async (req, res) => {
 	try {
-		const { startDate, endDate, storeId = 'buycosari' } = req.query;
+		const { startDate, endDate, storeId = 'buycosari', country } = req.query;
 
 		if (!startDate || !endDate) {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
-		const analytics = await analyticsService.getAnalyticsRange(startDate, endDate, storeId);
+		const analytics = await analyticsService.getAnalyticsRange(startDate, endDate, storeId, country);
 		res.json(analytics);
 	} catch (error) {
 		console.error('Error fetching daily analytics:', error);
@@ -69,13 +69,13 @@ router.get('/daily', async (req, res) => {
 // Get summary statistics
 router.get('/summary', async (req, res) => {
 	try {
-		const { startDate, endDate, storeId = 'buycosari' } = req.query;
+		const { startDate, endDate, storeId = 'buycosari', country } = req.query;
 
 		if (!startDate || !endDate) {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
-		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId);
+		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId, country);
 		res.json(summary);
 	} catch (error) {
 		console.error('Error fetching summary stats:', error);
@@ -96,6 +96,98 @@ router.get('/store', async (req, res) => {
 		res.json(storeAnalytics);
 	} catch (error) {
 		console.error('Error fetching store analytics:', error);
+		res.status(500).json({ error: error.message });
+	}
+});
+
+// Get available countries for filtering
+router.get('/countries', async (req, res) => {
+	try {
+		const { data: countries, error } = await supabase
+			.from('countries')
+			.select('country_code, country_name, region')
+			.eq('is_active', true)
+			.order('country_name');
+
+		if (error) {
+			console.error('Error fetching countries:', error);
+			return res.status(500).json({ error: error.message });
+		}
+		res.json(countries);
+	} catch (error) {
+		console.error('Error fetching countries:', error);
+		res.status(500).json({ error: error.message });
+	}
+});
+
+// Get campaign data with country information
+router.get('/campaigns', async (req, res) => {
+	try {
+		const { storeId = 'buycosari', country } = req.query;
+
+		let query = supabase
+			.from('ad_campaigns')
+			.select(`
+				campaign_id,
+				campaign_name,
+				platform,
+				country_code,
+				status,
+				created_at
+			`)
+			.eq('store_id', storeId)
+			.eq('status', 'active');
+
+		// Filter by country if specified
+		if (country && country !== 'all') {
+			query = query.eq('country_code', country);
+		}
+
+		const { data: campaigns, error: campaignsError } = await query;
+
+		if (campaignsError) {
+			console.error('Error fetching campaigns:', campaignsError);
+			return res.status(500).json({ error: campaignsError.message });
+		}
+
+		// Get ad spend and revenue data for each campaign
+		const campaignsWithMetrics = await Promise.all(
+			campaigns.map(async (campaign) => {
+				// Get ad spend for the campaign
+				const { data: adSpend, error: adSpendError } = await supabase
+					.from('ad_spend_detailed')
+					.select('spend_amount, platform')
+					.eq('campaign_id', campaign.campaign_id)
+					.eq('store_id', storeId);
+
+				if (adSpendError) {
+					console.error('Error fetching ad spend for campaign:', campaign.campaign_id, adSpendError);
+				}
+
+				const totalAdSpend = adSpend ? adSpend.reduce((sum, spend) => sum + parseFloat(spend.spend_amount), 0) : 0;
+
+				// Get country name
+				const { data: countryData, error: countryError } = await supabase
+					.from('countries')
+					.select('country_name')
+					.eq('country_code', campaign.country_code)
+					.single();
+
+				const countryName = countryData ? countryData.country_name : campaign.country_code;
+
+				return {
+					...campaign,
+					country_name: countryName,
+					total_ad_spend: totalAdSpend,
+					revenue: 0, // This would need to be calculated based on campaign performance
+					roi: totalAdSpend > 0 ? 0 : 0 // This would need to be calculated
+				};
+			})
+		);
+
+		res.json(campaignsWithMetrics);
+	} catch (error) {
+		console.error('Error fetching campaign data:', error);
 		res.status(500).json({ error: error.message });
 	}
 });

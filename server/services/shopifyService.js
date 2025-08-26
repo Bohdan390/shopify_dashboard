@@ -222,9 +222,12 @@ class ShopifyService {
 
 			var productSkusData = [], productsData = [];
 			if (this.storeId == "meonutrition") {
-				const {count: productSkuCount} = await supabase.from("product_skus").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
+				const {count: productSkuCount} = await supabase.from("product_skus")
+					.select("*", {count: 'exact', head: true})
+					.eq("store_id", this.storeId)
 				for (var i = 0; i < productSkuCount; i+= 1000) {
-					const {data: skuDatas, error: skuError} = await supabase.from("product_skus").select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
+					const {data: skuDatas, error: skuError} = await supabase.from("product_skus")
+					.select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
 					if (skuError) throw skuError;
 					productSkusData.push(...skuDatas);
 				}
@@ -441,6 +444,9 @@ class ShopifyService {
 				else if (order.financial_status == "refunded") {
 					totalRefunds = order.total_price;
 				}
+				if (order.currency != "USD") {
+					console.log(order.id, "NOT USD")
+				}
 				orderDataArray.push({
 					shopify_order_id: order.id.toString(),
 					store_id: this.storeId, // Add store ID
@@ -457,7 +463,8 @@ class ShopifyService {
 					customer_email: order.customer?.email || null,
 					customer_id: order.customer?.id?.toString() || null,
 					product_sku_ids: order.product_sku_ids || "",
-					refund_price: totalRefunds
+					refund_price: totalRefunds,
+					country: order.shipping_address?.country || null
 				})
 			})
 			

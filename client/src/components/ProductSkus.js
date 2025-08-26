@@ -327,7 +327,10 @@ const ProductSkus = () => {
         totalRevenue: 0,
         totalProfit: 0,
         totalQuantity: 0,
-        avgOrderValue: 0
+        avgOrderValue: 0,
+        avgProfitCpa: 0,
+        avgProfitPerProduct: 0,
+        avgProfitPerSale: 0
     });
 
     // Date range state
@@ -461,7 +464,10 @@ const ProductSkus = () => {
                     totalRevenue: response.data.totalRevenue,
                     totalProfit: response.data.totalProfit,
                     totalQuantity: response.data.totalQuantity,
-                    avgOrderValue: response.data.avgOrderValue
+                    avgOrderValue: response.data.avgOrderValue,
+                    avgProfitCpa: response.data.avgProfitCpa,
+                    avgProfitPerProduct: response.data.avgProfitPerProduct,
+                    avgProfitPerSale: response.data.avgProfitPerSale
                 })
                 setPagination(prev => ({
                     ...prev,
@@ -1087,7 +1093,7 @@ const ProductSkus = () => {
             </div>
 
             {/* Revenue Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
                 <div className="bg-white rounded-lg shadow-sm border p-4">
                     <div className="flex items-center">
                         <DollarSign className="w-8 h-8 text-green-600 mr-3" />
@@ -1131,6 +1137,42 @@ const ProductSkus = () => {
                             <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
                             <p className="text-2xl font-bold text-indigo-700">
                                 {formatCurrency(productRevenue.avgOrderValue)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex items-center">
+                        <TrendingUp className="w-8 h-8 text-green-600 mr-3" />
+                        <div>
+                            <p className="text-sm font-medium text-gray-600">Avg Profit CPA</p>
+                            <p className="text-2xl font-bold text-green-700">
+                                {productRevenue.avgProfitCpa ? formatCurrency(productRevenue.avgProfitCpa) : 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex items-center">
+                        <Package className="w-8 h-8 text-blue-600 mr-3" />
+                        <div>
+                            <p className="text-sm font-medium text-gray-600">Avg Profit per Product</p>
+                            <p className="text-2xl font-bold text-blue-700">
+                                {productRevenue.avgProfitPerProduct ? formatCurrency(productRevenue.avgProfitPerProduct) : 'N/A'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex items-center">
+                        <ShoppingCart className="w-8 h-8 text-purple-600 mr-3" />
+                        <div>
+                            <p className="text-sm font-medium text-gray-600">Avg Profit per Sale</p>
+                            <p className="text-2xl font-bold text-purple-700">
+                                {productRevenue.avgProfitPerSale ? formatCurrency(productRevenue.avgProfitPerSale) : 'N/A'}
                             </p>
                         </div>
                     </div>
@@ -1576,6 +1618,23 @@ const ProductSkus = () => {
                     <p className="text-sm text-gray-500 mt-1">
                         Click on any row to link/unlink campaigns for that SKU
                     </p>
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h4 className="text-sm font-medium text-blue-800">Profit Metrics Explained</h4>
+                                <div className="mt-2 text-sm text-blue-700">
+                                    <p><strong>Profit CPA:</strong> Profit generated per dollar spent on advertising (higher is better)</p>
+                                    <p><strong>Profit per Product:</strong> Average profit per unit sold</p>
+                                    <p><strong>Profit per Sale:</strong> Average profit per order/transaction</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {loading ? (
@@ -1649,6 +1708,36 @@ const ProductSkus = () => {
                                             </button>
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <button
+                                                onClick={() => handleSort('profit_cpa')}
+                                                disabled={loading}
+                                                className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+                                            >
+                                                <span>Profit CPA</span>
+                                                {getSortIcon('profit_cpa')}
+                                            </button>
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <button
+                                                onClick={() => handleSort('profit_per_product')}
+                                                disabled={loading}
+                                                className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+                                            >
+                                                <span>Profit per Product</span>
+                                                {getSortIcon('profit_per_product')}
+                                            </button>
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            <button
+                                                onClick={() => handleSort('profit_per_sale')}
+                                                disabled={loading}
+                                                className={`flex items-center space-x-1 transition-colors ${!loading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+                                            >
+                                                <span>Profit per Sale</span>
+                                                {getSortIcon('profit_per_sale')}
+                                            </button>
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Actions
                                         </th>
                                     </tr>
@@ -1693,6 +1782,30 @@ const ProductSkus = () => {
                                                     <BarChart3 className="w-4 h-4 text-indigo-600 mr-2" />
                                                     <span className="text-sm font-medium text-indigo-700">
                                                         {formatCurrency(sku.total_profit)}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <TrendingUp className="w-4 h-4 text-green-600 mr-2" />
+                                                    <span className="text-sm font-medium text-green-700">
+                                                        {sku.profit_cpa ? formatCurrency(sku.profit_cpa) : 'N/A'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <Package className="w-4 h-4 text-blue-600 mr-2" />
+                                                    <span className="text-sm font-medium text-blue-700">
+                                                        {sku.profit_per_product ? formatCurrency(sku.profit_per_product) : 'N/A'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <ShoppingCart className="w-4 h-4 text-purple-600 mr-2" />
+                                                    <span className="text-sm font-medium text-purple-700">
+                                                        {sku.profit_per_sale ? formatCurrency(sku.profit_per_sale) : 'N/A'}
                                                     </span>
                                                 </div>
                                             </td>
