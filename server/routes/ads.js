@@ -718,7 +718,7 @@ router.get('/cog', async (req, res) => {
     } = req.query;
     
     // buycosari 2023-10-30
-    // meonutrition 2025-05-19
+    // meonutrition 2024-05-19
     // dermao 2024-05-01
     // nomobark 2024-05-14
     // gamoseries 2025-06-26

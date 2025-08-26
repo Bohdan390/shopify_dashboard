@@ -1093,7 +1093,7 @@ const ProductSkus = () => {
             </div>
 
             {/* Revenue Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white rounded-lg shadow-sm border p-4">
                     <div className="flex items-center">
                         <DollarSign className="w-8 h-8 text-green-600 mr-3" />
@@ -1137,42 +1137,6 @@ const ProductSkus = () => {
                             <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
                             <p className="text-2xl font-bold text-indigo-700">
                                 {formatCurrency(productRevenue.avgOrderValue)}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex items-center">
-                        <TrendingUp className="w-8 h-8 text-green-600 mr-3" />
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Avg Profit CPA</p>
-                            <p className="text-2xl font-bold text-green-700">
-                                {productRevenue.avgProfitCpa ? formatCurrency(productRevenue.avgProfitCpa) : 'N/A'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex items-center">
-                        <Package className="w-8 h-8 text-blue-600 mr-3" />
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Avg Profit per Product</p>
-                            <p className="text-2xl font-bold text-blue-700">
-                                {productRevenue.avgProfitPerProduct ? formatCurrency(productRevenue.avgProfitPerProduct) : 'N/A'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex items-center">
-                        <ShoppingCart className="w-8 h-8 text-purple-600 mr-3" />
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Avg Profit per Sale</p>
-                            <p className="text-2xl font-bold text-purple-700">
-                                {productRevenue.avgProfitPerSale ? formatCurrency(productRevenue.avgProfitPerSale) : 'N/A'}
                             </p>
                         </div>
                     </div>

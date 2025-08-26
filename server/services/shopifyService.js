@@ -79,13 +79,13 @@ class ShopifyService {
 			let totalFetched = 0;
 			let pageCount = 0;
 			if (this.storeId == "buycosari") {
-				if (new Date(syncDate) < new Date("2023-10-30")) {
-					syncDate = "2023-10-30";
+				if (new Date(syncDate) < new Date("2023-09-26")) {
+					syncDate = "2023-09-26";
 				}
 			}
 			else if (this.storeId == "meonutrition") {
-				if (new Date(syncDate) < new Date("2025-05-19")) {
-					syncDate = "2025-05-19";
+				if (new Date(syncDate) < new Date("2024-05-19")) {
+					syncDate = "2024-05-19";
 				}
 			}
 			else if (this.storeId == "dermao") {
@@ -104,8 +104,8 @@ class ShopifyService {
 				}
 			}
 			else if (this.storeId == "cosara") {
-				if (new Date(syncDate) < new Date("2025-05-27")) {
-					syncDate = "2025-05-27";
+				if (new Date(syncDate) < new Date("2024-05-27")) {
+					syncDate = "2024-05-27";
 				}
 			}
 			var nextPage = false, pageInfo = "";
