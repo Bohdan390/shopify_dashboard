@@ -651,35 +651,6 @@ router.get('/cog', async (req, res) => {
   }
 });
 
-const getProductCosts = async (shopifyDomain, accessToken) => {
-  try {
-    const response = await fetch(`https://${shopifyDomain}/admin/api/2024-10/products.json`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const data = await response.json();
-    
-    // Extract cost information from variants
-      const url = `https://${shopifyDomain}/admin/api/2024-10/inventory_items/${data.products[0].variants[0].inventory_item_id}.json`;
-
-      const res = await fetch(url, {
-        headers: {
-          "X-Shopify-Access-Token": accessToken,
-          "Content-Type": "application/json",
-        },
-      });
-    
-      const inventoryItem = await res.json();
-      console.log(inventoryItem)
-    
-  } catch (error) {
-    console.error('Error fetching product costs:', error);
-    throw error;
-  }
-};
 // Add new cost of goods entry
 router.post('/cog', async (req, res) => {
   try {
@@ -690,7 +661,8 @@ router.post('/cog', async (req, res) => {
       quantity, 
       total_cost, 
       date,
-      store_id = 'buycosari' // Default store ID
+      store_id = 'buycosari', // Default store ID
+      country_costs = []
     } = req.body;
 
     // Validate required fields
@@ -709,11 +681,31 @@ router.post('/cog', async (req, res) => {
       productSkuId = existingProduct[0].product_sku_id;
     }
 
+    var country_cost_id = new Date().getTime();
+    if (country_costs.length > 0) {
+      country_costs.forEach(country => {
+        country.store_id = store_id;
+        country.product_id = product_id;
+        country.country_cost_id = country_cost_id;
+        country.cost_of_goods = parseFloat(country.cost_of_goods);
+        country.shipping_cost = parseFloat(country.shipping_cost);
+        country.vat_rate = parseFloat(country.vat_rate);
+        country.tariff_rate = parseFloat(country.tariff_rate);
+      });
+    }
+
+    const {data:countryCosts, error:countryCostsError} = await supabase.from("country_costs").insert(country_costs).select();
+    if (countryCostsError) {
+      console.error('❌ Error adding country costs:', countryCostsError);
+      throw countryCostsError;
+    }
+
     const { data, error } = await supabase
       .from('cost_of_goods')
       .insert({
         product_id,
         product_title,
+        country_cost_id,
         cost_per_unit: parseFloat(cost_per_unit),
         quantity: parseInt(quantity),
         total_cost: parseFloat(calculatedTotalCost),
@@ -749,11 +741,29 @@ router.post('/cog', async (req, res) => {
       throw error;
     }
 
-    res.json({ message: 'Cost of goods entry added successfully', data });
+    res.json({ message: 'Cost of goods entry added successfully' });
 
   } catch (error) {
     console.error('❌ Error adding cost of goods entry:', error);
     res.status(500).json({ error: 'Failed to add cost of goods entry' });
+  }
+});
+
+router.get('/cog/country-costs/:countryCostId', async (req, res) => {
+  try {
+    const { countryCostId } = req.params;
+    const { data, error } = await supabase.from("country_costs").select("*").eq("country_cost_id", countryCostId);
+
+    if (error) {
+      console.error('❌ Error fetching country costs:', error);
+      throw error;
+    }
+
+    res.json({ data });
+
+  } catch (error) {
+    console.error('❌ Error fetching country costs:', error);
+    res.status(500).json({ error: 'Failed to fetch country costs' });
   }
 });
 
@@ -768,7 +778,8 @@ router.put('/cog/:id', async (req, res) => {
       quantity, 
       total_cost, 
       date,
-      store_id 
+      store_id,
+      country_costs
     } = req.body;
 
     // Validate required fields
@@ -783,13 +794,14 @@ router.put('/cog/:id', async (req, res) => {
 
     const {data: updated} = await supabase
       .from("cost_of_goods")
-      .select("total_cost")
+      .select("total_cost, country_cost_id")
       .eq("id", id)
       .limit(1);
 
-    let originTotalCost = 0;
+    let originTotalCost = 0, countryCostId;
     if (updated.length > 0) {
       originTotalCost = updated[0].total_cost;
+      countryCostId = updated[0].country_cost_id;
     }
     const { data, error } = await supabase
       .from('cost_of_goods')
@@ -810,6 +822,16 @@ router.put('/cog/:id', async (req, res) => {
     const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', date).eq('store_id', store_id).limit(1);
     if (analytic.length > 0) {
       calculatedTotalCost = (calculatedTotalCost - originTotalCost) + parseFloat(analytic[0].cost_of_goods);
+    }
+    if (countryCostId) {
+      const {error:countryCostsError} = await supabase.from("country_costs").upsert(country_costs, {
+        onConflict: 'id',
+        ignoreDuplicates: false
+      });
+      if (countryCostsError) {
+        console.error('❌ Error updating country costs:', countryCostsError);
+        throw countryCostsError;
+      }
     }
     await supabase.from("analytics").upsert({
       date,

@@ -80,8 +80,57 @@ CREATE TABLE IF NOT EXISTS cost_of_goods (
   quantity INTEGER,
   total_cost DECIMAL(10,2),
   date DATE,
+  store_id VARCHAR(255),
+  product_sku_id VARCHAR(255),
+  country_costs JSONB DEFAULT '{}', -- New field for country-specific costs
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Country Costs Table (for detailed country-specific cost management)
+CREATE TABLE IF NOT EXISTS country_costs (
+  id BIGSERIAL PRIMARY KEY,
+  store_id VARCHAR(255) NOT NULL,
+  product_id VARCHAR(255) NOT NULL,
+  country_code VARCHAR(10) NOT NULL, -- ISO country code (US, GB, DE, etc.)
+  cost_of_goods DECIMAL(10,2) NOT NULL DEFAULT 0,
+  shipping_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+  vat_rate DECIMAL(5,2) NOT NULL DEFAULT 0, -- Percentage (e.g., 20.00 for 20%)
+  tariff_rate DECIMAL(5,2) NOT NULL DEFAULT 0, -- Percentage
+  currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  -- Ensure unique combination of store, product, and country
+  UNIQUE(store_id, product_id, country_code)
+);
+
+-- Countries Reference Table
+CREATE TABLE IF NOT EXISTS countries (
+  country_code VARCHAR(10) PRIMARY KEY,
+  country_name VARCHAR(255) NOT NULL,
+  region VARCHAR(100),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert common countries
+INSERT INTO countries (country_code, country_name, region) VALUES
+('US', 'United States', 'North America'),
+('CA', 'Canada', 'North America'),
+('GB', 'United Kingdom', 'Europe'),
+('DE', 'Germany', 'Europe'),
+('FR', 'France', 'Europe'),
+('IT', 'Italy', 'Europe'),
+('ES', 'Spain', 'Europe'),
+('NL', 'Netherlands', 'Europe'),
+('AU', 'Australia', 'Oceania'),
+('JP', 'Japan', 'Asia'),
+('CN', 'China', 'Asia'),
+('IN', 'India', 'Asia'),
+('BR', 'Brazil', 'South America'),
+('MX', 'Mexico', 'North America')
+ON CONFLICT (country_code) DO NOTHING;
 
 -- Analytics Table
 CREATE TABLE IF NOT EXISTS analytics (
