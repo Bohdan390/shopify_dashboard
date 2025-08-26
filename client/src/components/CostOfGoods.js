@@ -8,7 +8,10 @@ import BeautifulSelect from './BeautifulSelect';
 import CostOfGoodsTableLoader from './loaders/CostOfGoodsTableLoader';
 import CountryCostsManager from './CountryCostsManager';
 import { Dialog, DialogContent, DialogTitle, styled } from '@mui/material';
+import { useCurrency } from '../contexts/CurrencyContext';
 // Product Autocomplete Component
+
+const G = require("../config/global");
 
 const BootstrapDialog = styled(Dialog)(({ theme }) => ({
 	'& .MuiDialogContent-root': {
@@ -459,7 +462,6 @@ const CostOfGoods = () => {
 	const [tableLoading, setTableLoading] = useState(false);
 	const [showCountryCosts, setShowCountryCosts] = useState(false);
 	const [selectedProductForCountryCosts, setSelectedProductForCountryCosts] = useState(null);
-	const [availableCountries, setAvailableCountries] = useState([]);
 	const [showCountryCostsSection, setShowCountryCostsSection] = useState(false);
 	const [countryCosts, setCountryCosts] = useState([]);
 	const [formData, setFormData] = useState({
@@ -505,6 +507,8 @@ const CostOfGoods = () => {
 		hasNext: false,
 		hasPrev: false
 	});
+
+	const { formatCurrency, displayCurrency } = useCurrency();
 
 	useEffect(() => {
 		fetchCostOfGoods(1, true);
@@ -671,7 +675,7 @@ const CostOfGoods = () => {
 
 					// Calculate total cost for this country including VAT and tariffs
 					const baseCost = Number(formData.costPerUnit || 0);
-					const countrySubtotal = baseCost + country.cost_of_goods + country.shipping_cost;
+					const countrySubtotal = baseCost + country.cost_of_goods * G.currencyRates[country.currency] + country.shipping_cost * G.currencyRates[country.currency];
 					const vatAmount = countrySubtotal * (country.vat_rate / 100);
 					const tariffAmount = countrySubtotal * (country.tariff_rate / 100);
 
@@ -740,7 +744,6 @@ const CostOfGoods = () => {
 				[entry.country_cost_id]: countryCosts
 			}));
 		}
-		console.log(countryCosts, "-----------")
 		setFormData({
 			productId: entry.product_id || '',
 			productTitle: entry.product_title || '',
@@ -790,13 +793,6 @@ const CostOfGoods = () => {
 		setShowCountryCostsSection(false);
 	};
 
-	const formatCurrency = (amount) => {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD',
-		}).format(amount);
-	};
-
 	const formatDate = (dateString) => {
 		return new Date(dateString).toLocaleDateString();
 	};
@@ -818,8 +814,10 @@ const CostOfGoods = () => {
 
 		if (newExpandedRows.has(countryCostId)) {
 			newExpandedRows.delete(countryCostId);
+			setExpandedRows(newExpandedRows);
 		} else {
 			newExpandedRows.add(countryCostId);
+			setExpandedRows(newExpandedRows);
 			// Fetch country costs if not already loaded
 			if (!countryCostsData[countryCostId]) {
 				const costs = await fetchCountryCostsForCountryCostId(countryCostId);
@@ -830,7 +828,6 @@ const CostOfGoods = () => {
 			}
 		}
 
-		setExpandedRows(newExpandedRows);
 	};
 
 	// Helper function to calculate total per unit including VAT and tariffs
@@ -842,7 +839,7 @@ const CostOfGoods = () => {
 		const tariffRate = Number(country.tariff_rate || 0);
 
 		// Calculate subtotal (base + country cost + shipping)
-		const subtotal = baseCostNum + countryCostNum + shippingNum;
+		const subtotal = baseCostNum + (countryCostNum + shippingNum) * G.currencyRates[country.currency];
 
 		// Calculate VAT amount
 		const vatAmount = subtotal * (vatRate / 100);
@@ -1036,7 +1033,7 @@ const CostOfGoods = () => {
 		return <CostOfGoodsLoader />;
 	}
 
-	console.log(countryCostsData);
+	console.log(countryCostsData, expandedRows);
 	return (
 		<div className="p-8">
 			{/* Header */}
@@ -1370,10 +1367,10 @@ const CostOfGoods = () => {
 																								{countryCost.country_code || countryCost.country}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
-																								${Number(countryCost.cost_of_goods || 0).toFixed(2)}
+																								{displayCurrency(Number(countryCost.cost_of_goods || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
-																								${Number(countryCost.shipping_cost || 0).toFixed(2)}
+																								{displayCurrency(Number(countryCost.shipping_cost || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{Number(countryCost.vat_rate || 0).toFixed(1)}%
@@ -1395,19 +1392,6 @@ const CostOfGoods = () => {
 																	) : (
 																		<div className="text-center py-4 text-gray-500">
 																			<div className="text-sm">No country costs configured for this product</div>
-																			<button
-																				onClick={() => {
-																					setSelectedProductForCountryCosts({
-																						id: item.country_cost_id,
-																						title: item.product_title || item.product_id,
-																						storeId: selectedStore || 'buycosari'
-																					});
-																					setShowCountryCosts(true);
-																				}}
-																				className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-																			>
-																				Add Country Costs
-																			</button>
 																		</div>
 																	)
 																) : (
@@ -1546,27 +1530,6 @@ const CostOfGoods = () => {
 							{/* Country Costs Section */}
 							<div className="border-t pt-6">
 								<div className="space-y-4">
-									{/* Summary */}
-									{/* Country Selection */}
-									<div className="flex items-center gap-2 flex-wrap">
-										{availableCountries.map(country => (
-											<button
-												key={country.country_code}
-												type="button"
-												onClick={() => {
-
-												}}
-												className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${formData.countryCosts[country.country_code]
-													? 'bg-green-100 text-green-800 border border-green-300'
-													: 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200'
-													}`}
-											>
-												{country.country_code} - {country.country_name}
-												{formData.countryCosts[country.country_code] && ' ✓'}
-											</button>
-										))}
-									</div>
-
 									{/* Country Costs Summary */}
 									<div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
 										<div className="flex items-center gap-2">
@@ -1651,15 +1614,17 @@ const CostOfGoods = () => {
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Country Cost:</span>
-																				<span className="text-gray-700">${Number(country.cost_of_goods || 0).toFixed(2)}</span>
+																				<span className="text-gray-700">${displayCurrency(Number(country.cost_of_goods || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Shipping:</span>
-																				<span className="text-gray-700">${Number(country.shipping_cost || 0).toFixed(2)}</span>
+																				<span className="text-gray-700">${displayCurrency(Number(country.shipping_cost || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Subtotal:</span>
-																				<span className="text-gray-700 font-medium">${(Number(formData.costPerUnit || 0) + Number(country.cost_of_goods || 0) + Number(country.shipping_cost || 0)).toFixed(2)}</span>
+																				<span className="text-gray-700 font-medium">
+																					{displayCurrency(Number(formData.costPerUnit || 0).toFixed(2), 'USD')} + {displayCurrency((Number(country.cost_of_goods || 0) + Number(country.shipping_cost)), country.currency)}
+																				</span>
 																			</div>
 																		</div>
 
@@ -1862,7 +1827,7 @@ const CostOfGoods = () => {
 									]}
 									value={newCountryCost.currency}
 									selectClass='w-full'
-									onChange={(e) => setNewCountryCost({ ...newCountryCost, currency: e.target.value })}
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, currency: e })}
 								/>
 							</div>
 
