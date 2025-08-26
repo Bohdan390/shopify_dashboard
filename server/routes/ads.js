@@ -246,6 +246,42 @@ router.post('/update-campaign-currency', async (req, res) => {
   res.json({ message: 'Campaign currency updated successfully' });
 })
 
+// Update campaign country
+router.put('/campaigns/:campaignId/country', async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { country_code, store_id } = req.body;
+
+    if (!country_code || !store_id) {
+      return res.status(400).json({ error: 'country_code and store_id are required' });
+    }
+
+    // Update the campaign country in ad_campaigns table
+    const { error: campaignError } = await supabase
+      .from('ad_campaigns')
+      .update({ country_code: country_code === 'all' ? null : country_code })
+      .eq('campaign_id', campaignId)
+      .eq('store_id', store_id);
+
+    if (campaignError) {
+      console.error('❌ Error updating campaign country:', campaignError);
+      throw campaignError;
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Campaign country updated successfully',
+      country_code: country_code === 'all' ? null : country_code
+    });
+  } catch (error) {
+    console.error('❌ Error updating campaign country:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update campaign country' 
+    });
+  }
+});
+
 router.get('/summary-stats', async (req, res) => {
   try {
     const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search } = req.query;
@@ -271,11 +307,11 @@ router.get('/summary-stats', async (req, res) => {
     }
 
     // First, get the count to see how much data we have
-    let { data: adSpendData, error: adSpendError } = await supabase.rpc("aggregate_ad_spend_by_campaign", {
-      start_date: startDate + 'T00:00:00',
-      end_date: endDate + 'T23:59:59.999',
-      p_campaign_names: null,
+    let { data: adSpendData, error: adSpendError } = await supabase.rpc("get_campaign_analytics", {
+      p_start_date: startDate + 'T00:00:00',
+      p_end_date: endDate + 'T23:59:59.999',
       p_store_id: store_id,
+      p_platform: null
     });
 
     
@@ -285,12 +321,18 @@ router.get('/summary-stats', async (req, res) => {
     }
 
     var totalSpend = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_spend), 0);
-    var totalGoogleAmount = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_google_amount), 0);
-    var totalFacebookAmount = adSpendData.reduce((sum, item) => sum + parseFloat(item.total_facebook_amount), 0);
+    var totalGoogleAmount = adSpendData.reduce((sum, item) => 
+      item.platform === 'google' ? sum + parseFloat(item.total_spend) : sum, 0);
+    var totalFacebookAmount = adSpendData.reduce((sum, item) => 
+      item.platform === 'facebook' ? sum + parseFloat(item.total_spend) : sum, 0);
     var roiPercentage = (revenueData.totalRevenue / totalSpend);
 
     if (search) {
-      adSpendData = adSpendData.filter(item => item.campaign_id.toLowerCase().includes(search.toLowerCase()) || item.platform.toLowerCase().includes(search.toLowerCase()));
+      adSpendData = adSpendData.filter(item => 
+        item.campaign_name?.toLowerCase().includes(search.toLowerCase()) || 
+        item.campaign_id.toLowerCase().includes(search.toLowerCase()) || 
+        item.platform.toLowerCase().includes(search.toLowerCase())
+      );
     }
 
     adSpendData = adSpendData.sort((a, b) => {
@@ -302,7 +344,6 @@ router.get('/summary-stats', async (req, res) => {
       }
       return 0;
     });
-      // Return both ad spend data and revenue data
 
     var paginatedAdSpendData = adSpendData.slice((page - 1) * pageSize, (page) * pageSize);
 
@@ -320,6 +361,99 @@ router.get('/summary-stats', async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting summary stats:', error);
     res.status(500).json({ error: 'Failed to get summary stats' });
+  }
+});
+
+// Get campaign analytics using the new RPC function
+router.get('/campaign-analytics', async (req, res) => {
+  try {
+    const { startDate, endDate, store_id, platform, page = 1, pageSize = 20, sortBy = 'total_spend', sortOrder = 'desc', search } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    // Get campaign analytics using the RPC function
+    let { data: campaignData, error: campaignError } = await supabase.rpc("get_campaign_analytics", {
+      p_start_date: startDate + 'T00:00:00',
+      p_end_date: endDate + 'T23:59:59.999',
+      p_store_id: store_id || null,
+      p_platform: platform || null
+    });
+
+    if (campaignError) {
+      console.error('❌ Error fetching campaign analytics:', campaignError);
+      throw campaignError;
+    }
+
+    // Apply search filter if provided
+    if (search) {
+      campaignData = campaignData.filter(item => 
+        item.campaign_name?.toLowerCase().includes(search.toLowerCase()) || 
+        item.campaign_id.toLowerCase().includes(search.toLowerCase()) || 
+        item.platform.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    campaignData = campaignData.sort((a, b) => {
+      if (sortBy === 'total_spend') {
+        return sortOrder === 'asc' ? a.total_spend - b.total_spend : b.total_spend - a.total_spend;
+      }
+      else if (sortBy === 'total_clicks') {
+        return sortOrder === 'asc' ? a.total_clicks - b.total_clicks : b.total_clicks - a.total_clicks;
+      }
+      else if (sortBy === 'campaign_name') {
+        return sortOrder === 'asc' 
+          ? (a.campaign_name || '').localeCompare(b.campaign_name || '')
+          : (b.campaign_name || '').localeCompare(a.campaign_name || '');
+      }
+      else if (sortBy === 'platform') {
+        return sortOrder === 'asc' 
+          ? a.platform.localeCompare(b.platform)
+          : b.platform.localeCompare(a.platform);
+      }
+      return 0;
+    });
+
+    // Calculate totals
+    const totalSpend = campaignData.reduce((sum, item) => sum + parseFloat(item.total_spend), 0);
+    const totalClicks = campaignData.reduce((sum, item) => sum + parseInt(item.total_clicks), 0);
+    const totalImpressions = campaignData.reduce((sum, item) => sum + parseInt(item.total_impressions), 0);
+    const totalConversions = campaignData.reduce((sum, item) => sum + parseInt(item.total_conversions), 0);
+
+    // Apply pagination
+    const totalCount = campaignData.length;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const paginatedData = campaignData.slice((page - 1) * pageSize, page * pageSize);
+
+    res.json({
+      success: true,
+      data: {
+        campaigns: paginatedData,
+        pagination: {
+          currentPage: parseInt(page),
+          pageSize: parseInt(pageSize),
+          totalPages,
+          totalCount
+        },
+        summary: {
+          totalSpend: common.roundPrice(totalSpend),
+          totalClicks,
+          totalImpressions,
+          totalConversions,
+          averageSpend: totalCount > 0 ? common.roundPrice(totalSpend / totalCount) : 0,
+          averageClicks: totalCount > 0 ? Math.round(totalClicks / totalCount) : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting campaign analytics:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get campaign analytics' 
+    });
   }
 });
 

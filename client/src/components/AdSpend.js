@@ -15,8 +15,6 @@ import AdSpendTableLoader from './loaders/AdSpendTableLoader';
 import AdsCampaignTableLoader from './loaders/AdsCampaignTableLoader';
 import { useStore } from '../contexts/StoreContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import axios from 'axios';
-import LoadingSpinner from './LoadingSpinner';
 
 // Custom Calendar Component
 const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
@@ -376,6 +374,9 @@ const AdSpend = () => {
 	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
 	const [currencyChange, setCurrencyChange] = useState(null);
+	// Country management state
+	const [availableCountries, setAvailableCountries] = useState([]);
+	const [countryChange, setCountryChange] = useState(null);
 	// Get socket from context
 	const { socket, addEventListener } = useSocket();
 
@@ -518,6 +519,54 @@ const AdSpend = () => {
 
 	const fetchAdSpendData = async (page = adSpendPagination.currentPage) => {
 		return fetchAdSpendDataWithSort(page);
+	};
+
+	// Fetch available countries for campaign country selection
+	const fetchCountries = async () => {
+		try {
+			const response = await api.get(`/api/analytics/countries?storeId=${selectedStore}`);
+			setAvailableCountries(response.data || []);
+		} catch (error) {
+			console.error('Error fetching countries:', error);
+			setAvailableCountries([]);
+		}
+	};
+
+	// Handle campaign country change
+	const handleCampaignCountryChange = async (campaignId, countryCode) => {
+		try {
+			setCountryChange(campaignId);
+			
+			const response = await api.put(`/api/ads/campaigns/${campaignId}/country`, {
+				country_code: countryCode,
+				store_id: selectedStore
+			});
+
+			if (response.data.success) {
+				// Update the campaign in the local state
+				setCampaigns(prevCampaigns => 
+					prevCampaigns.map(campaign => 
+						campaign.campaign_id === campaignId 
+							? { ...campaign, country_code: countryCode }
+							: campaign
+					)
+				);
+				
+				// Show success message
+				if (window.showPrimeToast) {
+					window.showPrimeToast('Campaign country updated successfully', 'success');
+				}
+			}
+		} catch (error) {
+			console.error('Error updating campaign country:', error);
+			
+			// Show error message
+			if (window.showPrimeToast) {
+				window.showPrimeToast('Failed to update campaign country', 'error');
+			}
+		} finally {
+			setCountryChange(null);
+		}
 	};
 
 	// Separate function to fetch summary stats (all data without pagination)
@@ -1311,6 +1360,13 @@ const AdSpend = () => {
 		);
 	};
 
+	// Fetch countries when component mounts or store changes
+	useEffect(() => {
+		if (selectedStore) {
+			fetchCountries();
+		}
+	}, [selectedStore]);
+
 	return (
 		<div className="p-6 bg-gray-50 min-h-screen">
 			{loading && adSpendData.length === 0 ? (
@@ -1722,6 +1778,9 @@ const AdSpend = () => {
 													{getCampaignSortIcon('platform')}
 												</div>
 											</th>
+											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												Country
+											</th>
 											<th 
 												className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
 												onClick={() => handleCampaignSort('total_clicks')}
@@ -1752,7 +1811,7 @@ const AdSpend = () => {
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
 													<div className="text-sm font-medium text-gray-900">
-														{displayCurrency(campaign.total_spend / campaign.currency, campaign.currency_symbol)}
+														{displayCurrency(campaign.total_spend / campaign.currency_rate, campaign.currency_symbol)}
 													</div>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
@@ -1769,6 +1828,27 @@ const AdSpend = () => {
 															{campaign.platform}
 														</span>
 													</td>
+												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+													{countryChange === campaign.campaign_id && (
+														<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+													)}
+													<div className="relative">
+														<BeautifulSelect
+															value={campaign.country_code || 'all'}
+															onChange={(countryCode) => handleCampaignCountryChange(campaign.campaign_id, countryCode)}
+															options={[
+																{ value: 'all', label: 'All Countries' },
+																...availableCountries.map(country => ({
+																	value: country.country_code,
+																	label: country.country_name
+																}))
+															]}
+															selectClass='normal-select'
+															className="w-40"
+															size="small"
+														/>
+													</div>
+												</td>
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 													{campaign.total_clicks?.toLocaleString() || '0'}
 												</td>

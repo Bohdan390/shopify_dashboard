@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS ad_campaigns (
     account_id VARCHAR(255) NOT NULL,
     store_id VARCHAR(255),
     product_id VARCHAR(255),
+    country_code VARCHAR(10) REFERENCES countries(country_code),
     status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -251,6 +252,7 @@ CREATE INDEX IF NOT EXISTS idx_order_line_items_shopify_order_id ON order_line_i
 CREATE INDEX IF NOT EXISTS idx_cost_of_goods_date ON cost_of_goods(date);
 CREATE INDEX IF NOT EXISTS idx_analytics_date ON analytics(date);
 CREATE INDEX IF NOT EXISTS idx_ad_campaigns_id ON ad_campaigns(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_country ON ad_campaigns(country_code);
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_date ON ad_spend_detailed(date);
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_campaign ON ad_spend_detailed(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_store_product ON ad_spend_detailed(store_id, product_id);
@@ -665,6 +667,84 @@ COMMENT ON TABLE stores IS 'Store management data';
 COMMENT ON TABLE products IS 'Product management data';
 COMMENT ON TABLE ad_spend_detailed IS 'Detailed advertising spend data with performance metrics';
 COMMENT ON TABLE customers IS 'Customer data from Shopify orders';
+
+-- =====================================================
+-- 16. SAMPLE CAMPAIGN DATA WITH COUNTRIES
+-- =====================================================
+
+-- Insert sample campaigns with country assignments
+INSERT INTO ad_campaigns (campaign_id, campaign_name, platform, account_id, store_id, country_code, status) VALUES
+('camp_001', 'US Summer Sale', 'google', 'acc_001', 'store_001', 'US', 'active'),
+('camp_002', 'UK Winter Campaign', 'facebook', 'acc_001', 'store_001', 'GB', 'active'),
+('camp_003', 'Australia Holiday Special', 'google', 'acc_001', 'store_001', 'AU', 'active'),
+('camp_004', 'Canada Spring Collection', 'facebook', 'acc_001', 'store_001', 'CA', 'active'),
+('camp_005', 'Germany Fashion Week', 'google', 'acc_001', 'store_001', 'DE', 'active')
+ON CONFLICT (campaign_id) DO NOTHING;
+
+-- =====================================================
+-- 17. CREATE CAMPAIGN ANALYTICS RPC FUNCTION
+-- =====================================================
+
+-- Drop existing function if it exists
+DROP FUNCTION IF EXISTS get_campaign_analytics(TIMESTAMP, TIMESTAMP, VARCHAR, VARCHAR);
+
+-- Campaign Analytics RPC Function
+CREATE OR REPLACE FUNCTION get_campaign_analytics(
+    p_start_date TIMESTAMP,
+    p_end_date TIMESTAMP,
+    p_store_id VARCHAR DEFAULT NULL,
+    p_platform VARCHAR DEFAULT NULL
+)
+RETURNS TABLE(
+    campaign_id VARCHAR(255),
+    campaign_name VARCHAR(500),
+    platform VARCHAR(50),
+    country_code VARCHAR(10),
+    total_spend DECIMAL(10,2),
+    total_clicks INTEGER,
+    total_impressions INTEGER,
+    total_conversions INTEGER,
+    currency_symbol VARCHAR(10),
+    currency_rate DECIMAL(10,4),
+    store_id VARCHAR(255),
+    status VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        ac.campaign_id,
+        ac.campaign_name,
+        ac.platform,
+        ac.country_code,
+        COALESCE(SUM(asd.spend_amount), 0) as total_spend,
+        COALESCE(SUM(asd.clicks), 0)::INTEGER as total_clicks,
+        COALESCE(SUM(asd.impressions), 0)::INTEGER as total_impressions,
+        COALESCE(SUM(asd.conversions), 0)::INTEGER as total_conversions,
+        'USD' as currency_symbol,
+        1.0 as currency_rate,
+        ac.store_id,
+        ac.status,
+        ac.created_at
+    FROM ad_campaigns ac
+    LEFT JOIN ad_spend_detailed asd ON ac.campaign_id = asd.campaign_id
+        AND asd.date >= p_start_date::date 
+        AND asd.date <= p_end_date::date
+    WHERE 
+        (p_store_id IS NULL OR ac.store_id = p_store_id)
+        AND (p_platform IS NULL OR ac.platform = p_platform)
+        AND ac.status = 'active'
+    GROUP BY 
+        ac.campaign_id, 
+        ac.campaign_name, 
+        ac.platform, 
+        ac.country_code, 
+        ac.store_id, 
+        ac.status, 
+        ac.created_at
+    ORDER BY total_spend DESC;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =====================================================
 -- SETUP COMPLETE!

@@ -173,7 +173,7 @@ class AnalyticsService {
 		}
 	}
 
-	async getAnalyticsRange(startDate, endDate, storeId = 'buycosari') {
+	async getAnalyticsRange(startDate, endDate, storeId = 'buycosari', country = null) {
 		try {
 			return await retryOperation(async () => {
 
@@ -190,8 +190,14 @@ class AnalyticsService {
 					throw error;
 				}
 
+				// If country filtering is applied, we need to recalculate analytics based on country-specific campaigns
+				let filteredData = data;
+				if (country && country !== 'all') {
+					filteredData = await this.filterAnalyticsByCountry(data, startDate, endDate, storeId, country);
+				}
+
 				// Generate complete date range with $0 values for missing days
-				const completeData = this.generateCompleteDateRange(startDate, endDate, data);
+				const completeData = this.generateCompleteDateRange(startDate, endDate, filteredData);
 
 				return completeData;
 			});
@@ -251,7 +257,142 @@ class AnalyticsService {
 		return completeData;
 	}
 
-	async getSummaryStats(startDate, endDate, storeId = 'buycosari') {
+	// Filter analytics data by country-specific campaigns
+	async filterAnalyticsByCountry(analyticsData, startDate, endDate, storeId, countryCode) {
+		try {
+			// Get country-specific campaigns
+			const {count: campaignCount, error: campaignCountError} = await supabase.from("ad_campaigns")
+				.select("*", {count: "exact"}).eq("store_id", storeId).eq("country_code", countryCode).eq("status", "active");
+			if (campaignCountError) {
+				console.error('❌ Error fetching country campaigns:', campaignCountError);
+				return analyticsData; // Return original data if error
+			}
+
+			var chunk = 1000;
+			var campaignIds = [];
+			for (var i = 0; i < campaignCount; i += chunk) {
+				const { data: campaignsChunk, error: campaignsError } = await supabase
+				.from('ad_campaigns')
+				.select('campaign_id')
+				.eq('store_id', storeId)
+				.eq('country_code', countryCode)
+				.eq('status', 'active')
+				.range(i, i + chunk - 1);
+
+				if (campaignsError) {
+					console.error('❌ Error fetching country campaigns:', campaignsError);
+					return analyticsData; // Return original data if error
+				}
+				campaignIds.push(...campaignsChunk.map(c => c.campaign_id));
+			}
+
+			// Get country-specific ad spend data
+			const {count: adSpendCount, error: adSpendCountError} = await supabase.from("ad_spend_detailed")
+				.select("*", {count: "exact"}).in('campaign_id', campaignIds)
+				.eq('store_id', storeId).gte('date', startDate).lte('date', endDate);
+			if (adSpendCountError) {
+				console.error('❌ Error fetching country ad spend count:', adSpendCountError);
+				return analyticsData; // Return original data if error
+			}
+
+			var adSpendData = [];
+			for (var i = 0; i < adSpendCount; i += chunk) {
+				const {data: adSpendDataChunk, error: adSpendDataError} = await supabase.from("ad_spend_detailed")
+					.select("*").in('campaign_id', campaignIds).eq('store_id', storeId)
+					.gte('date', startDate).lte('date', endDate).range(i, i + chunk - 1);
+				if (adSpendDataError) {
+					console.error('❌ Error fetching country ad spend data:', adSpendDataError);
+					return analyticsData; // Return original data if error
+				}
+				adSpendData.push(...adSpendDataChunk);
+			}
+			
+			const {data:countryCodes} = await supabase.from("countries").select("country_code, country_name").eq("country_code", countryCode).limit(1);
+			var countryName = "";
+			if (countryCodes.length > 0) {
+				countryName = countryCodes[0].country_name;
+			}
+
+			const {count: countryOrdersCount, error: ordersError} = await supabase.from("orders")
+				.select("*", {count: "exact"}).eq("store_id", storeId).eq("financial_status", "paid")
+				.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59.999`)
+				.eq("country", countryName);
+			if (ordersError) {
+				console.error('❌ Error fetching country orders:', ordersError);
+				return analyticsData; // Return original data if error
+			}
+
+			var countryOrders = [];
+			for (var i = 0; i < countryOrdersCount; i += chunk) {
+				const {data: countryOrdersChunk, error: countryOrdersError} = await supabase.from("orders")
+					.select("created_at, total_price, financial_status").eq("store_id", storeId).eq("financial_status", "paid")
+					.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59.999`)
+					.eq("country", countryName)
+					.range(i, i + chunk - 1);
+				if (countryOrdersError) {
+					console.error('❌ Error fetching country orders:', countryOrdersError);
+					return analyticsData; // Return original data if error
+				}
+				countryOrders.push(...countryOrdersChunk);
+			}
+
+			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("country", countryName);
+			if (customerCountError) {
+				console.error('❌ Error fetching country customers:', customerCountError);
+				return analyticsData; // Return original data if error
+			}
+
+			var customerData = [];
+			for (var i = 0; i < customerCount; i += chunk) {
+				const {data: customerDataChunk, error: customerDataError} = await supabase.from("customers")
+					.select("*").eq("store_id", storeId).eq("country", countryName).range(i, i + chunk - 1);
+				if (customerDataError) {
+					console.error('❌ Error fetching country customers:', customerDataError);
+					return analyticsData; // Return original data if error
+				}
+				customerData.push(...customerDataChunk);
+			}
+
+			const countryAdSpendByDate = {};
+			adSpendData.forEach(spend => {
+				const date = spend.date;
+				if (!countryAdSpendByDate[date]) {
+					countryAdSpendByDate[date] = { google: 0, facebook: 0 };
+				}
+				if (spend.platform === 'google') {
+					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount);
+				} else if (spend.platform === 'facebook') {
+					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount);
+				}
+			});
+
+			const countryRevenueByDate = {};
+			countryOrders.forEach(order => {
+				const date = order.created_at.split('T')[0];
+				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.total_price);
+			});
+
+			// Update analytics data with country-specific values
+			return analyticsData.map(day => {
+				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0 };
+				const countryRevenue = countryRevenueByDate[day.date] || 0;
+				return {
+					...day,
+					google_ads_spend: countryAdSpend.google,
+					facebook_ads_spend: countryAdSpend.facebook,
+					revenue: countryRevenue,
+					profit: countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook,
+					cost_of_goods: day.cost_of_goods || 0
+				};
+			});
+
+		} catch (error) {
+			console.error('❌ Error filtering analytics by country:', error);
+			return analyticsData; // Return original data if error
+		}
+	}
+
+	async getSummaryStats(startDate, endDate, storeId = 'buycosari', country = null) {
 		try {
 			return await retryOperation(async () => {
 				// Get analytics data with chunking
@@ -275,11 +416,16 @@ class AnalyticsService {
 					}
 
 					if (analyticsChunk && analyticsChunk.length > 0) {
-						allAnalyticsData = allAnalyticsData.concat(analyticsChunk);
+						allAnalyticsData.push(...analyticsChunk);
 						offset += chunkSize;
 					} else {
 						hasMoreData = false;
 					}
+				}
+
+				// If country filtering is applied, filter the data
+				if (country && country !== 'all') {
+					allAnalyticsData = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, country);
 				}
 
 				// Get total order count (no chunking needed for count)

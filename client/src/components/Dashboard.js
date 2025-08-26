@@ -379,16 +379,32 @@ const Dashboard = () => {
 	const [showMetricsStartCalendar, setShowMetricsStartCalendar] = useState(false);
 	const [showMetricsEndCalendar, setShowMetricsEndCalendar] = useState(false);
 
+	// Country filtering state
+	const [selectedCountry, setSelectedCountry] = useState('all');
+	const [availableCountries, setAvailableCountries] = useState([]);
 
+	// Campaign data state
+
+	// Fetch available countries for filtering
+	const fetchAvailableCountries = useCallback(async () => {
+		try {
+			const response = await api.get(`/api/analytics/countries?storeId=${selectedStore}`);
+			setAvailableCountries(response.data || []);
+		} catch (error) {
+			console.error('Error fetching countries:', error);
+			setAvailableCountries([]);
+		}
+	}, [selectedStore]);
 
 	const handleDateRangeChange = async () => {
 		if (dateRange.startDate && dateRange.endDate) {
 			try {
 				setChartsLoading(true);
 
-				// Fetch both analytics and summary data
-				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
-				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
+				// Fetch both analytics and summary data with country filtering
+				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
+				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
+				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
 
 				const [analyticsResponse, summaryResponse] = await Promise.all([
 					api.get(analyticsUrl),
@@ -549,9 +565,11 @@ const Dashboard = () => {
 					}
 					return;
 				}
-				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}`;
+				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
+				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
 			} else {
-				url = `/api/analytics/dashboard?period=${period}&storeId=${selectedStore}`;
+				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
+				url = `/api/analytics/dashboard?period=${period}&storeId=${selectedStore}${countryParam}`;
 			}
 
 			const response = await api.get(url);
@@ -584,13 +602,26 @@ const Dashboard = () => {
 		fetchDashboardData();
 	}, [fetchDashboardData]);
 
-	// Watch for date range changes and fetch data automatically
+	// Fetch available countries
+	useEffect(() => {
+		if (selectedStore) {
+			fetchAvailableCountries();
+		}
+	}, [selectedStore, fetchAvailableCountries]);
+
 	// Watch for date range changes and fetch data automatically
 	useEffect(() => {
 		if (dateRange.startDate && dateRange.endDate && !showCustomDateRange) {
 			handleDateRangeChange();
 		}
 	}, [dateRange.startDate, dateRange.endDate, showCustomDateRange]);
+
+	// Watch for country filter changes and refetch data
+	useEffect(() => {
+		if (dateRange.startDate && dateRange.endDate) {
+			handleDateRangeChange();
+		}
+	}, [selectedCountry]);
 
 	// Initialize metrics date range with main dashboard date range
 	useEffect(() => {
@@ -1316,9 +1347,27 @@ const Dashboard = () => {
 					{/* Date Range Display */}
 					<div className="text-xs text-gray-500">
 						Selected: {dateRange.startDate} to {dateRange.endDate}
+						{selectedCountry !== 'all' && (
+							<span className="ml-4 text-blue-600 font-medium">
+								📍 Country: {availableCountries.find(c => c.country_code === selectedCountry)?.country_name || selectedCountry}
+							</span>
+						)}
 					</div>
 				</div>
 				<div className="flex flex-wrap items-center gap-4 bg-white mt-4">
+					{/* Country Filter */}
+					<div className="flex items-center gap-2">
+						<span className="text-sm font-medium text-gray-700">Country:</span>
+						<BeautifulSelect
+							value={selectedCountry}
+							onChange={(e) => setSelectedCountry(e)}
+							selectClass='normal-select'
+							options={availableCountries.map(country => ({
+								label: country.country_name,
+								value: country.country_code
+							}))}
+						/>
+					</div>
 					<div className="flex items-center gap-2">
 						<span className="text-sm font-medium text-gray-700">Metrics Period:</span>
 						<div className="flex bg-gray-100 rounded-lg p-1">

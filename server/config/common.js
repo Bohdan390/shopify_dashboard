@@ -204,6 +204,11 @@ function cleanupDeadSockets() {
 }
 
 module.exports = {
+    currencyRates: {
+        USD: 1,
+        SEK: 0.1,
+        EUR: 1.16
+    },
     productSkus: [],
     activeSockets: activeSockets, // Export the local Map
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,

@@ -153,6 +153,19 @@ router.get('/:storeId', async (req, res) => {
             });
             product.roi_percentage = product.total_revenue > 0 ? (product.total_profit / product.total_revenue) * 100 : 0;
             product.roi_percentage = common.roundPrice(product.roi_percentage);
+            
+            // Calculate new profit metrics
+            // Profit CPA (Cost Per Acquisition) - Profit per dollar spent on ads
+            product.profit_cpa = product.ad_spend > 0 ? product.total_profit / product.ad_spend : 0;
+            product.profit_cpa = common.roundPrice(product.profit_cpa);
+            
+            // Profit per Product - Profit per unit sold
+            product.profit_per_product = product.total_quantity > 0 ? product.total_profit / product.total_quantity : 0;
+            product.profit_per_product = common.roundPrice(product.profit_per_product);
+            
+            // Profit per Sale - Profit per order
+            product.profit_per_sale = product.order_count > 0 ? product.total_profit / product.order_count : 0;
+            product.profit_per_sale = common.roundPrice(product.profit_per_sale);
         });
 
         common.productSkus.push(...allProductSkus);
@@ -168,12 +181,36 @@ router.get('/:storeId', async (req, res) => {
     var totalRevenue = 0;
     var totalProfit = 0;
     var totalQuantity = 0;
+    var totalProfitCpa = 0;
+    var totalProfitPerProduct = 0;
+    var totalProfitPerSale = 0;
+    var validProfitCpaCount = 0;
+    var validProfitPerProductCount = 0;
+    var validProfitPerSaleCount = 0;
+    
     allProductSkus.forEach((product) => {
         totalRevenue += product.total_revenue;
         totalProfit += product.total_profit;
         totalQuantity += product.total_quantity;
+        
+        // Calculate averages for profit metrics
+        if (product.profit_cpa && product.profit_cpa > 0) {
+            totalProfitCpa += product.profit_cpa;
+            validProfitCpaCount++;
+        }
+        if (product.profit_per_product && product.profit_per_product > 0) {
+            totalProfitPerProduct += product.profit_per_product;
+            validProfitPerProductCount++;
+        }
+        if (product.profit_per_sale && product.profit_per_sale > 0) {
+            totalProfitPerSale += product.profit_per_sale;
+            validProfitPerSaleCount++;
+        }
     })
     var avgOrderValue = totalRevenue / totalQuantity;
+    var avgProfitCpa = validProfitCpaCount > 0 ? totalProfitCpa / validProfitCpaCount : 0;
+    var avgProfitPerProduct = validProfitPerProductCount > 0 ? totalProfitPerProduct / validProfitPerProductCount : 0;
+    var avgProfitPerSale = validProfitPerSaleCount > 0 ? totalProfitPerSale / validProfitPerSaleCount : 0;
 
     // Apply server-side sorting
     allProductSkus.sort((a, b) => {
@@ -216,6 +253,9 @@ router.get('/:storeId', async (req, res) => {
       totalProfit: common.roundPrice(totalProfit),
       totalQuantity: totalQuantity,
       avgOrderValue: common.roundPrice(avgOrderValue),
+      avgProfitCpa: common.roundPrice(avgProfitCpa),
+      avgProfitPerProduct: common.roundPrice(avgProfitPerProduct),
+      avgProfitPerSale: common.roundPrice(avgProfitPerSale),
       pagination: {
         currentPage: parseInt(page),
         pageSize: parseInt(pageSize),
