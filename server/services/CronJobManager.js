@@ -19,6 +19,14 @@ class CronJobManager {
             for (const storeId of stores) {
                 await this.runAutoSync(storeId);
             }
+            common.broadcastToStore(common.activeSockets, 'autoSyncProgress', {
+                storeId,
+                type: 'auto',
+                stage: 'ads_completed',
+                message: `Auto Sync Completed. ${ordersCount} orders synced. ${adsCount} ads synced`,
+                progress: 65,
+                timestamp: new Date().toISOString()
+            });
         }, {
             scheduled: true,
             timezone: "UTC"
@@ -49,16 +57,8 @@ class CronJobManager {
             const ordersCount = await this.syncOrders(storeId);
             
             const adsCount = await this.syncAds(storeId);
-            
             // Update progress after ads
-            common.broadcastToStore(common.activeSockets, 'autoSyncProgress', {
-                storeId,
-                type: 'auto',
-                stage: 'ads_completed',
-                message: `Auto Sync Completed. ${ordersCount} orders synced. ${adsCount} ads synced`,
-                progress: 65,
-                timestamp: new Date().toISOString()
-            });
+            
             
             console.log(`✅ Auto-sync completed for store: ${storeId}`);
             
@@ -141,6 +141,7 @@ class CronJobManager {
             // Get the last sync date to use as start date
             const { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
             
+            console.log("syncingOrders", ordersStartDate, endDate)
             // Call the real Shopify order sync service with the actual start date
             const storeService = new ShopifyService(storeId);
             const ordersCount = await storeService.syncOrders(250, ordersStartDate, null, 'autoSyncProgress');

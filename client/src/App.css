@@ -42,3 +42,11 @@ g:focus, path:focus {
 .select-store {
   width: 100% !important;
 }
+
+input {
+  height: 36px !important;
+}
+
+.css-10d30g3-MuiPaper-root-MuiDialog-paper {
+  border-radius: 5px !important;
+}
