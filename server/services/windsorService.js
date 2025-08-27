@@ -46,7 +46,7 @@ class WindsorService {
         query = { select_accounts: "google_ads__102-337-4754" }
       }
       else if (storeId == "cosara") {
-        query = { select_accounts: "google_ads__917-538-6903" }
+        query = { select_accounts: "google_ads__917-538-6903,taboola__interactiveecommercellc-network" }
       }
       else if (storeId == "nomobark") {
         query = { select_accounts: "google_ads__150-979-2980" }
@@ -131,21 +131,13 @@ class WindsorService {
         clicks: parseInt(item.clicks || 0),
         conversions: 0, // Not available in this API
         conversion_value: 0, // Not available in this API
-        platform: item.source === 'facebook' ? 'facebook' : 'google',
+        platform: item.source,
         data_source: item.datasource,
         account_name: item.account_name,
         currency: currency,
         currency_symbol: currency_symbol
       })
     });
-  }
-
-  async fetchFacebookAdsData(startDate, endDate) {
-    return this.fetchAdData(startDate, endDate, 'facebook_ads');
-  }
-
-  async fetchGoogleAdsData(startDate, endDate) {
-    return this.fetchAdData(startDate, endDate, 'google_ads');
   }
 
   async fetchAllAdData(startDate, endDate, storeId) {

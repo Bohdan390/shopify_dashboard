@@ -417,6 +417,7 @@ class ShopifyService {
 							city: defaultAddress.city || null,
 							province: defaultAddress.province || null,
 							country: defaultAddress.country || null,
+							order_country: order.shipping_address?.country || null,
 							zip: defaultAddress.zip || null,
 							created_at: new Date(order.customer.created_at || order.created_at).toISOString(),
 							updated_at: new Date(order.customer.updated_at || order.updated_at).toISOString(),

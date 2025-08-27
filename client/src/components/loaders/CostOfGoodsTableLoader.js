@@ -20,6 +20,9 @@ const CostOfGoodsTableLoader = () => {
         <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
       </td>
       <td className="py-3 px-4">
+        <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+      </td>
+      <td className="py-3 px-4">
         <div className="flex items-center space-x-2">
           <div className="h-4 bg-gray-200 rounded w-4 animate-pulse"></div>
           <div className="h-4 bg-gray-200 rounded w-4 animate-pulse"></div>
