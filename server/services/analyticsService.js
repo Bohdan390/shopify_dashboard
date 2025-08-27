@@ -76,27 +76,23 @@ class AnalyticsService {
 			const revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
 
 			// Get Google Ads spend
-			const { data: googleAdsData, error: googleAdsError } = await supabase
-				.from('ad_spend_detailed')
-				.select('spend_amount, currency')
-				.eq('date', date)
-				.eq('platform', 'google')
-				.eq('store_id', storeId);
-
-			if (googleAdsError) throw googleAdsError;
-			const googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-
-			// Get Facebook Ads spend
-			const { data: facebookAdsData, error: facebookAdsError } = await supabase
-				.from('ad_spend_detailed')
-				.select('spend_amount, currency')
-				.eq('date', date)
-				.eq('platform', 'facebook')
-				.eq('store_id', storeId);
-
-			if (facebookAdsError) throw facebookAdsError;
-			const facebookAdsSpend = facebookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-
+			const { count: adSpendCount, error: adSpendError } = await supabase.from("ad_spend_detailed")
+				.select("*", {count: "exact"}).eq("store_id", storeId).eq("date", date);
+			if (adSpendError) throw adSpendError;
+			var chunk = 1000, googleAdsSpend = 0, facebookAdsSpend = 0, taboolaAdsSpend = 0;
+			for (var i = 0; i < adSpendCount; i += chunk) {
+				const {data: adSpendChunk, error: adSpendError} = await supabase.from("ad_spend_detailed")
+					.select("*").eq("store_id", storeId).eq("date", date).range(i, i + chunk - 1);
+				adSpendChunk.forEach(ad => {
+					if (ad.platform === "google") {
+						googleAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+					} else if (ad.platform === "facebook") {
+						facebookAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+					} else if (ad.platform === "taboola") {
+						taboolaAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+					}
+				});
+			}
 			// Get cost of goods
 			const { data: cogData, error: cogError } = await supabase
 				.from('cost_of_goods')
@@ -108,7 +104,7 @@ class AnalyticsService {
 			const costOfGoods = cogData.reduce((sum, cog) => sum + parseFloat(cog.total_cost), 0);
 
 			// Calculate profit
-			const totalAdSpend = googleAdsSpend + facebookAdsSpend;
+			const totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend;
 			const profit = revenue - totalAdSpend - costOfGoods;
 			const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -121,6 +117,7 @@ class AnalyticsService {
 				revenue: common.roundPrice(revenue),
 				google_ads_spend: common.roundPrice(googleAdsSpend),
 				facebook_ads_spend: common.roundPrice(facebookAdsSpend),
+				taboola_ads_spend: common.roundPrice(taboolaAdsSpend),
 				cost_of_goods: common.roundPrice(costOfGoods),
 				profit: common.roundPrice(profit),
 				profit_margin: common.roundPrice(profitMargin)
@@ -163,6 +160,7 @@ class AnalyticsService {
 				revenue,
 				googleAdsSpend,
 				facebookAdsSpend,
+				taboolaAdsSpend,
 				costOfGoods,
 				profit,
 				profitMargin
@@ -254,6 +252,7 @@ class AnalyticsService {
 			currentDate.setDate(currentDate.getDate() + 1);
 		}
 
+		console.log(completeData.length, existingData.length)
 		return completeData;
 	}
 
@@ -336,7 +335,7 @@ class AnalyticsService {
 				countryOrders.push(...countryOrdersChunk);
 			}
 
-			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("country", countryName);
+			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("order_country", countryName);
 			if (customerCountError) {
 				console.error('❌ Error fetching country customers:', customerCountError);
 				return analyticsData; // Return original data if error
@@ -345,7 +344,7 @@ class AnalyticsService {
 			var customerData = [];
 			for (var i = 0; i < customerCount; i += chunk) {
 				const {data: customerDataChunk, error: customerDataError} = await supabase.from("customers")
-					.select("*").eq("store_id", storeId).eq("country", countryName).range(i, i + chunk - 1);
+					.select("*").eq("store_id", storeId).eq("order_country", countryName).range(i, i + chunk - 1);
 				if (customerDataError) {
 					console.error('❌ Error fetching country customers:', customerDataError);
 					return analyticsData; // Return original data if error
@@ -404,7 +403,7 @@ class AnalyticsService {
 				while (hasMoreData) {
 					const { data: analyticsChunk, error: analyticsError } = await supabase
 						.from('analytics')
-						.select('revenue, google_ads_spend, facebook_ads_spend, cost_of_goods, profit')
+						.select('revenue, google_ads_spend, facebook_ads_spend, taboola_ads_spend, cost_of_goods, profit')
 						.eq('store_id', storeId)
 						.gte('date', `${startDate}T00:00:00`)
 						.lte('date', `${endDate}T23:59:59.999`)
@@ -427,7 +426,6 @@ class AnalyticsService {
 				if (country && country !== 'all') {
 					allAnalyticsData = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, country);
 				}
-
 				// Get total order count (no chunking needed for count)
 				const stats = await supabase.rpc('get_orders_price_stats', {
 					p_store_id: storeId,
@@ -443,13 +441,14 @@ class AnalyticsService {
 				var data = {
 					totalOrders: stats.data[0].total_orders_count,
 					paidOrders: stats.data[0].paid_orders_count,
-					totalRevenue: stats.data[0].total_orders_price,
+					totalRevenue: stats.data[0].paid_orders_price,
 					paidRevenue: stats.data[0].paid_orders_price,
 					avgOrderValue: stats.data[0].total_orders_price / stats.data[0].total_orders_count,
 				}
 				const summary = allAnalyticsData.reduce((acc, row) => {
 					acc.totalGoogleAds += parseFloat(row.google_ads_spend || 0);
 					acc.totalFacebookAds += parseFloat(row.facebook_ads_spend || 0);
+					acc.totalTaboolaAds += parseFloat(row.taboola_ads_spend || 0);
 					acc.totalCostOfGoods += parseFloat(row.cost_of_goods || 0);
 					acc.totalProfit += parseFloat(row.profit || 0);
 					return acc;
@@ -457,6 +456,7 @@ class AnalyticsService {
 					totalRevenue: 0,
 					totalGoogleAds: 0,
 					totalFacebookAds: 0,
+					totalTaboolaAds: 0,
 					totalCostOfGoods: 0,
 					totalProfit: 0,
 					totalOrders: data.totalOrders || 0,
@@ -679,7 +679,6 @@ class AnalyticsService {
 	// Lightweight orders-only recalculation (no ads, no COGS)
 	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari', socketStatus = null) {
 		try {
-			syncDate = common.createLocalDate(syncDate).toISOString().split('T')[0];
 			let initialProgress = 0;
 			if (socket) {
 				initialProgress = 0;
@@ -695,7 +694,7 @@ class AnalyticsService {
 			const { data: minDateData, error: minDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.neq('financial_status', 'refunded')
+				.neq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: true })
@@ -706,7 +705,7 @@ class AnalyticsService {
 			const { data: maxDateData, error: maxDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.neq('financial_status', 'refunded')
+				.neq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: false })
@@ -1082,11 +1081,11 @@ class AnalyticsService {
 				.from('ad_spend_detailed')
 				.select('spend_amount, platform, currency')
 				.eq('date', date)
-				.in('platform', ['google', 'facebook'])
+				.in('platform', ['google', 'facebook', 'taboola'])
 				.eq('store_id', storeId);
 
 			if (adsError) throw adsError;
-			var googleAdsData = [], faceBookAdsData = [];
+			var googleAdsData = [], faceBookAdsData = [], taboolaAdsData = [];
 			adsData.forEach(ad => {
 				if (ad.platform == 'google') {
 					googleAdsData.push(ad);
@@ -1094,14 +1093,19 @@ class AnalyticsService {
 				else if (ad.platform == 'facebook') {
 					faceBookAdsData.push(ad);
 				}
+				else if (ad.platform == 'taboola') {
+					taboolaAdsData.push(ad);
+				}
 			});
 			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-			console.log(googleAdsSpend, facebookAdsSpend)
+			let taboolaAdsSpend = taboolaAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
+			console.log(googleAdsSpend, facebookAdsSpend, taboolaAdsSpend)
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
+			taboolaAdsSpend = common.roundPrice(taboolaAdsSpend);
 			// Calculate total ad spend
-			let totalAdSpend = googleAdsSpend + facebookAdsSpend;
+			let totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend;
 			totalAdSpend = common.roundPrice(totalAdSpend);
 
 			// Check if analytics record exists for this date and store
@@ -1141,6 +1145,7 @@ class AnalyticsService {
 				revenue: revenue, // Keep existing revenue
 				google_ads_spend: googleAdsSpend,
 				facebook_ads_spend: facebookAdsSpend,
+				taboola_ads_spend: taboolaAdsSpend,
 				profit: profit,
 				profit_margin: profitMargin
 			};
@@ -1169,6 +1174,7 @@ class AnalyticsService {
 				revenue: revenue,
 				googleAdsSpend,
 				facebookAdsSpend,
+				taboolaAdsSpend,
 				profit: profit,
 				profitMargin: profitMargin
 			};

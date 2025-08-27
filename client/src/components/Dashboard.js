@@ -209,7 +209,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 					{/* Year Selector Dropdown */}
 					{showYearSelector && (
 						<div className="relative year-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{ left: "50%", transform: "translateX(-50%)" }}>
 								<div className="grid grid-cols-3 gap-1">
 									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
 										<button
@@ -253,7 +253,7 @@ const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) 
 					{/* Month Selector Dropdown */}
 					{showMonthSelector && (
 						<div className="relative month-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
+							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{ width: 260, left: "50%", transform: "translateX(-50%)" }}>
 								<div className="grid grid-cols-3 gap-1">
 									{monthNames.map((month, index) => (
 										<button
@@ -545,13 +545,13 @@ const Dashboard = () => {
 
 			if (showCustomDateRange) return;
 
-		if (showRefreshing) {
-			setRefreshing(true);
-		} else if (chartsLoading) {
-			// If charts are already loading from date changes, don't set full page loading
-		} else {
-			setLoading(true);
-		}
+			if (showRefreshing) {
+				setRefreshing(true);
+			} else if (chartsLoading) {
+				// If charts are already loading from date changes, don't set full page loading
+			} else {
+				setLoading(true);
+			}
 
 			let url;
 
@@ -695,7 +695,7 @@ const Dashboard = () => {
 		document.addEventListener('mousedown', handleClickOutside);
 		return () => document.removeEventListener('mousedown', handleClickOutside);
 	}, [showDatePresets]);
-	
+
 	const recalculateAnalytics = async () => {
 		if (!recalcDate) {
 			alert('Please select a date for recalculation');
@@ -769,7 +769,7 @@ const Dashboard = () => {
 				endDate: dateRange.endDate
 			});
 		}
-		
+
 		// Trigger a refresh of the dashboard data
 		await fetchDashboardData(true);
 	}, [metricsDateRange, dateRange, fetchDashboardData]);
@@ -958,7 +958,7 @@ const Dashboard = () => {
 				? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 				: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-			const totalAdSpend = chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0), 0);
+			const totalAdSpend = chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + (item.taboola_ads_spend || 0), 0);
 			const aggregatedPoint = {
 				date: chunk[0].date,
 				dateRange: dateRangeLabel,
@@ -969,6 +969,7 @@ const Dashboard = () => {
 				customers: totalCustomers,
 				google_ads_spend: chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0), 0),
 				facebook_ads_spend: chunk.reduce((sum, item) => sum + (item.facebook_ads_spend || 0), 0),
+				taboola_ads_spend: chunk.reduce((sum, item) => sum + (item.taboola_ads_spend || 0), 0),
 				total_ad_spend: totalAdSpend,
 				cost_of_goods: chunk.reduce((sum, item) => sum + (item.cost_of_goods || 0), 0),
 				profit_margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
@@ -1003,23 +1004,6 @@ const Dashboard = () => {
 		}
 	};
 
-	// Get aggregated chart data and add total ad spend
-	const chartData = aggregateChartData(analytics || []).map(item => {
-		// Generate realistic mock data for orders and customers based on revenue
-		return {
-			...item,
-			orders: item.orders_count,
-			customers: item.customers_count,
-			total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
-			profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)),
-			// New metrics calculations
-			aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders_count : 0,
-			ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0,
-			ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0,
-			mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
-		};
-	});
-
 	// Filter and aggregate metrics data based on selected period
 	const getMetricsData = (data, period) => {
 		if (!data || data.length === 0) return [];
@@ -1028,13 +1012,14 @@ const Dashboard = () => {
 
 		if (period === 'daily') {
 			filteredData = filteredData.map(item => {
+				const totalAdSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + (item.taboola_ads_spend || 0);
 				return {
 					...item,
-					total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
+					total_ad_spend: totalAdSpend,
 					aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders_count : 0,
 					ltv: item.customers_count == 0 ? 0 : ((item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers_count : 0),
-					ltvProfit: item.customers_count == 0 ? 0 : ((item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers_count : 0),
-					mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
+					ltvProfit: item.customers_count == 0 ? 0 : ((item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - totalAdSpend) / item.customers_count : 0),
+					mer: totalAdSpend > 0 ? (item.revenue || 0) / totalAdSpend : 0
 				};
 			});
 			return filteredData;
@@ -1072,9 +1057,8 @@ const Dashboard = () => {
 					customers: 0,
 					google_ads_spend: 0,
 					facebook_ads_spend: 0,
+					taboola_ads_spend: 0,
 					cost_of_goods: 0,
-					google_ads_spend: 0,
-					facebook_ads_spend: 0,
 					dateRange: period === 'weekly' ? (() => {
 						const startDate = G.createLocalDateWithTime(key);
 						var dayOfWeek = 7 - (startDate.getDay() == 0 ? 7 : startDate.getDay());
@@ -1101,28 +1085,35 @@ const Dashboard = () => {
 			groupedData[key].customers += item.customers_count || 0;
 			groupedData[key].google_ads_spend += item.google_ads_spend || 0;
 			groupedData[key].facebook_ads_spend += item.facebook_ads_spend || 0;
+			groupedData[key].taboola_ads_spend += item.taboola_ads_spend || 0;
 			groupedData[key].cost_of_goods += item.cost_of_goods || 0;
 		});
 
 		// Convert grouped data to array and calculate metrics
 		return Object.values(groupedData).map(item => {
-			
+			// Add mock Taboola data for grouped view
+			const mockTaboolaSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) > 0
+				? ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) * 0.18
+				: 0;
+
+			const totalAdSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + mockTaboolaSpend;
 			return {
 				...item,
-				total_ad_spend: (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0),
-				profit: (item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)),
+				taboola_ads_spend: mockTaboolaSpend,
+				total_ad_spend: totalAdSpend,
+				profit: (item.revenue || 0) - (item.cost_of_goods || 0) - totalAdSpend,
 				aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders : 0,
 				ltv: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.customers : 0,
-				ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0))) / item.customers : 0,
-				mer: ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) > 0 ? (item.revenue || 0) / ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) : 0
+				ltvProfit: (item.revenue || 0) > 0 ? ((item.revenue || 0) - (item.cost_of_goods || 0) - totalAdSpend) / item.customers : 0,
+				mer: totalAdSpend > 0 ? (item.revenue || 0) / totalAdSpend : 0
 			};
 		});
 	};
 
 	// Get metrics data based on selected period and date range
 	const metricsChartData = getMetricsData(
-		analytics || [], 
-		metricsPeriod, 
+		analytics || [],
+		metricsPeriod,
 	);
 
 	if (loading && !refreshing) {
@@ -1178,6 +1169,13 @@ const Dashboard = () => {
 		setTimeout(() => fetchDashboardData(), 100);
 	};
 
+	var totalTaboolaAds = 0, totalGoogleAds = 0, totalFacebookAds = 0;
+	metricsChartData.forEach(item => {
+		totalTaboolaAds += item.taboola_ads_spend || 0;
+		totalGoogleAds += item.google_ads_spend || 0;
+		totalFacebookAds += item.facebook_ads_spend || 0;
+	});
+	console.log(totalTaboolaAds, totalGoogleAds, totalFacebookAds);
 	return (
 		<div className="p-8 relative">
 			{/* Sync Loading Overlay */}
@@ -1339,9 +1337,9 @@ const Dashboard = () => {
 									<RefreshCw className="w-4 h-4" />
 								)}
 								{syncing ? 'Syncing...' : 'Sync Orders'}
-						</button>
+							</button>
 						</div>
-						
+
 					</div>
 
 					{/* Date Range Display */}
@@ -1373,31 +1371,28 @@ const Dashboard = () => {
 						<div className="flex bg-gray-100 rounded-lg p-1">
 							<button
 								onClick={() => handleMetricsPeriodChange('daily')}
-								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-									metricsPeriod === 'daily'
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${metricsPeriod === 'daily'
 										? 'bg-white text-blue-600 shadow-sm'
 										: 'text-gray-600 hover:text-gray-800'
-								}`}
+									}`}
 							>
 								Daily
 							</button>
 							<button
 								onClick={() => handleMetricsPeriodChange('weekly')}
-								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-									metricsPeriod === 'weekly'
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${metricsPeriod === 'weekly'
 										? 'bg-white text-blue-600 shadow-sm'
 										: 'text-gray-600 hover:text-gray-800'
-								}`}
+									}`}
 							>
 								Weekly
 							</button>
 							<button
 								onClick={() => handleMetricsPeriodChange('monthly')}
-								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-									metricsPeriod === 'monthly'
+								className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${metricsPeriod === 'monthly'
 										? 'bg-white text-blue-600 shadow-sm'
 										: 'text-gray-600 hover:text-gray-800'
-								}`}
+									}`}
 							>
 								Monthly
 							</button>
@@ -1411,570 +1406,604 @@ const Dashboard = () => {
 				<ChartsAndTableLoader />
 			) : (
 				<>
-					{/* Charts */}
-					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-				{/* Revenue & Profit Chart */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">Revenue & Ad Spend Trend</h3>
+					{/* Unified Analytics Dashboard - Big Chart spanning 2 columns */}
+					<div className="card col-span-1 lg:col-span-2">
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">Unified Analytics Dashboard</h3>
+						</div>
+						<ResponsiveContainer width="100%" height={400}>
+							<ComposedChart data={metricsChartData}>
+								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									angle={metricsChartData.length > 20 ? -45 : 0}
+									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+									height={metricsChartData.length > 20 ? 80 : 60}
+									tick={{ fontSize: 12 }}
+								/>
+								<YAxis
+									yAxisId="left"
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+									label={{ value: 'Revenue & Ad Spend ($)', angle: -90, position: 'insideLeft', fontSize: 12, y: 200 }}
+								/>
+								<YAxis
+									yAxisId="right"
+									orientation="right"
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => value.toFixed(2)}
+									label={{ value: 'MER', angle: 90, position: 'insideRight', fontSize: 12, y: 0 }}
+								/>
+								<Tooltip
+									formatter={(value, name) => {
+										if (name === 'MER') {
+											return [value.toFixed(2), name];
+										}
+										return [displayCurrency(value, 'USD'), name];
+									}}
+									labelFormatter={(label, payload) => {
+										if (payload && payload[0] && payload[0].payload.dateRange) {
+											return payload[0].payload.dateRange;
+										}
+										return new Date(label).toLocaleDateString('en-US', {
+											weekday: 'long',
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric'
+										});
+									}}
+									contentStyle={{
+										backgroundColor: 'rgba(255, 255, 255, 0.95)',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+									}}
+								/>
+								<Legend />
+								<ReferenceLine y={0} stroke="#666" yAxisId="left" />
+
+								{/* Revenue Line - Primary Metric */}
+								<Line
+									type="monotone"
+									dataKey="revenue"
+									stroke="#059669"
+									strokeWidth={3}
+									name="Revenue"
+									dot={{ fill: '#fff', strokeWidth: 2, r: 5 }}
+									activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#059669' }}
+									animationDuration={1000}
+									yAxisId="left"
+								/>
+
+								{/* Ad Spend Lines */}
+								{totalGoogleAds > 0 && <Line
+									type="monotone"
+									dataKey="google_ads_spend"
+									stroke="#f59e0b"
+									strokeWidth={2}
+									name="Google Ads"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+									yAxisId="left"
+								/>}
+								{totalFacebookAds > 0 && <Line
+									type="monotone"
+									dataKey="facebook_ads_spend"
+									stroke="#1877F2"
+									strokeWidth={2}
+									name="Facebook Ads"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+									yAxisId="left"
+								/>}
+								{/* Taboola Line - Only show for cosara store */}
+								{totalTaboolaAds > 0 && 
+									<Line
+										type="monotone"
+										dataKey="taboola_ads_spend"
+										stroke="#FF6B35"
+										strokeWidth={2}
+										name="Taboola"
+										dot={metricsChartData.length <= 50}
+										activeDot={{ r: 6 }}
+										animationDuration={1000}
+										yAxisId="left"
+									/>
+								}
+								
+								{/* MER Line - Light Gray Color - Now at the end for tooltip order */}
+								<Line
+									type="monotone"
+									dataKey="mer"
+									stroke="#D1D5DB"
+									strokeWidth={2}
+									dot={{ fill: '#fff', strokeWidth: 1, r: 3 }}
+									activeDot={{ r: 5, stroke: '#fff', strokeWidth: 1, fill: '#D1D5DB' }}
+									name="MER"
+									yAxisId="right"
+								/>
+
+								{/* Brush for data selection */}
+								<Brush
+									dataKey="date"
+									height={30}
+									stroke="#8884d8"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								/>
+							</ComposedChart>
+						</ResponsiveContainer>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={0} stroke="#666" />
 
-							{/* Area chart for ad spend background */}
-							<Area
-								type="monotone"
-								dataKey="total_ad_spend"
-								stroke="#ef4444"
-								fill="#fef2f2"
-								fillOpacity={0.3}
-								name="Ad Spend Area"
-								hide={true}
-							/>
-
-							{/* Line charts */}
-							<Line
-								type="monotone"
-								dataKey="revenue"
-								stroke="#3b82f6"
-								strokeWidth={2}
-								name="Revenue"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-							<Line
-								type="monotone"
-								dataKey="total_ad_spend"
-								stroke="#ef4444"
-								strokeWidth={2}
-								name="Ad Spend"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</ComposedChart>
-					</ResponsiveContainer>
-				</div>
-
-				{/* Ad Spend Chart */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Breakdown</h3>
-					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<BarChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<Bar
-								dataKey="google_ads_spend"
-								fill="#f59e0b"
-								name="Google Ads"
-								radius={[4, 4, 0, 0]}
-								animationDuration={1000}
-								onMouseEnter={(data, index) => {
-								}}
-							/>
-							<Bar
-								dataKey="facebook_ads_spend"
-								fill="#3b82f6"
-								name="Facebook Ads"
-								radius={[4, 4, 0, 0]}
-								animationDuration={1000}
-								onMouseEnter={(data, index) => {
-								}}
-							/>
-						</BarChart>
-					</ResponsiveContainer>
-				</div>
-			</div>
-
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-				{/* Ad Spend Distribution Pie Chart */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">Profit Trend Analysis</h3>
-					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<AreaChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
-
-							<Area
-								type="monotone"
-								dataKey="profit"
-								stroke="#10b981"
-								fill="#d1fae5"
-								fillOpacity={0.6}
-								name="Profit"
-								animationDuration={1000}
-								onMouseEnter={(data, index) => {
-									// Enhanced hover effect
-								}}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#10b981"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</AreaChart>
-					</ResponsiveContainer>
-				</div>
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							💰 Total: {displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
+					{/* Summary Cards for Quick Insights */}
+					<div className={`grid grid-cols-1 gap-4 mt-6 ${selectedStore && selectedStore.name === 'cosara' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+						<div className="card text-center p-4">
+							<div className="text-2xl font-bold text-blue-600">
+								{displayCurrency(
+									metricsChartData.reduce((sum, item) => sum + (item.revenue || 0), 0),
+									'USD'
+								)}
+							</div>
+							<div className="text-sm text-gray-600">Total Revenue</div>
+						</div>
+						<div className="card text-center p-4">
+							<div className="text-2xl font-bold text-orange-600">
+								{displayCurrency(
+									metricsChartData.reduce((sum, item) => sum + (item.google_ads_spend || 0), 0),
+									'USD'
+								)}
+							</div>
+							<div className="text-sm text-gray-600">Google Ads</div>
+						</div>
+						<div className="card text-center p-4">
+							<div className="text-2xl font-bold text-indigo-600">
+								{displayCurrency(
+									metricsChartData.reduce((sum, item) => 
+										sum + (selectedStore === "cosara" ? item.taboola_ads_spend || 0 : item.facebook_ads_spend || 0), 0),
+									'USD'
+								)}
+							</div>
+							<div className="text-sm text-gray-600">{selectedStore === "cosara" ? "Taboola" : "Facebook Ads"}</div>
+						</div>
+						{/* Taboola Summary Card - Only show for cosara store */}
+						{selectedStore && selectedStore.name === 'cosara' && (
+							<div className="card text-center p-4">
+								<div className="text-2xl font-bold text-orange-500">
+									{displayCurrency(
+										metricsChartData.reduce((sum, item) => sum + (item.taboola_ads_spend || 0), 0),
+										'USD'
+									)}
+								</div>
+								<div className="text-sm text-gray-600">Taboola</div>
+							</div>
+						)}
+						<div className="card text-center p-4">
+							<div className="text-2xl font-bold text-green-600">
+								{metricsChartData.reduce((sum, item) => sum + (item.revenue || 0), 0) > 0
+									? (metricsChartData.reduce((sum, item) => sum + (item.revenue || 0), 0) /
+										metricsChartData.reduce((sum, item) => sum + (item.total_ad_spend || 0), 0)).toFixed(2)
+									: '0.00'
+								}
+							</div>
+							<div className="text-sm text-gray-600">Overall MER</div>
 						</div>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<PieChart>
-							<Pie
-								data={[
-									{
-										name: 'Facebook Ads',
-										value: summary?.totalFacebookAds || 0,
-										color: '#3b82f6'
-									},
-									{
-										name: 'Google Ads',
-										value: summary?.totalGoogleAds || 0,
-										color: '#f59e0b'
-									}
-								]}
-								cx="50%"
-								cy="50%"
-								outerRadius={80}
-								dataKey="value"
-								label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-								labelLine={false}
-								animationDuration={1000}
-								onMouseEnter={(entry, index) => {
-									// Enhanced hover effect
-								}}
-							>
-								{[
-									{ name: 'Facebook Ads', value: summary?.totalFacebookAds || 0, color: '#3b82f6' },
-									{ name: 'Google Ads', value: summary?.totalGoogleAds || 0, color: '#f59e0b' }
-								].map((entry, index) => (
-									<Cell
-										key={`cell-${index}`}
-										fill={entry.color}
-										stroke="#fff"
-										strokeWidth={2}
+
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+						<div className="card">
+							<div className="flex justify-between items-center mb-4">
+								<h3 className="text-lg font-semibold text-gray-900">Profit Trend Analysis</h3>
+							</div>
+							<ResponsiveContainer width="100%" height={300}>
+								<AreaChart data={metricsChartData}>
+									<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+									<XAxis
+										dataKey="date"
+										tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+										angle={metricsChartData.length > 20 ? -45 : 0}
+										textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+										height={metricsChartData.length > 20 ? 80 : 60}
+										tick={{ fontSize: 12 }}
 									/>
-								))}
-							</Pie>
-							<Tooltip
-								formatter={(value) => displayCurrency(value, 'USD')}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-						</PieChart>
-					</ResponsiveContainer>
-				</div>
+									<YAxis
+										tick={{ fontSize: 12 }}
+										tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+									/>
+									<Tooltip
+										formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
+										labelFormatter={(label, payload) => {
+											if (payload && payload[0] && payload[0].payload.dateRange) {
+												return payload[0].payload.dateRange;
+											}
+											return new Date(label).toLocaleDateString('en-US', {
+												weekday: 'long',
+												year: 'numeric',
+												month: 'long',
+												day: 'numeric'
+											});
+										}}
+										contentStyle={{
+											backgroundColor: 'rgba(255, 255, 255, 0.95)',
+											border: '1px solid #e5e7eb',
+											borderRadius: '8px',
+											boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+										}}
+									/>
+									<Legend />
+									<ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
 
-				{/* Profit Trend Area Chart */}
+									<Area
+										type="monotone"
+										dataKey="profit"
+										stroke="#10b981"
+										fill="#d1fae5"
+										fillOpacity={0.6}
+										name="Profit"
+										animationDuration={1000}
+										onMouseEnter={(data, index) => {
+											// Enhanced hover effect
+										}}
+									/>
 
-			</div>
+									{/* Brush for data selection */}
+									<Brush
+										dataKey="date"
+										height={30}
+										stroke="#10b981"
+										tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									/>
+								</AreaChart>
+							</ResponsiveContainer>
+						</div>
+						<div className="card">
+							<div className="flex justify-between items-center mb-4">
+								<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
+								<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+									💰 Total: {displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
+								</div>
+							</div>
+							<ResponsiveContainer width="100%" height={300}>
+								<PieChart>
+									<Pie
+										data={[
+											{
+												name: selectedStore === "cosara" ? "Taboola" : "Facebook Ads",
+												value: selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0,
+												color: '#3b82f6'
+											},
+											{
+												name: "Google Ads",
+												value: summary?.totalGoogleAds || 0,
+												color: '#f59e0b'
+											}
+										]}
+										cx="50%"
+										cy="50%"
+										outerRadius={80}
+										dataKey="value"
+										label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+										labelLine={false}
+										animationDuration={1000}
+										onMouseEnter={(entry, index) => {
+											// Enhanced hover effect
+										}}
+									>
+										{[
+											{ 
+												name: selectedStore === "cosara" ? "Taboola" : "Facebook Ads", 
+												value: selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0, 
+												color: '#3b82f6' },
+											{ name: "Google Ads", value: summary?.totalGoogleAds || 0, color: '#f59e0b' }
+										].map((entry, index) => (
+											<Cell
+												key={`cell-${index}`}
+												fill={entry.color}
+												stroke="#fff"
+												strokeWidth={2}
+											/>
+										))}
+									</Pie>
+									<Tooltip
+										formatter={(value) => displayCurrency(value, 'USD')}
+										contentStyle={{
+											backgroundColor: 'rgba(255, 255, 255, 0.95)',
+											border: '1px solid #e5e7eb',
+											borderRadius: '8px',
+											boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+										}}
+									/>
+									<Legend />
+								</PieChart>
+							</ResponsiveContainer>
+						</div>
+
+						{/* Profit Trend Area Chart */}
+
+					</div>
 				</>
 			)}
 
 			{/* New Metrics Graphs */}
 			<div className="mt-8">
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-				{/* AOV (Average Order Value) */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">AOV (Average Order Value)</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							💰 Revenue ÷ Orders
+					{/* AOV (Average Order Value) */}
+					<div className="card">
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">AOV (Average Order Value)</h3>
+							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+								💰 Revenue ÷ Orders
+							</div>
 						</div>
+						<ResponsiveContainer width="100%" height={300}>
+							<ComposedChart data={metricsChartData}>
+								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									angle={metricsChartData.length > 20 ? -45 : 0}
+									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+									height={metricsChartData.length > 20 ? 80 : 60}
+									tick={{ fontSize: 12 }}
+								/>
+								<YAxis
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => `$${value.toFixed(0)}`}
+								/>
+								<Tooltip
+									formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+									labelFormatter={(label, payload) => {
+										if (payload && payload[0] && payload[0].payload.dateRange) {
+											return payload[0].payload.dateRange;
+										}
+										return new Date(label).toLocaleDateString('en-US', {
+											weekday: 'long',
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric'
+										});
+									}}
+									contentStyle={{
+										backgroundColor: 'rgba(255, 255, 255, 0.95)',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+									}}
+								/>
+								<Legend />
+								<ReferenceLine y={0} stroke="#666" />
+
+								{/* Line chart for AOV */}
+								<Line
+									type="monotone"
+									dataKey="aov"
+									stroke="#3b82f6"
+									strokeWidth={2}
+									name="AOV"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+								/>
+
+								{/* Brush for data selection */}
+								<Brush
+									dataKey="date"
+									height={30}
+									stroke="#8884d8"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								/>
+							</ComposedChart>
+						</ResponsiveContainer>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${value.toFixed(0)}`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={0} stroke="#666" />
 
-							{/* Line chart for AOV */}
-							<Line
-								type="monotone"
-								dataKey="aov"
-								stroke="#3b82f6"
-								strokeWidth={2}
-								name="AOV"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</ComposedChart>
-					</ResponsiveContainer>
-				</div>
-
-				{/* LTV (Lifetime Value per Customer) */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">LTV (Lifetime Value per Customer)</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							👥 Revenue ÷ Customers
+					{/* LTV (Lifetime Value per Customer) */}
+					<div className="card">
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">LTV (Lifetime Value per Customer)</h3>
+							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+								👥 Revenue ÷ Customers
+							</div>
 						</div>
+						<ResponsiveContainer width="100%" height={300}>
+							<ComposedChart data={metricsChartData}>
+								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									angle={metricsChartData.length > 20 ? -45 : 0}
+									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+									height={metricsChartData.length > 20 ? 80 : 60}
+									tick={{ fontSize: 12 }}
+								/>
+								<YAxis
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => `$${value.toFixed(0)}`}
+								/>
+								<Tooltip
+									formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+									labelFormatter={(label, payload) => {
+										if (payload && payload[0] && payload[0].payload.dateRange) {
+											return payload[0].payload.dateRange;
+										}
+										return new Date(label).toLocaleDateString('en-US', {
+											weekday: 'long',
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric'
+										});
+									}}
+									contentStyle={{
+										backgroundColor: 'rgba(255, 255, 255, 0.95)',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+									}}
+								/>
+								<Legend />
+								<ReferenceLine y={0} stroke="#666" />
+
+								{/* Line chart for LTV */}
+								<Line
+									type="monotone"
+									dataKey="ltv"
+									stroke="#10b981"
+									strokeWidth={2}
+									name="LTV"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+								/>
+
+								{/* Brush for data selection */}
+								<Brush
+									dataKey="date"
+									height={30}
+									stroke="#8884d8"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								/>
+							</ComposedChart>
+						</ResponsiveContainer>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${value.toFixed(0)}`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={0} stroke="#666" />
 
-							{/* Line chart for LTV */}
-							<Line
-								type="monotone"
-								dataKey="ltv"
-								stroke="#10b981"
-								strokeWidth={2}
-								name="LTV"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</ComposedChart>
-					</ResponsiveContainer>
-				</div>
-
-				{/* LTV Profit (Lifetime Value Profit) */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">LTV Profit (Profit per Customer)</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							💵 (Revenue - Costs) ÷ Customers
+					{/* LTV Profit (Lifetime Value Profit) */}
+					<div className="card">
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">LTV Profit (Profit per Customer)</h3>
+							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+								💵 (Revenue - Costs) ÷ Customers
+							</div>
 						</div>
+						<ResponsiveContainer width="100%" height={300}>
+							<ComposedChart data={metricsChartData}>
+								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									angle={metricsChartData.length > 20 ? -45 : 0}
+									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+									height={metricsChartData.length > 20 ? 80 : 60}
+									tick={{ fontSize: 12 }}
+								/>
+								<YAxis
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => `$${value.toFixed(0)}`}
+								/>
+								<Tooltip
+									formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
+									labelFormatter={(label, payload) => {
+										if (payload && payload[0] && payload[0].payload.dateRange) {
+											return payload[0].payload.dateRange;
+										}
+										return new Date(label).toLocaleDateString('en-US', {
+											weekday: 'long',
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric'
+										});
+									}}
+									contentStyle={{
+										backgroundColor: 'rgba(255, 255, 255, 0.95)',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+									}}
+								/>
+								<Legend />
+								<ReferenceLine y={0} stroke="#666" />
+
+								{/* Line chart for LTV Profit */}
+								<Line
+									type="monotone"
+									dataKey="ltvProfit"
+									stroke="#8b5cf6"
+									strokeWidth={2}
+									name="LTV Profit"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+								/>
+
+								{/* Brush for data selection */}
+								<Brush
+									dataKey="date"
+									height={30}
+									stroke="#8884d8"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								/>
+							</ComposedChart>
+						</ResponsiveContainer>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `$${value.toFixed(0)}`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [`$${value.toFixed(2)}`, name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={0} stroke="#666" />
 
-							{/* Line chart for LTV Profit */}
-							<Line
-								type="monotone"
-								dataKey="ltvProfit"
-								stroke="#8b5cf6"
-								strokeWidth={2}
-								name="LTV Profit"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</ComposedChart>
-					</ResponsiveContainer>
-				</div>
-
-				{/* MER (Marketing Efficiency Ratio) */}
-				<div className="card">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="text-lg font-semibold text-gray-900">MER (Marketing Efficiency Ratio)</h3>
-						<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-							📊 Revenue ÷ Marketing Spend
+					{/* MER (Marketing Efficiency Ratio) */}
+					<div className="card">
+						<div className="flex justify-between items-center mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">MER (Marketing Efficiency Ratio)</h3>
+							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+								📊 Revenue ÷ Marketing Spend
+							</div>
 						</div>
+						<ResponsiveContainer width="100%" height={300}>
+							<ComposedChart data={metricsChartData}>
+								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+									angle={metricsChartData.length > 20 ? -45 : 0}
+									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
+									height={metricsChartData.length > 20 ? 80 : 60}
+									tick={{ fontSize: 12 }}
+								/>
+								<YAxis
+									tick={{ fontSize: 12 }}
+									tickFormatter={(value) => `${value.toFixed(1)}x`}
+								/>
+								<Tooltip
+									formatter={(value, name) => [`${value.toFixed(2)}x`, name]}
+									labelFormatter={(label, payload) => {
+										if (payload && payload[0] && payload[0].payload.dateRange) {
+											return payload[0].payload.dateRange;
+										}
+										return new Date(label).toLocaleDateString('en-US', {
+											weekday: 'long',
+											year: 'numeric',
+											month: 'long',
+											day: 'numeric'
+										});
+									}}
+									contentStyle={{
+										backgroundColor: 'rgba(255, 255, 255, 0.95)',
+										border: '1px solid #e5e7eb',
+										borderRadius: '8px',
+										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+									}}
+								/>
+								<Legend />
+								<ReferenceLine y={1} stroke="#666" />
+
+								{/* Line chart for MER */}
+								<Line
+									type="monotone"
+									dataKey="mer"
+									stroke="#f59e0b"
+									strokeWidth={2}
+									name="MER"
+									dot={metricsChartData.length <= 50}
+									activeDot={{ r: 6 }}
+									animationDuration={1000}
+								/>
+
+								{/* Brush for data selection */}
+								<Brush
+									dataKey="date"
+									height={30}
+									stroke="#8884d8"
+									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
+								/>
+							</ComposedChart>
+						</ResponsiveContainer>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<ComposedChart data={metricsChartData}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-							<XAxis
-								dataKey="date"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								angle={metricsChartData.length > 20 ? -45 : 0}
-								textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-								height={metricsChartData.length > 20 ? 80 : 60}
-								tick={{ fontSize: 12 }}
-							/>
-							<YAxis
-								tick={{ fontSize: 12 }}
-								tickFormatter={(value) => `${value.toFixed(1)}x`}
-							/>
-							<Tooltip
-								formatter={(value, name) => [`${value.toFixed(2)}x`, name]}
-								labelFormatter={(label, payload) => {
-									if (payload && payload[0] && payload[0].payload.dateRange) {
-										return payload[0].payload.dateRange;
-									}
-									return new Date(label).toLocaleDateString('en-US', {
-										weekday: 'long',
-										year: 'numeric',
-										month: 'long',
-										day: 'numeric'
-									});
-								}}
-								contentStyle={{
-									backgroundColor: 'rgba(255, 255, 255, 0.95)',
-									border: '1px solid #e5e7eb',
-									borderRadius: '8px',
-									boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-								}}
-							/>
-							<Legend />
-							<ReferenceLine y={1} stroke="#666" />
-
-							{/* Line chart for MER */}
-							<Line
-								type="monotone"
-								dataKey="mer"
-								stroke="#f59e0b"
-								strokeWidth={2}
-								name="MER"
-								dot={metricsChartData.length <= 50}
-								activeDot={{ r: 6 }}
-								animationDuration={1000}
-							/>
-
-							{/* Brush for data selection */}
-							<Brush
-								dataKey="date"
-								height={30}
-								stroke="#8884d8"
-								tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-							/>
-						</ComposedChart>
-					</ResponsiveContainer>
 				</div>
-			</div>
 			</div>
 
 			{/* Analytics Summary */}
@@ -2046,13 +2075,13 @@ const Dashboard = () => {
 									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between">
-									<span className="text-orange-700">Facebook Ads</span>
-									<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalFacebookAds || 0, 'USD')}</span>
+									<span className="text-orange-700">{selectedStore === "cosara" ? "Taboola" : "Facebook Ads"}</span>
+									<span className="font-semibold text-orange-900">{displayCurrency(selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between border-t border-orange-200 pt-2">
 									<span className="text-orange-700 font-medium">Total Ad Spend</span>
 									<span className="font-semibold text-orange-900">
-										{displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
+										{displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -2069,13 +2098,13 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-purple-700">Ad Spend</span>
 									<span className="font-semibold text-purple-900">
-										{displayCurrency((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
+										{displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 								<div className="flex justify-between border-t border-purple-200 pt-2">
 									<span className="text-purple-700 font-medium">Total Costs</span>
 									<span className="font-semibold text-purple-900">
-										{formatCurrency((summary?.totalCostOfGoods || 0) + (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0), 'USD')}
+										{formatCurrency((summary?.totalCostOfGoods || 0) + (summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -2088,7 +2117,7 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-green-700">ROAS</span>
 									<span className="font-semibold text-green-900">
-										{((summary?.totalRevenue || 0) / ((summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0)) || 0).toFixed(2)}x
+										{((summary?.totalRevenue || 0) / ((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0)) || 0).toFixed(2)}x
 									</span>
 								</div>
 								<div className="flex justify-between">
@@ -2242,11 +2271,11 @@ const Dashboard = () => {
 									</th>
 									<th
 										className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
-										onClick={() => handleSort('facebook_ads_spend')}
+										onClick={() => handleSort(selectedStore === "cosara" ? 'taboola_ads_spend' : 'facebook_ads_spend')}
 									>
 										<div className="flex items-center gap-2">
-											Facebook Ads
-											{getSortIcon('facebook_ads_spend')}
+											{selectedStore === "cosara" ? "Taboola" : "Facebook"} Ads
+											{getSortIcon(selectedStore === "cosara" ? 'taboola_ads_spend' : 'facebook_ads_spend')}
 										</div>
 									</th>
 									<th
@@ -2286,7 +2315,7 @@ const Dashboard = () => {
 										</td>
 										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue, 'USD')}</td>
 										<td className="py-3 px-4">{displayCurrency(day.google_ads_spend, 'USD')}</td>
-										<td className="py-3 px-4">{displayCurrency(day.facebook_ads_spend, 'USD')}</td>
+										<td className="py-3 px-4">{displayCurrency(selectedStore === "cosara" ? day.taboola_ads_spend : day.facebook_ads_spend, 'USD')}</td>
 										<td className="py-3 px-4">{formatCurrency(day.cost_of_goods, 'USD')}</td>
 										<td className={`py-3 px-4 font-medium ${day.profit >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
 											{formatCurrency(day.profit, 'USD')}
@@ -2632,6 +2661,7 @@ const Dashboard = () => {
 			/>
 
 			{/* Additional Interactive Charts */}
+
 		</div>
 	);
 };
