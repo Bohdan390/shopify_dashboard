@@ -171,46 +171,6 @@ class AnalyticsService {
 		}
 	}
 
-	async getAnalyticsRange(startDate, endDate, storeId = 'buycosari', country = null) {
-		try {
-			return await retryOperation(async () => {
-
-				const { data, error } = await supabase
-					.from('analytics')
-					.select('*')
-					.eq('store_id', storeId)
-					.gte('date', `${startDate}T00:00:00`)
-					.lte('date', `${endDate}T23:59:59.999`)
-					.order('date');
-
-				if (error) {
-					console.error('❌ Error fetching analytics data:', error);
-					throw error;
-				}
-
-				// If country filtering is applied, we need to recalculate analytics based on country-specific campaigns
-				let filteredData = data;
-				if (country && country !== 'all') {
-					filteredData = await this.filterAnalyticsByCountry(data, startDate, endDate, storeId, country);
-				}
-
-				// Generate complete date range with $0 values for missing days
-				const completeData = this.generateCompleteDateRange(startDate, endDate, filteredData);
-
-				return completeData;
-			});
-		} catch (error) {
-			console.error('❌ Error getting analytics range:', error);
-			console.error('Error details:', {
-				message: error.message,
-				details: error.stack,
-				hint: 'Check Supabase connection and table existence',
-				code: error.code
-			});
-			throw error;
-		}
-	}
-
 	// Helper function to create local dates without timezone issues
 
 	generateCompleteDateRange(startDate, endDate, existingData) {
@@ -269,6 +229,7 @@ class AnalyticsService {
 
 			var chunk = 1000;
 			var campaignIds = [];
+			var d = new Date()
 			for (var i = 0; i < campaignCount; i += chunk) {
 				const { data: campaignsChunk, error: campaignsError } = await supabase
 				.from('ad_campaigns')
@@ -294,10 +255,11 @@ class AnalyticsService {
 				return analyticsData; // Return original data if error
 			}
 
+
 			var adSpendData = [];
 			for (var i = 0; i < adSpendCount; i += chunk) {
 				const {data: adSpendDataChunk, error: adSpendDataError} = await supabase.from("ad_spend_detailed")
-					.select("*").in('campaign_id', campaignIds).eq('store_id', storeId)
+					.select("date, platform, spend_amount, currency").in('campaign_id', campaignIds).eq('store_id', storeId)
 					.gte('date', startDate).lte('date', endDate).range(i, i + chunk - 1);
 				if (adSpendDataError) {
 					console.error('❌ Error fetching country ad spend data:', adSpendDataError);
@@ -312,44 +274,25 @@ class AnalyticsService {
 				countryName = countryCodes[0].country_name;
 			}
 
-			const {count: countryOrdersCount, error: ordersError} = await supabase.from("orders")
-				.select("*", {count: "exact"}).eq("store_id", storeId).eq("financial_status", "paid")
-				.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59.999`)
-				.eq("country", countryName);
-			if (ordersError) {
-				console.error('❌ Error fetching country orders:', ordersError);
+			console.log(countryName, adSpendData.length)
+			var {data: ordersByDateCountry, error: ordersByDateCountryError} = await supabase.rpc("get_orders_total_price_by_date_country", {
+				p_store_id: storeId,
+				start_date: startDate,
+				end_date: endDate,
+				p_country_name: countryName
+			});
+
+			if (ordersByDateCountryError) {
+				console.error('❌ Error fetching country orders:', ordersByDateCountryError);
 				return analyticsData; // Return original data if error
 			}
 
-			var countryOrders = [];
-			for (var i = 0; i < countryOrdersCount; i += chunk) {
-				const {data: countryOrdersChunk, error: countryOrdersError} = await supabase.from("orders")
-					.select("created_at, total_price, financial_status").eq("store_id", storeId).eq("financial_status", "paid")
-					.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59.999`)
-					.eq("country", countryName)
-					.range(i, i + chunk - 1);
-				if (countryOrdersError) {
-					console.error('❌ Error fetching country orders:', countryOrdersError);
-					return analyticsData; // Return original data if error
-				}
-				countryOrders.push(...countryOrdersChunk);
-			}
+			console.log(new Date().getTime() - d.getTime(), "--------")
 
 			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("order_country", countryName);
 			if (customerCountError) {
 				console.error('❌ Error fetching country customers:', customerCountError);
 				return analyticsData; // Return original data if error
-			}
-
-			var customerData = [];
-			for (var i = 0; i < customerCount; i += chunk) {
-				const {data: customerDataChunk, error: customerDataError} = await supabase.from("customers")
-					.select("*").eq("store_id", storeId).eq("order_country", countryName).range(i, i + chunk - 1);
-				if (customerDataError) {
-					console.error('❌ Error fetching country customers:', customerDataError);
-					return analyticsData; // Return original data if error
-				}
-				customerData.push(...customerDataChunk);
 			}
 
 			const countryAdSpendByDate = {};
@@ -359,24 +302,29 @@ class AnalyticsService {
 					countryAdSpendByDate[date] = { google: 0, facebook: 0 };
 				}
 				if (spend.platform === 'google') {
-					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount);
+					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount * spend.currency);
 				} else if (spend.platform === 'facebook') {
-					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount);
+					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount * spend.currency);
+				}
+				else if (spend.platform === 'taboola') {
+					countryAdSpendByDate[date].taboola += parseFloat(spend.spend_amount * spend.currency);
 				}
 			});
 
 			const countryRevenueByDate = {};
-			countryOrders.forEach(order => {
-				const date = order.created_at.split('T')[0];
+			ordersByDateCountry.forEach(order => {
+				const date = order.date;
 				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.total_price);
 			});
 
 			// Update analytics data with country-specific values
 			return analyticsData.map(day => {
-				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0 };
+				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
 				return {
 					...day,
+					taboola_ads_spend: countryAdSpend.taboola,
+					customers_count: customerCount,
 					google_ads_spend: countryAdSpend.google,
 					facebook_ads_spend: countryAdSpend.facebook,
 					revenue: countryRevenue,
@@ -403,7 +351,7 @@ class AnalyticsService {
 				while (hasMoreData) {
 					const { data: analyticsChunk, error: analyticsError } = await supabase
 						.from('analytics')
-						.select('revenue, google_ads_spend, facebook_ads_spend, taboola_ads_spend, cost_of_goods, profit')
+						.select('*')
 						.eq('store_id', storeId)
 						.gte('date', `${startDate}T00:00:00`)
 						.lte('date', `${endDate}T23:59:59.999`)
@@ -426,6 +374,8 @@ class AnalyticsService {
 				if (country && country !== 'all') {
 					allAnalyticsData = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, country);
 				}
+
+				const completeData = this.generateCompleteDateRange(startDate, endDate, allAnalyticsData);
 				// Get total order count (no chunking needed for count)
 				const stats = await supabase.rpc('get_orders_price_stats', {
 					p_store_id: storeId,
@@ -468,7 +418,7 @@ class AnalyticsService {
 					? (summary.totalProfit / summary.totalRevenue) * 100
 					: 0;
 
-				return summary;
+				return {summary, analytics: completeData};
 			});
 		} catch (error) {
 			console.error('❌ Error getting summary stats:', error);
@@ -679,6 +629,7 @@ class AnalyticsService {
 	// Lightweight orders-only recalculation (no ads, no COGS)
 	async recalculateOrdersOnlyFromDate(syncDate, socket = null, isStandaloneRecalc = false, storeId = 'buycosari', socketStatus = null) {
 		try {
+			console.log(1)
 			let initialProgress = 0;
 			if (socket) {
 				initialProgress = 0;
@@ -694,7 +645,7 @@ class AnalyticsService {
 			const { data: minDateData, error: minDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.neq('financial_status', 'paid')
+				.eq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: true })
@@ -705,13 +656,14 @@ class AnalyticsService {
 			const { data: maxDateData, error: maxDateError } = await supabase
 				.from('orders')
 				.select('created_at')
-				.neq('financial_status', 'paid')
+				.eq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('created_at', `${syncDate}T00:00:00`)
 				.order('created_at', { ascending: false })
 				.limit(1);
 
 			if (maxDateError) throw maxDateError;
+			console.log(minDateData, maxDateData)
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
 				if (socket) {
@@ -722,6 +674,7 @@ class AnalyticsService {
 						total: 0
 					});
 				}
+			console.log(2.2)
 				return;
 			}
 
@@ -734,7 +687,7 @@ class AnalyticsService {
 				allDates.push(currentDate.toISOString().split('T')[0]);
 				currentDate.setDate(currentDate.getDate() + 1);
 			}
-
+			console.log(3)
 			// Process each date - ORDERS ONLY (no ads, no COGS)
 			let processedCount = 0;
 			for (const date of allDates) {
@@ -846,6 +799,7 @@ class AnalyticsService {
 					// Continue with next date instead of failing completely
 				}
 			}
+			console.log(4)
 
 			if (socket) {
 				this.sendWebSocketMessage(socket, socketStatus, {
@@ -857,6 +811,7 @@ class AnalyticsService {
 				});
 			}
 
+			console.log(123)
 			return {
 				success: true,
 				datesProcessed: processedCount,

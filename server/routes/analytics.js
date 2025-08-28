@@ -48,24 +48,6 @@ router.get('/health', async (req, res) => {
 		});
 	}
 });
-
-// Get daily analytics for a date range
-router.get('/daily', async (req, res) => {
-	try {
-		const { startDate, endDate, storeId = 'buycosari', country } = req.query;
-
-		if (!startDate || !endDate) {
-			return res.status(400).json({ error: 'startDate and endDate are required' });
-		}
-
-		const analytics = await analyticsService.getAnalyticsRange(startDate, endDate, storeId, country);
-		res.json(analytics);
-	} catch (error) {
-		console.error('Error fetching daily analytics:', error);
-		res.status(500).json({ error: error.message });
-	}
-});
-
 // Get summary statistics
 router.get('/summary', async (req, res) => {
 	try {
@@ -466,8 +448,7 @@ router.get('/dashboard', async (req, res) => {
 		const endDate = new Date().toISOString().split('T')[0];
 		const startDate = new Date(Date.now() - parseInt(period) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId);
-		const analytics = await analyticsService.getAnalyticsRange(startDate, endDate, storeId);
+		const {summary, analytics} = await analyticsService.getSummaryStats(startDate, endDate, storeId);
 
 		res.json({
 			summary,

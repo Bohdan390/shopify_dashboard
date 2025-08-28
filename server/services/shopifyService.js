@@ -869,6 +869,8 @@ class ShopifyService {
 				});
 			}
 
+			console.log(syncDate)
+
 			await analyticsService.recalculateOrdersOnlyFromDate(syncDate, socket, false, this.storeId, socketStatus);
 
 			// Update sync tracking table
