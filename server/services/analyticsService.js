@@ -319,12 +319,21 @@ class AnalyticsService {
 				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.paid_orders_price);
 			});
 
-			console.log(ordersByDateCountry[0])
+			var {data: costOfGoods} = await supabase.from("country_costs")
+				.select("*").eq("store_id", storeId).gte("date", startDate).lte("date", endDate)
+				.eq("country", countryName);
+			var costOfGoodsByDate = {};
+			costOfGoods.forEach(cost => {
+				const date = cost.date;
+				costOfGoodsByDate[date] = (costOfGoodsByDate[date] || 0) + parseFloat(cost.total_cost);
+			});
+
 
 			// Update analytics data with country-specific values
 			var analytics =analyticsData.map(day => {
 				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
+				const countryCostOfGoods = costOfGoodsByDate[day.date] || 0;
 				return {
 					...day,
 					taboola_ads_spend: countryAdSpend.taboola,
@@ -332,9 +341,9 @@ class AnalyticsService {
 					google_ads_spend: countryAdSpend.google,
 					facebook_ads_spend: countryAdSpend.facebook,
 					revenue: countryRevenue,
-					profit: countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola,
-					profit_margin: countryRevenue > 0 ? (countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola) / countryRevenue * 100 : 0,
-					cost_of_goods: day.cost_of_goods || 0
+					profit: countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola,
+					profit_margin: countryRevenue > 0 ? (countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola) / countryRevenue * 100 : 0,
+					cost_of_goods: countryCostOfGoods
 				};
 			});
 

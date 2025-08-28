@@ -825,6 +825,8 @@ router.post('/cog', async (req, res) => {
         country.shipping_cost = parseFloat(country.shipping_cost);
         country.vat_rate = parseFloat(country.vat_rate);
         country.tariff_rate = parseFloat(country.tariff_rate);
+        country.product_sku_id = productSkuId;
+        country.date = date;
       });
     }
 
@@ -927,6 +929,9 @@ router.put('/cog/:id', async (req, res) => {
     if (country_costs.length > 0) {
       calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
     }
+    country_costs.forEach(country => {
+      country.date = date;
+    });
 
     const {data: updated} = await supabase
       .from("cost_of_goods")

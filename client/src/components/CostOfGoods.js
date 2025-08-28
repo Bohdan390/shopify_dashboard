@@ -812,6 +812,7 @@ const CostOfGoods = () => {
 			// Fetch country costs if not already loaded
 			if (!countryCostsData[countryCostId]) {
 				const costs = await fetchCountryCostsForCountryCostId(countryCostId);
+				console.log(costs)
 				setCountryCostsData(prev => ({
 					...prev,
 					[countryCostId]: costs
@@ -848,7 +849,7 @@ const CostOfGoods = () => {
 		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
 		const subtotal = (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
 
-		return subtotal;
+		return G.roundPrice(subtotal);
 	}
 
 	const calculateVATPerUnit = (country) => {
