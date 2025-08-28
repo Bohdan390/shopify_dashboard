@@ -144,7 +144,7 @@ class CronJobManager {
             console.log("syncingOrders", ordersStartDate, endDate)
             // Call the real Shopify order sync service with the actual start date
             const storeService = new ShopifyService(storeId);
-            const ordersCount = await storeService.syncOrders(250, ordersStartDate, null, 'autoSyncProgress');
+            const ordersCount = await storeService.syncOrders(250, ordersStartDate.toISOString().split('T')[0], null, 'autoSyncProgress');
 
             return ordersCount;
             
