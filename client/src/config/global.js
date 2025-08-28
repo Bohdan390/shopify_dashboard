@@ -9,5 +9,8 @@ module.exports = {
     var offsetMinutes = new Date().getTimezoneOffset()
     var time = date.getTime() + offsetMinutes * 60 * 1000
     return new Date(time)
+  },
+  roundPrice: function (price) {
+    return Number(price.toFixed(2));
   }
 }

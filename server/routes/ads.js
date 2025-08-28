@@ -800,14 +800,14 @@ router.post('/cog', async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!product_id || !product_title || !cost_per_unit || !quantity || !total_cost || !date) {
+    if (!product_id || !product_title || !cost_per_unit || !quantity || !date) {
       return res.status(400).json({ 
         error: 'Missing required fields: product_id, product_title, cost_per_unit, quantity, total_cost, date' 
       });
     }
 
     // Calculate total cost if not provided
-    let calculatedTotalCost = total_cost || (parseFloat(cost_per_unit) * parseInt(quantity));
+    let calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
 
     const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
     var productSkuId = "";
@@ -924,7 +924,10 @@ router.put('/cog/:id', async (req, res) => {
     }
 
     // Calculate total cost if not provided
-    let calculatedTotalCost = total_cost || (parseFloat(cost_per_unit) * parseInt(quantity));
+    let calculatedTotalCost = Number(cost_per_unit) * Number(quantity);
+    if (country_costs.length > 0) {
+      calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
+    }
 
     const {data: updated} = await supabase
       .from("cost_of_goods")

@@ -663,28 +663,21 @@ const CostOfGoods = () => {
 		try {
 			setAddingEntry(true);
 
-			// Calculate the correct total cost including VAT and tariffs
 			let totalCostWithCountryCosts = Number(formData.totalCost || 0);
 
-			// Add country costs to the total if they exist
 			if (countryCosts.length > 0) {
 				countryCosts.forEach(country => {
 					// Convert all values to numbers
-					country.cost_of_goods = Number(country.cost_of_goods || 0);
-					country.shipping_cost = Number(country.shipping_cost || 0);
-					country.vat_rate = Number(country.vat_rate || 0);
-					country.tariff_rate = Number(country.tariff_rate || 0);
-					country.discounts_and_refunds = Number(country.discounts_and_refunds || 0);
-					country.payment_processing_fee = Number(country.payment_processing_fee || 0);
+					country.cost_of_goods = G.roundPrice(Number(country.cost_of_goods || 0));
+					country.shipping_cost = G.roundPrice(Number(country.shipping_cost || 0));
+					country.vat_rate = G.roundPrice(Number(country.vat_rate || 0));
+					country.tariff_rate = G.roundPrice(Number(country.tariff_rate || 0));
+					country.discounts_and_refunds = G.roundPrice(Number(country.discounts_and_refunds || 0));
+					country.payment_processing_fee = G.roundPrice(Number(country.payment_processing_fee || 0));
 
-					// Calculate total cost for this country including VAT and tariffs
 					const baseCost = Number(formData.costPerUnit || 0);
-					const countrySubtotal = baseCost + country.cost_of_goods * G.currencyRates[country.currency] + country.shipping_cost * G.currencyRates[country.currency] + country.discounts_and_refunds * G.currencyRates[country.currency] + country.payment_processing_fee * G.currencyRates[country.currency];
-					const vatAmount = countrySubtotal * (country.vat_rate / 100);
-					const tariffAmount = countrySubtotal * (country.tariff_rate / 100);
-
-					// Store the calculated total for this country
-					country.total_cost = (countrySubtotal + vatAmount + tariffAmount) * Number(formData.quantity || 0);
+					country.total_cost = calculateTotalPerUnit(country, baseCost) * Number(formData.quantity || 0);
+					country.total_cost = G.roundPrice(country.total_cost);
 				});
 			}
 
@@ -832,7 +825,6 @@ const CostOfGoods = () => {
 
 	};
 
-	// Helper function to calculate total per unit including VAT and tariffs
 	const calculateTotalPerUnit = (country, baseCost) => {
 		const baseCostNum = Number(baseCost || 0);
 		const countryCostNum = Number(country.cost_of_goods || 0);
@@ -845,15 +837,57 @@ const CostOfGoods = () => {
 		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
 		const subtotal = baseCostNum + (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
 
-		// Calculate VAT amount
 		const vatAmount = subtotal * (vatRate / 100);
 
-		// Calculate tariff amount
 		const tariffAmount = subtotal * (tariffRate / 100);
 
-		// Return total including all taxes
 		return subtotal + vatAmount + tariffAmount;
 	};
+
+	const calculateSubtotalPerUnit = (country, baseCost) => {
+		const baseCostNum = Number(baseCost || 0);
+		const countryCostNum = Number(country.cost_of_goods || 0);
+		const shippingNum = Number(country.shipping_cost || 0);
+		const discountsNum = Number(country.discounts_and_refunds || 0);
+		const processingFeeNum = Number(country.payment_processing_fee || 0);
+
+		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
+		const subtotal = baseCostNum + (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+
+		return subtotal;
+	}
+
+	const calculateVATPerUnit = (country, baseCost) => {
+		const baseCostNum = Number(baseCost || 0);
+		const countryCostNum = Number(country.cost_of_goods || 0);
+		const shippingNum = Number(country.shipping_cost || 0);
+		const discountsNum = Number(country.discounts_and_refunds || 0);
+		const processingFeeNum = Number(country.payment_processing_fee || 0);
+		const vatRate = Number(country.vat_rate || 0);
+
+		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
+		const subtotal = baseCostNum + (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+
+		const vatAmount = G.roundPrice(subtotal * (vatRate / 100));
+
+		return vatAmount;
+	}
+
+	const calculateTariffPerUnit = (country, baseCost) => {	
+		const baseCostNum = Number(baseCost || 0);
+		const countryCostNum = Number(country.cost_of_goods || 0);
+		const shippingNum = Number(country.shipping_cost || 0);
+		const discountsNum = Number(country.discounts_and_refunds || 0);
+		const processingFeeNum = Number(country.payment_processing_fee || 0);
+		const vatRate = Number(country.vat_rate || 0);
+		const tariffRate = Number(country.tariff_rate || 0);
+
+		const subtotal = baseCostNum + (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+
+		const tariffAmount = G.roundPrice(subtotal * (tariffRate / 100));
+
+		return tariffAmount;
+	}
 
 	const totalCost = costOfGoods.reduce((sum, item) => sum + parseFloat(item.total_cost), 0);
 	const totalQuantity = costOfGoods.reduce((sum, item) => sum + parseInt(item.quantity), 0);
@@ -1037,7 +1071,6 @@ const CostOfGoods = () => {
 		return <CostOfGoodsLoader />;
 	}
 
-	console.log(countryCostsData, expandedRows);
 	return (
 		<div className="p-8">
 			{/* Header */}
@@ -1212,13 +1245,9 @@ const CostOfGoods = () => {
 							<p className="text-2xl font-bold text-gray-900">
 								{refreshing ? (
 									<div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-								) : (
-									costOfGoods.filter(item => item.country_costs && Object.keys(item.country_costs).length > 0).length
-								)}
+								) : costOfGoods.length}
 							</p>
-							<p className="text-xs text-gray-500 mt-1">
-								of {costOfGoods.length} total products
-							</p>
+							
 						</div>
 					</div>
 				</div>
@@ -1358,6 +1387,8 @@ const CostOfGoods = () => {
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Country</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cost of Goods</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shipping</th>
+																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Discounts</th>
+																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment Processing</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">VAT Rate</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tariff Rate</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
@@ -1375,6 +1406,12 @@ const CostOfGoods = () => {
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{displayCurrency(Number(countryCost.shipping_cost || 0).toFixed(2), countryCost.currency)}
+																							</td>
+																							<td className="px-4 py-2 text-sm text-gray-900">
+																								{displayCurrency(Number(countryCost.discounts_and_refunds || 0).toFixed(2), countryCost.currency)}
+																							</td>
+																							<td className="px-4 py-2 text-sm text-gray-900">
+																								{displayCurrency(Number(countryCost.payment_processing_fee || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{Number(countryCost.vat_rate || 0).toFixed(1)}%
@@ -1417,7 +1454,6 @@ const CostOfGoods = () => {
 					)}
 
 				</div>
-
 				{/* Pagination Controls - Outside the overflow container */}
 				{costOfGoods.length > 0 && <PaginationControls />}
 			</div>
@@ -1428,9 +1464,9 @@ const CostOfGoods = () => {
 					<DialogTitle sx={{ m: 0, p: 2 }} id="customized-dialog-title">
 						{editingEntry ? 'Edit Cost Entry' : 'Add Cost Entry'}
 					</DialogTitle>
-					<DialogContent style={{ width: "35vw" }}>
+					<DialogContent>
 						<form onSubmit={handleSubmit} className="space-y-4">
-							<div>
+							{/* <div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Product ID *</label>
 								<ProductAutocomplete
 									value={formData.productId}
@@ -1446,7 +1482,7 @@ const CostOfGoods = () => {
 									disabled={refreshing}
 									required={true}
 								/>
-							</div>
+							</div> */}
 
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Product Title *</label>
@@ -1505,18 +1541,6 @@ const CostOfGoods = () => {
 									min="1"
 									value={formData.quantity}
 									onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									required
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Total Cost</label>
-								<input
-									type="number"
-									step="0.01"
-									value={formData.totalCost}
-									onChange={(e) => setFormData({ ...formData, totalCost: e.target.value })}
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 									required
 								/>
@@ -1604,10 +1628,10 @@ const CostOfGoods = () => {
 																			<span className="font-medium">Tariff:</span> {country.tariff_rate}%
 																		</div>
 																		<div>
-																			<span className="font-medium">Discounts:</span> ${country.discounts_and_refunds || 0}
+																			<span className="font-medium">Discounts:</span> {displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}
 																		</div>
 																		<div>
-																			<span className="font-medium">Processing:</span> ${country.payment_processing_fee || 0}
+																			<span className="font-medium">Processing:</span> {displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}
 																		</div>
 																	</div>
 																	<div className="mt-1">
@@ -1626,24 +1650,26 @@ const CostOfGoods = () => {
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Country Cost:</span>
-																				<span className="text-gray-700">${displayCurrency(Number(country.cost_of_goods || 0).toFixed(2), country.currency)}</span>
+																				<span className="text-gray-700">{displayCurrency(Number(country.cost_of_goods || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Shipping:</span>
-																				<span className="text-gray-700">${displayCurrency(Number(country.shipping_cost || 0).toFixed(2), country.currency)}</span>
+																				<span className="text-gray-700">{displayCurrency(Number(country.shipping_cost || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Discounts:</span>
-																				<span className="text-gray-700">${displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}</span>
+																				<span className="text-gray-700">{displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Processing:</span>
-																				<span className="text-gray-700">${displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}</span>
+																				<span className="text-gray-700">{displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Subtotal:</span>
 																				<span className="text-gray-700 font-medium">
-																					{displayCurrency(Number(formData.costPerUnit || 0).toFixed(2), 'USD')} + {displayCurrency((Number(country.cost_of_goods || 0) + Number(country.shipping_cost || 0) + Number(country.discounts_and_refunds || 0) + Number(country.payment_processing_fee || 0)), country.currency)}
+																					{displayCurrency(Number(formData.costPerUnit || 0).toFixed(2), 'USD')} + 
+																					{displayCurrency((Number(country.cost_of_goods || 0) + Number(country.shipping_cost || 0) + Number(country.discounts_and_refunds || 0) + Number(country.payment_processing_fee || 0)), country.currency)}
+																					= ${calculateSubtotalPerUnit(country, formData.costPerUnit)}
 																				</span>
 																			</div>
 																		</div>
@@ -1654,13 +1680,13 @@ const CostOfGoods = () => {
 																				{Number(country.vat_rate || 0) > 0 && (
 																					<div className="flex items-center justify-between text-xs">
 																						<span className="text-gray-600">VAT ({country.vat_rate}%):</span>
-																						<span className="text-red-600">+${((Number(formData.costPerUnit || 0) + Number(country.cost_of_goods || 0) + Number(country.shipping_cost || 0) + Number(country.discounts_and_refunds || 0) + Number(country.payment_processing_fee || 0)) * Number(country.vat_rate || 0) / 100).toFixed(2)}</span>
+																						<span className="text-red-600">+${calculateVATPerUnit(country, formData.costPerUnit)}</span>
 																					</div>
 																				)}
 																				{Number(country.tariff_rate || 0) > 0 && (
 																					<div className="flex items-center justify-between text-xs">
 																						<span className="text-gray-600">Tariff ({country.tariff_rate}%):</span>
-																						<span className="text-red-600">+${((Number(formData.costPerUnit || 0) + Number(country.cost_of_goods || 0) + Number(country.shipping_cost || 0) + Number(country.discounts_and_refunds || 0) + Number(country.payment_processing_fee || 0)) * Number(country.tariff_rate || 0) / 100).toFixed(2)}</span>
+																						<span className="text-red-600">+${calculateTariffPerUnit(country, formData.costPerUnit)}</span>
 																					</div>
 																				)}
 																			</div>
@@ -1778,7 +1804,7 @@ const CostOfGoods = () => {
 						<DialogTitle>
 							{editCountryCostIndex !== -1 ? 'Edit Country Cost' : 'Add Country Cost'}
 						</DialogTitle>
-						<DialogContent style={{ width: "30vw" }}>
+						<DialogContent style={{ width: "25vw" }}>
 							<div className="w-full mt-2">
 								<label className="block text-sm font-medium text-gray-700 mb-1">Country Name</label>
 								<input
