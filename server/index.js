@@ -109,14 +109,6 @@ wss.on('connection', (ws, req) => {
   }));
 });
 
-// Periodic socket cleanup (every 2 minutes)
-setInterval(() => {
-  const cleanedCount = common.cleanupDeadSockets();
-  if (cleanedCount > 0) {
-    console.log(`🧹 Socket cleanup completed. Cleaned ${cleanedCount} sockets.`);
-  }
-}, 120000); // 2 minutes
-
 // Make WebSocket server available to routes
 app.set('wss', wss);
 
