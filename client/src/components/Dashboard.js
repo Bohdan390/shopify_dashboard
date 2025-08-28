@@ -403,20 +403,18 @@ const Dashboard = () => {
 
 				// Fetch both analytics and summary data with country filtering
 				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
-				const analyticsUrl = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
 				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
 
-				const [analyticsResponse, summaryResponse] = await Promise.all([
-					api.get(analyticsUrl),
+				const [summaryResponse] = await Promise.all([
 					api.get(summaryUrl)
 				]);
 				// Ensure we have valid data
-				const analyticsData = Array.isArray(analyticsResponse.data) ? analyticsResponse.data : [];
 				const summaryData = summaryResponse.data || {};
 
+				console.log(summaryData)
 				setDashboardData({
-					analytics: analyticsData,
-					summary: summaryData
+					analytics: summaryData.analytics,
+					summary: summaryData.summary
 				});
 
 				// Close the popup after successful data fetch
@@ -566,7 +564,7 @@ const Dashboard = () => {
 					return;
 				}
 				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
-				url = `/api/analytics/daily?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
+				url = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
 			} else {
 				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
 				url = `/api/analytics/dashboard?period=${period}&storeId=${selectedStore}${countryParam}`;
@@ -1175,7 +1173,7 @@ const Dashboard = () => {
 		totalGoogleAds += item.google_ads_spend || 0;
 		totalFacebookAds += item.facebook_ads_spend || 0;
 	});
-	console.log(totalTaboolaAds, totalGoogleAds, totalFacebookAds);
+	console.log(summary);
 	return (
 		<div className="p-8 relative">
 			{/* Sync Loading Overlay */}
