@@ -576,7 +576,7 @@ const CustomerLTV = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {ltvProductData.map((cohort, index) => (
-                                <tr key={cohort.cohortMonth} className="hover:bg-gray-50">
+                                <tr key={index} className="hover:bg-gray-50">
                                     <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 max-w-[140px] truncate" title={cohort.cohortMonth}>
                                         {cohort.sku_title}
                                     </td>

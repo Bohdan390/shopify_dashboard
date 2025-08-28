@@ -1022,31 +1022,39 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		var allAdsSpend = [];
 		var adsMonth = new Map();
 		if (adsIds.length > 0) {
-			const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
-				.select('campaign_id, spend_amount, date, currency')
-				.eq('store_id', storeId)
-				.in('campaign_id', adsIds)
-			if (adsSpendError) throw adsSpendError;
-			adsSpend.forEach(ad => {
-				var d = ad.date.split("-")[0] + "-" + ad.date.split("-")[1];
-				if (adsMonth.has(d)) {
-					adsMonth.get(d).spend_amount += ad.spend_amount * ad.currency;
+			const {data: adsSpendCount, error: adsSpendCountError} = await supabase.from('ad_spend_detailed').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('campaign_id', adsIds);
+			if (adsSpendCountError) throw adsSpendCountError;
+			if (adsSpendCount > 0) {
+				for (var i = 0; i < adsSpendCount; i += chunkSize) {
+					const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
+						.select('campaign_id, spend_amount, date, currency')
+						.eq('store_id', storeId)
+						.in('campaign_id', adsIds)
+						.range(i, i + chunkSize - 1);
+					if (adsSpendError) throw adsSpendError;
+					adsSpend.forEach(ad => {
+						var d = ad.date.split("-")[0] + "-" + ad.date.split("-")[1];
+						if (adsMonth.has(d)) {
+							adsMonth.get(d).spend_amount += ad.spend_amount * ad.currency;
+						}
+						else {
+							adsMonth.set(d, { spend_amount: ad.spend_amount * ad.currency });
+						}
+					})
+					allAdsSpend.push(...adsSpend);
+					if (sockets.length > 0) {
+						sockets.forEach((socket) => {
+							sendWebSocketMessage(socket, 'syncProgress', {
+								stage: 'calculating',
+								message: '� Calculating LTV cohorts...',
+								progress: Number((70 + (i / adsSpendCount) * 10).toFixed(1)),
+								total: 'unlimited'
+							});
+						})
+					}
 				}
-				else {
-					adsMonth.set(d, { spend_amount: ad.spend_amount * ad.currency });
-				}
-			})
-			allAdsSpend.push(...adsSpend);
-			if (sockets.length > 0) {
-				sockets.forEach((socket) => {
-					sendWebSocketMessage(socket, 'syncProgress', {
-						stage: 'calculating',
-						message: '� Calculating LTV cohorts...',
-						progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
-						total: 'unlimited'
-					});
-				})
 			}
+			
 		}
 		allProductCampaignLinks.forEach(productCampaignLink => {
 			allAdsSpend.forEach(ad => {
