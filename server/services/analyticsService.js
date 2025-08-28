@@ -1538,23 +1538,30 @@ class AnalyticsService {
 
 				var allAdsSpend = [];
 				if (adsIds.length > 0) {
-					const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
-						.select('campaign_id, spend_amount, date, currency')
-						.eq('store_id', storeId)
-						.in('campaign_id', adsIds)
-					if (adsSpendError) throw adsSpendError;
-					allAdsSpend.push(...adsSpend);
-					if (sockets.length > 0) {
-						sockets.forEach((socket) => {
-							sendWebSocketMessage(socket, 'syncProgress', {
-								stage: 'calculating',
-								message: '� Calculating LTV cohorts...',
-								progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
-								total: 'unlimited'
-							});
-						})
-					}
+					const {count: adsSpendCount} = await supabase.from('ad_spend_detailed').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('campaign_id', adsIds);
+					if (adsSpendCount > 0) {
+						for (var i = 0; i < adsSpendCount; i += chunkSize) {
+							const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
+								.select('campaign_id, spend_amount, date, currency')
+								.eq('store_id', storeId)
+								.in('campaign_id', adsIds)
+								.range(i, i + chunkSize - 1);
+							if (adsSpendError) throw adsSpendError;
+							allAdsSpend.push(...adsSpend);
+							if (sockets.length > 0) {
+								sockets.forEach((socket) => {
+									sendWebSocketMessage(socket, 'syncProgress', {
+										stage: 'calculating',
+										message: '� Calculating LTV cohorts...',
+										progress: Number((70 + (i / adsSpendCount) * 30).toFixed(1)),
+										total: 'unlimited'
+									});
+								})
+							}
+						}
+					}	
 				}
+				
 				allProductCampaignLinks.forEach(productCampaignLink => {
 					allAdsSpend.forEach(ad => {
 						if (ad.campaign_id === productCampaignLink.campaign_id) {
@@ -1590,22 +1597,33 @@ class AnalyticsService {
 						uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
 					}
 				}
-				
+				if (sockets.length > 0) {
+					sockets.forEach((socket) => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '� Calculating LTV cohorts...',
+							progress: 100,
+							total: 'unlimited'
+						});
+					})
+				}
 				Array.from(allProductSkus.values()).forEach(product => {
 					for (var i = 0; i < uniqueDates.length; i++) {
 						var date = uniqueDates[i];
-						var orderCount = 0, totalPrice = 0;
+						var orderCount = 0, totalPrice = 0, createdAt = null;
 						rangeOrders.forEach(order => {
 							if (order.created_at.includes(date) && order.sku.includes(product.sku_id)) {
-								orderCount++;
+								if (createdAt != order.created_at.split(" ")[0]) {
+									orderCount ++;
+									createdAt = order.created_at.split(" ")[0]
+								} 
 								totalPrice += parseFloat(order.total_price);
 							}
 						})
-						product[date] = common.roundPrice(totalPrice)
+						product[date] = common.roundPrice(totalPrice) / (orderCount == 0 ? 1 : orderCount)
 					}
 				})
 				common.productLtvCohorts = Array.from(allProductSkus.values());
-			console.log(common.productLtvCohorts[0], new Date().getTime() - dd.getTime());
 			}
 
 			// Step 2: Update with ads and COGS data
