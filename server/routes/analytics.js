@@ -420,21 +420,21 @@ router.post('/recalculate-product-trends', async (req, res) => {
 		}
 
 		// Get the socket instance from the request
-		const socket = socketId ? common.activeSockets.get(socketId) : null;
+		res.json({message: "true"});
+		var sockets = Array.from(common.activeSockets.values())
 
-		const result = await analyticsService.recalculateAllProductTrends(socket, startDate, endDate, storeId);
-
+		await analyticsService.recalculateAllProductTrends(sockets, startDate, endDate, storeId);
 		// Emit final completion
-		if (socket) {
-			sendWebSocketMessage(socket, 'productTrendsProgress', {
-				stage: 'completed',
-				message: '✅ Product trends recalculation completed successfully!',
-				progress: 100,
-				total: 100
-			});
+		if (sockets.length > 0) {
+			sockets.forEach((socket) => {
+				sendWebSocketMessage(socket, 'productTrendsProgress', {
+					stage: 'completed',
+					message: '✅ Product trends recalculation completed successfully!',
+					progress: 100,
+					total: 100
+				});
+			})
 		}
-
-		res.json(result);
 	} catch (error) {
 		console.error('Error recalculating product trends:', error);
 		res.status(500).json({ error: error.message });
@@ -529,8 +529,7 @@ router.post('/product-campaign-links', async (req, res) => {
 				.eq('id', existingLink.id);
 
 			if (error) throw error;
-			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
-			common.productSkus = [];
+			common.initialSiteData(store_id, productSku);
 		} else {
 			// Create new link
 			const { error } = await supabase
@@ -544,8 +543,7 @@ router.post('/product-campaign-links', async (req, res) => {
 				});
 
 			if (error) throw error;
-			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', store_id).eq('product_sku', productSku);
-			common.productSkus = [];
+			common.initialSiteData(store_id, productSku);
 		}
 
 		res.json({ success: true });
@@ -569,8 +567,7 @@ router.post('/product-campaign-links/:id', async (req, res) => {
 			.from('product_campaign_links')
 			.update({ is_active: false, updated_at: new Date() })
 			.eq('id', id);
-		await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', storeId).eq('product_sku', productSku);
-        common.productSkus = [];
+		common.initialSiteData(storeId, productSku);
 		if (error) throw error;
 		res.json({ success: true });
 	} catch (error) {
@@ -775,15 +772,15 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 		}
 		result = await getCustomerLtvCohorts(storeId, startDate, endDate, sku);
 		if (result.success) {
-		if (sockets) {
-			sockets.forEach(socket => {
-				sendWebSocketMessage(socket, 'syncProgress', {
-					stage: 'get_customer_ltv_cohorts',
-					message: 'Customer LTV cohorts synced successfully',
-					data: JSON.stringify(result.data)
-				});
-			})
-		}
+			if (sockets) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProgress', {
+						stage: 'get_customer_ltv_cohorts',
+						message: 'Customer LTV cohorts synced successfully',
+						data: JSON.stringify(result.data)
+					});
+				})
+			}
 		} else {
 			throw new Error(result.error);
 		}
@@ -984,10 +981,20 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 
 		for (var i = 0; i < productCount; i += chunkSize) {
 			const { data: products, error: productsError } = await supabase.from('products')
-			.select('product_id, sale_price, sale_quantity').eq('store_id', storeId).in('product_id', productIds).range(i, i + chunkSize - 1);
+			.select('product_id, sale_price, sale_quantity, product_sku_id').eq('store_id', storeId).in('product_id', productIds).range(i, i + chunkSize - 1);
 			if (productsError) throw productsError;
 			products.forEach(product => {
-				allProducts.set(product.product_id, product);
+				var ss = product.product_sku_id
+				if (ss.includes("-")) {
+					ss = ss.split("-")[0] + "-" + ss.split("-")[1];
+				}
+				if (allProducts.has(ss)) {
+					allProducts.get(ss).sale_quantity += product.sale_quantity;
+					allProducts.get(ss).sale_price += product.sale_price;
+				}
+				else {
+					allProducts.set(ss, product);
+				}
 			})
 		}
 
@@ -1044,7 +1051,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		allProductCampaignLinks.forEach(productCampaignLink => {
 			allAdsSpend.forEach(ad => {
 				if (ad.campaign_id === productCampaignLink.campaign_id) {
-					var product = allProducts.get(productCampaignLink.product_id);
+					var product = allProducts.get(productCampaignLink.product_sku);
 					if (product) {
 						if (product.ad_spend) {
 							product.ad_spend += ad.spend_amount;
@@ -1109,7 +1116,11 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				orders.forEach(order => {
 					totalRevenue += parseFloat(order.total_price);
 					totalProfit += parseFloat(order.total_price);
-					var product = allProducts.get(order.product_id);
+					var ss = order.sku
+					if (ss.includes("-")) {
+						ss = ss.split("-")[0] + "-" + ss.split("-")[1];
+					}
+					var product = allProducts.get(ss);
 					if (product && product.ad_spend) {
 						totalProfit -= product.ad_spend / (product.sale_quantity == 0 ? 1 : product.sale_quantity);
 					}

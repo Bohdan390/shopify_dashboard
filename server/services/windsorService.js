@@ -7,7 +7,10 @@ require('dotenv').config();
 class WindsorService {
   constructor() {
     this.apiKey = process.env.WINDSOR_API_KEY;
+    this.trafficJunkyApiKey = process.env.TRAFFIC_JUNKY_API_KEY;
+    this.exoClickApiKey = process.env.EXOCLICK_API_KEY;
     this.baseURL = 'https://connectors.windsor.ai';
+    this.trafficJunkyBaseURL = 'https://api.trafficjunky.com';
 
     // Initialize Supabase client
     this.supabase = createClient(
@@ -40,13 +43,13 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344,facebook__972524497929970" }
+        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344" }
       }
       else if (storeId == "buycosari") {
         query = { select_accounts: "google_ads__102-337-4754" }
       }
       else if (storeId == "cosara") {
-        query = { select_accounts: "google_ads__917-538-6903,taboola__interactiveecommercellc-network" }
+        query = { select_accounts: "google_ads__917-538-6903,taboola__interactiveecommercellc-network,facebook__972524497929970" }
       }
       else if (storeId == "nomobark") {
         query = { select_accounts: "google_ads__150-979-2980" }
@@ -57,6 +60,36 @@ class WindsorService {
       else if (storeId == "gamoseries") {
         query = { select_accounts: "google_ads__102-337-4754" }
       }
+
+
+      if (storeId == "cosara") {
+
+      }
+      // const r = await fetch(`${this.trafficJunkyBaseURL}/api/campaigns.json`, {
+      //   method: 'GET',
+      //   headers: {
+      //     'Authorization': `Bearer ${this.trafficJunkyApiKey}`,
+      //     'Content-Type': 'application/json'
+      //   }
+      // });
+
+      // if (!r.ok) {
+      //   throw new Error(`HTTP error! status: ${r.status}`);
+      // }
+
+      // let campaignId = 1011865092;
+      // const res = await fetch(
+      //   `${this.trafficJunkyBaseURL}/api/ads/${campaignId}/stats.json?from=${startDate}&to=${endDate}`,
+      //   { headers: { Authorization: `Bearer ${this.trafficJunkyApiKey}` } }
+      // );
+      // if (!res.ok) throw new Error(`Failed to fetch stats for campaign ${campaignId}: ${res.status}`);
+
+      // console.log(await res.json());
+  
+      
+  
+      // console.log('Ads:', await r.json());
+      // return [];
       // facebook__2024454474573344
       if (common.diffInMonths(common.createLocalDateWithTime(startDate), common.createLocalDateWithTime(new Date())) < 36) {
         if (common.createLocalDateWithTime(startDate).getTime() > new Date().getTime()) {
@@ -92,8 +125,7 @@ class WindsorService {
         if (campaignLinks.length > 0) {
           var productSkus = campaignLinks.map(item => item.product_sku);
           if (productSkus.length > 0) {
-            await this.supabase.from("customer_ltv_cohorts").update({ created_at: new Date("1900-01-01") }).eq('store_id', storeId).in('product_sku', productSkus);
-            common.productSkus = [];
+            common.initialSiteData(storeId, productSkus);
           }
         }
 

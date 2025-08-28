@@ -13,6 +13,23 @@ class ShopifyService {
 		this.setupStoreConfig();
 	}
 
+
+// 	Traffic Junky API key:
+
+// 80e2ee9daf3f5e3a2a55aac5f323c082603d49e5e421178565fbbffd791b17e7192f3669837ddc74323946399cb0110dc1ad175cbc93819a9950937e081a3bbd
+
+
+// ExoClick
+
+// d9282a5d35877e0dbe360360fa392ceb19f4b0cf
+
+
+
+
+// These are two other platforms we are launching now in addition to facebook, taboola and google ads.
+
+
+// I have also integrated taboola ads into the windsor so you can pull the data there.
 	// Helper function to send WebSocket messages
 	sendWebSocketMessage(socket, eventType, data) {
 		if (socket && socket.readyState === 1) { // WebSocket.OPEN
@@ -471,8 +488,7 @@ class ShopifyService {
 			
 			// Extract unique products from line items and prepare for products table
 			
-			await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq('store_id', this.storeId).in('product_sku', updateProductSkus);
-			common.productSkus = [];
+			common.initialSiteData(this.storeId, updateProductSkus);
 			
 			console.log(uniqueProductSkus.values());
 			if (this.storeId == "meonutrition") {

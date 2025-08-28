@@ -2,6 +2,8 @@ const { supabase } = require("./database-supabase");
 
 // Create the activeSockets Map locally in this module
 const activeSockets = new Map();
+let productLtvCohorts = [];
+let productSkus = [];
 
 function createLocalDate(dateString) {
     var date = new Date(dateString)
@@ -175,6 +177,19 @@ function getActiveSocketsInfo() {
     return info;
 }
 
+async function initialSiteData(store_id, product_sku) {
+    let query = supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")})
+    if (store_id) {
+        query.eq('store_id', store_id)
+    }
+    if (product_sku) {
+        query.eq('product_sku', product_sku)
+    }
+    await query;
+    productSkus = [];
+    productLtvCohorts = [];
+}
+
 // Socket health check and cleanup
 function cleanupDeadSockets() {
     let cleanedCount = 0;
@@ -209,9 +224,10 @@ module.exports = {
         SEK: 0.1,
         EUR: 1.16
     },
-    productSkus: [],
-    activeSockets: activeSockets, // Export the local Map
+    productSkus: productSkus,
+    activeSockets: activeSockets,
+    productLtvCohorts: productLtvCohorts,
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
     diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern,
-    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, cleanupDeadSockets
+    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, cleanupDeadSockets, initialSiteData
 }
