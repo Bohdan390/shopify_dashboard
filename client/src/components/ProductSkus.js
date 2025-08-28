@@ -900,7 +900,7 @@ const ProductSkus = () => {
         }
 
         try {
-            await api.delete(`/api/product-skus/${id}`);
+            await api.delete(`/api/product-skus/${id}`, { params: { storeId: selectedStore } });
             fetchProductSkus(pagination.currentPage, searchTerm);
 
             // Show success message
@@ -1039,15 +1039,6 @@ const ProductSkus = () => {
             hour: '2-digit',
             minute: '2-digit'
         });
-    };
-
-    // Format product IDs
-    const formatProductIds = (productIds) => {
-        if (!productIds) return 'None';
-        const ids = productIds.split(',').filter(id => id.trim());
-        if (ids.length === 0) return 'None';
-        if (ids.length <= 3) return ids.join(', ');
-        return `${ids.slice(0, 3).join(', ')} +${ids.length - 3} more`;
     };
 
     // Format currency

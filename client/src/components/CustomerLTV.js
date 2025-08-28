@@ -13,12 +13,13 @@ import {
 } from 'lucide-react';
 let isLtvLoading = false, timeOut = null
 const CustomerLTV = () => {
-	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
+    const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
     const [loading, setLoading] = useState(true);
     // Customer LTV State
     const [ltvData, setLtvData] = useState([]);
+    const [ltvProductData, setLtvProductData] = useState([]);
     const [ltvLoading, setLtvLoading] = useState(false);
-    const [ltvMetric, setLtvMetric] = useState('ltv'); // 'ltv' or 'profit-ltv'
+    const [ltvMetric, setLtvMetric] = useState('customer-ltv-revenue');
     const [ltvStartYear, setLtvStartYear] = useState(new Date().getFullYear());
     const [ltvEndYear, setLtvEndYear] = useState(new Date().getFullYear());
     const [ltvStartMonth, setLtvStartMonth] = useState(1);
@@ -65,7 +66,6 @@ const CustomerLTV = () => {
 
     // Fetch individual product LTV data
     const fetchIndividualProductLtv = async () => {
-        console.log('🔌 Fetching individual product LTV', socket.readyState, isLtvLoading);
         if (isLtvLoading) return;
         isLtvLoading = true;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -81,13 +81,25 @@ const CustomerLTV = () => {
 
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
-            await api.post('/api/analytics/sync-customer-ltv-cohorts', {
-                startDate,
-                endDate,
-                storeId: selectedStore || 'buycosari',
-                socketId: socket?.id, // Use the WebSocket ID
-                sku: selectedProductSku
-            });
+
+            console.log("isfinsiehd-----------", ltvMetric)
+            if (ltvMetric.includes("customer")) {
+                await api.post('/api/analytics/sync-customer-ltv-cohorts', {
+                    startDate,
+                    endDate,
+                    storeId: selectedStore || 'buycosari',
+                    socketId: socket?.id, // Use the WebSocket ID
+                    sku: selectedProductSku
+                });
+            }
+            else if (ltvMetric.includes("product")) {
+                await api.post('/api/analytics/recalculate-product-trends', {
+                    startDate,
+                    endDate,
+                    storeId: selectedStore || 'buycosari',
+                    socketId: socket?.id
+                });
+            }
             console.log("isfinsiehd-----------")
             isLtvLoading = false;
         } catch (error) {
@@ -132,6 +144,13 @@ const CustomerLTV = () => {
     }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku, socketConnected]);
 
     // Format number for display
+
+    useEffect(() => {
+        if (ltvMetric.includes("product")) {
+            fetchIndividualProductLtv();
+        }
+    }, [ltvMetric]);
+
     const formatNumber = (value) => {
         if (value === null || value === undefined) return '0';
         return new Intl.NumberFormat('en-US').format(Math.round(value));
@@ -140,7 +159,7 @@ const CustomerLTV = () => {
     // Get metric display value
     const getLtvMetricValue = (cohort, monthKey) => {
         const value = cohort[monthKey];
-        if (ltvMetric === 'ltv' || ltvMetric === 'profit-ltv') {
+        if (ltvMetric === 'customer-ltv-revenue' || ltvMetric === 'customer-ltv-profit') {
             return formatCurrency(value);
         } else {
             return formatNumber(value);
@@ -150,10 +169,12 @@ const CustomerLTV = () => {
     // Get metric label
     const getLtvMetricLabel = () => {
         switch (ltvMetric) {
-            case 'ltv':
+            case 'customer-ltv-revenue':
                 return 'Customer Lifetime Value (Revenue per Customer)';
-            case 'profit-ltv':
+            case 'customer-ltv-profit':
                 return 'Customer Lifetime Value (Profit per Customer)';
+            case 'product-ltv-revenue':
+                return 'Product Lifetime Value (Revenue per Product)';
             default:
                 return 'Customer Lifetime Value (Revenue per Customer)';
         }
@@ -278,12 +299,12 @@ const CustomerLTV = () => {
     // Select store for socket when component mounts
     useEffect(() => {
         if (!socket) return;
-        
+
         // Select store for this socket connection
         if (selectedStore) {
             selectStore(selectedStore);
         }
-        
+
         // Add event listener for syncProgress
         addEventListener('refresh_product_skus', (data) => {
             console.log('🔌 Refreshing product skus');
@@ -314,6 +335,11 @@ const CustomerLTV = () => {
                 console.log('🔌 LTV data received', JSON.parse(data.data));
                 setLtvLoading(false);
                 setLtvData(JSON.parse(data.data) || []);
+            }
+            else if (data.stage == "get_product_ltv_cohorts") {
+                console.log('🔌 Product LTV data received', JSON.parse(data.data));
+                setLtvLoading(false);
+                setLtvProductData(JSON.parse(data.data) || []);
             }
         });
 
@@ -368,341 +394,466 @@ const CustomerLTV = () => {
         return <CustomerLTVLoader />;
     }
 
-    return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-            <div className="max-w-full mx-auto">
-                {/* Header */}
-                <div className="mb-4 sm:mb-6">
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Customers</h1>
-                    <p className="text-sm sm:text-base text-gray-600">Manage and analyze your customer base</p>
+    const renderLtvData = () => {
+        if (ltvMetric === 'customer-ltv-revenue' || ltvMetric === 'customer-ltv-profit') {
+            return <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                {/* Table Header */}
+                <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            {getLtvMetricLabel()} - {getLtvMonthRangeDisplay()}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setLtvViewMode('table')}
+                                className={`p-2 rounded ${ltvViewMode === 'table' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                <Grid className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Customer LTV Cohort Analysis */}
-                <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
-                    {/* LTV Header */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-purple-100 rounded-lg">
-                                <TrendingUp className="w-6 h-6 text-purple-600" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">Customer LTV Cohort Analysis</h2>
-                                <p className="text-gray-600">{getLtvMetricLabel()} for {getLtvMonthRangeDisplay()}</p>
-                            </div>
-                        </div>
-                    </div>
+                {/* Table Content */}
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ textAlign: 'center' }}>
+                                    MONTHS SINCE FIRST PURCHASE
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Select Product SKU:
-                        </label>
-                        <SearchableSelect
-                            value={selectedProductSku}
-                            onChange={handleProductSelection}
-                            options={[
-                                { value: '', label: 'Choose a product...' },
-                                ...productSkus.map(sku => ({ value: sku.sku_id, label: sku.sku_title }))
-                            ]}
-                            placeholder="Select a product to analyze"
-                            searchPlaceholder="Search products..."
-                            size="md"
-                            className="w-full max-w-md"
-                        />
-                    </div>
-                    {/* LTV Controls */}
-                    <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center mb-6">
-                        {/* Metric Selection */}
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm font-medium text-gray-700">Metric:</label>
-                            <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                                <button
-                                    onClick={() => handleLtvMetricChange('ltv')}
-                                    className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'ltv'
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <DollarSign className="w-4 h-4 inline mr-1" />
-                                    LTV (Revenue)
-                                </button>
-                                <button
-                                    onClick={() => handleLtvMetricChange('profit-ltv')}
-                                    className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'profit-ltv'
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <TrendingUp className="w-4 h-4 inline mr-1" />
-                                    Profit-LTV
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Year and Month Range Selectors */}
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-600" />
-                                <span className="text-sm font-medium text-gray-700">Period:</span>
-                            </div>
-
-                            {/* Start Year and Month */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-700">From:</span>
-
-                                <BeautifulSelect
-                                    value={ltvStartYear}
-                                    onChange={handleLtvStartYearChange}
-                                    options={yearOptions.map(year => ({ value: year, label: year.toString() }))}
-                                    placeholder="Select year"
-                                    size="sm"
-                                    style={{ height: 36 }}
-                                    className="min-w-[80px]"
-                                />
-
-                                <BeautifulSelect
-                                    value={ltvStartMonth}
-                                    onChange={handleLtvStartMonthChange}
-                                    options={monthOptions}
-                                    placeholder="Select month"
-                                    size="sm"
-                                    style={{ height: 36 }}
-                                    className="min-w-[120px]"
-                                />
-                            </div>
-
-                            <span className="text-sm font-medium text-gray-700">to</span>
-
-                            {/* End Year and Month */}
-                            <div className="flex items-center gap-2">
-                                <BeautifulSelect
-                                    value={ltvEndYear}
-                                    onChange={handleLtvEndYearChange}
-                                    options={yearOptions.map(year => ({ value: year, label: year.toString() }))}
-                                    placeholder="Select year"
-                                    size="sm"
-                                    style={{ height: 36 }}
-                                    className="min-w-[80px]"
-                                />
-
-                                <BeautifulSelect
-                                    value={ltvEndMonth}
-                                    onChange={handleLtvEndMonthChange}
-                                    options={monthOptions}
-                                    placeholder="Select month"
-                                    size="sm"
-                                    style={{ height: 36 }}
-                                    className="min-w-[120px]"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* LTV Loading State */}
-                    {ltvLoading && (
-                        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                                <span>Loading customer LTV data for {getLtvMonthRangeDisplay()}...</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* LTV Data Table */}
-                    {ltvLoading ? (
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ position: 'relative' }}>
-                            {/* Loading Skeleton */}
-                            <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
-                                <div className="flex items-center justify-between">
-                                    <div className="h-6 bg-gray-200 rounded w-64 animate-pulse"></div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
-                                        <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
-                                        <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="px-4 py-3 border-b border-gray-200 bg-white">
-                                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
-                            </div>
-
-                            <div className="p-4">
-                                <div className="space-y-4">
-                                    {[1, 2, 3].map((i) => (
-                                        <div key={i} className="flex items-center space-x-4">
-                                            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
-                                            <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                                            <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                                            <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                                            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-                                            <div className="flex-1 grid grid-cols-6 gap-1">
-                                                {Array.from({ length: 6 }, (_, j) => (
-                                                    <div key={j} className="h-8 bg-gray-200 rounded animate-pulse"></div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            {(ltvSyncProgress.stage === 'calculating' || ltvSyncProgress.stage === 'completed') && (
-                                <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center" style={{ backgroundColor: 'white' }}>
-                                    <div className="relative w-48 bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
-                                        <div
-                                            className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full transition-all duration-500 ease-out"
-                                            style={{ width: `${ltvSyncProgress.progress}%` }}
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 rounded-full" />
-                                    </div>
-                                    <div className="flex items-center justify-between ml-2">
-                                        <span className="text-xs font-medium text-gray-800 flex-shrink-0">{ltvSyncProgress.progress}%</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ) : ltvData.length > 0 ? (
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                            {/* Table Header */}
-                            <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-900">
-                                        {getLtvMetricLabel()} - {getLtvMonthRangeDisplay()}
-                                    </h3>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => setLtvViewMode('table')}
-                                            className={`p-2 rounded ${ltvViewMode === 'table' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            <Grid className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Table Content */}
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ textAlign: 'center' }}>
-                                                MONTHS SINCE FIRST PURCHASE
-                                            </th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-
-                                            </th>
-                                        </tr>
-                                        <tr>
-                                            <th className='font-medium text-gray-500 uppercase text-xs'>CUSTOMER COHORT</th>
-                                            <th className='font-medium text-gray-500 uppercase text-xs'>NEW CUSTOMERS</th>
-                                            <th className='font-medium text-gray-500 uppercase text-xs'>CAC</th>
-                                            <th className='font-medium text-gray-500 uppercase text-xs'>R-%</th>
-                                            <th className='font-medium text-gray-500 uppercase text-xs'>FIRST ORDER</th>
-                                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
-                                                    {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
-                                                        const monthDate = new Date(ltvStartYear, ltvStartMonth - 1 + i, 1);
-                                                        const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
-                                                        const year = monthDate.getFullYear();
-                                                        return (
-                                                            <div key={i} className="text-center">
-                                                                <div className="font-bold">{i}</div>
-                                                                {/* <div className="text-xs">{monthName} {year}</div> */}
-                                                            </div>
-                                                        );
-                                                    })}
+                                </th>
+                            </tr>
+                            <tr>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>CUSTOMER COHORT</th>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>NEW CUSTOMERS</th>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>CAC</th>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>R-%</th>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>FIRST ORDER</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
+                                        {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
+                                            const monthDate = new Date(ltvStartYear, ltvStartMonth - 1 + i, 1);
+                                            const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+                                            const year = monthDate.getFullYear();
+                                            return (
+                                                <div key={i} className="text-center">
+                                                    <div className="font-bold">{i}</div>
+                                                    {/* <div className="text-xs">{monthName} {year}</div> */}
                                                 </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {getFilteredLtvData().map((cohort, index) => (
-                                            <tr key={cohort.cohortMonth} className="hover:bg-gray-50">
-                                                <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 max-w-[140px] truncate" title={cohort.cohortMonth}>
-                                                    {cohort.cohortMonthDisplay}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                                                    {cohort.customerCount || 0}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                                                    {cohort.cac > 0 ? formatCurrency(cohort.cac) : '-'}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                                                    {
-                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cohort.retentionRate >= 80
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : cohort.retentionRate >= 60
-                                                                ? 'bg-yellow-100 text-yellow-800'
-                                                                : 'bg-red-100 text-red-800'
-                                                            }`}>
-                                                            {cohort.retentionRate.toFixed(1)}%
-                                                        </span>
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-4">
+                                            );
+                                        })}
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {getFilteredLtvData().map((cohort, index) => (
+                                <tr key={cohort.cohortMonth} className="hover:bg-gray-50">
+                                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 max-w-[140px] truncate" title={cohort.cohortMonth}>
+                                        {cohort.cohortMonthDisplay}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                                        {cohort.customerCount || 0}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                                        {cohort.cac > 0 ? formatCurrency(cohort.cac) : '-'}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                                        {
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cohort.retentionRate >= 80
+                                                ? 'bg-green-100 text-green-800'
+                                                : cohort.retentionRate >= 60
+                                                    ? 'bg-yellow-100 text-yellow-800'
+                                                    : 'bg-red-100 text-red-800'
+                                                }`}>
+                                                {cohort.retentionRate.toFixed(1)}%
+                                            </span>
+                                        }
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div
+                                            className={`p-2 text-xs text-center rounded ${ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`}
+                                        >
+                                            {cohort.first_order_price > 0 ? formatCurrency(cohort.first_order_price) : '-'}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
+                                            {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
+                                                const monthKey = ltvMetric === 'customer-ltv-profit' ? `monthProfit${i}` : `monthRevenue${i}`;
+                                                const value = cohort[monthKey];
+                                                const isAvailable = value !== undefined && value !== null;
+
+                                                return (
                                                     <div
-                                                        className={`p-2 text-xs text-center rounded ${ltvMetric === 'profit-ltv' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`}
+                                                        key={i}
+                                                        className={`p-2 text-xs text-center rounded ${isAvailable
+                                                            ? `${ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
+                                                            : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
+                                                            }`}
                                                     >
-                                                        {cohort.first_order_price > 0 ? formatCurrency(cohort.first_order_price) : '-'}
+                                                        {isAvailable ? getLtvMetricValue(cohort, monthKey) : 'N/A'}
                                                     </div>
-                                                </td>
-                                                <td className="px-4 py-4">
-                                                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
-                                                        {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
-                                                            const monthKey = ltvMetric === 'profit-ltv' ? `monthProfit${i}` : `monthRevenue${i}`;
-                                                            const value = cohort[monthKey];
-                                                            const isAvailable = value !== undefined && value !== null;
+                                                );
+                                            })}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-                                                            return (
-                                                                <div
-                                                                    key={i}
-                                                                    className={`p-2 text-xs text-center rounded ${isAvailable
-                                                                        ? `${ltvMetric === 'profit-ltv' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
-                                                                        : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
-                                                                        }`}
-                                                                >
-                                                                    {isAvailable ? getLtvMetricValue(cohort, monthKey) : 'N/A'}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Results Summary */}
-                            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                                <div className="text-sm text-gray-600">
-                                    Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                            <div className="text-gray-400 mb-4">
-                                <TrendingUp className="mx-auto h-12 w-12" />
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No Customer LTV Data Available</h3>
-                            <p className="text-gray-500">
-                                No customer LTV analytics found for {getLtvMonthRangeDisplay()}.
-                            </p>
-                        </div>
-                    )}
+                {/* Results Summary */}
+                <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                    <div className="text-sm text-gray-600">
+                        Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
+                    </div>
                 </div>
             </div>
-        </div>
-    );
-};
+        }
+        else if (ltvMetric === 'product-ltv-revenue') {
+            return <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                {/* Table Header */}
+                <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            {getLtvMetricLabel()} - {getLtvMonthRangeDisplay()}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setLtvViewMode('table')}
+                                className={`p-2 rounded ${ltvViewMode === 'table' ? 'bg-purple-100 text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            >
+                                <Grid className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-export default CustomerLTV;
+                {/* Table Content */}
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ textAlign: 'center' }}>
+                                    MONTHS SINCE FIRST PURCHASE
+                                </th>
+                            </tr>
+                            <tr>
+                                <th className='font-medium text-gray-500 uppercase text-xs'>PRODUCT</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
+                                        {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
+                                            const monthDate = new Date(ltvStartYear, ltvStartMonth - 1 + i, 1);
+                                            const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+                                            const year = monthDate.getFullYear();
+                                            return (
+                                                <div key={i} className="text-center">
+                                                    <div className="font-bold">{i}</div>
+                                                    <div className="text-xs">{monthName} {year}</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {ltvProductData.map((cohort, index) => (
+                                <tr key={cohort.cohortMonth} className="hover:bg-gray-50">
+                                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 max-w-[140px] truncate" title={cohort.cohortMonth}>
+                                        {cohort.sku_title}
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${getLtvSelectedMonthCount()}, minmax(0, 1fr))` }}>
+                                            {Array.from({ length: getLtvSelectedMonthCount() }, (_, i) => {
+                                                var startYear = parseInt(ltvStartYear);
+                                                var startMonth = parseInt(ltvStartMonth);
+                                                var endYear = parseInt(ltvEndYear);
+                                                var endMonth = parseInt(ltvEndMonth);
+                                                var uniqueDates = [];
+                                
+                                                for (var year = startYear; year <= endYear; year++) {
+                                                    var sm = 1, em = 12;
+                                                    if (year == startYear) {
+                                                        sm = parseInt(startMonth);
+                                                    }
+                                                    if (year == endYear) {
+                                                        em = parseInt(endMonth);
+                                                    }
+                                                    for (var month = sm; month <= em; month++) {
+                                                        uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
+                                                    }
+                                                }
+                                                const monthKey = uniqueDates[i];
+                                                const value = cohort[monthKey];
+                                                const isAvailable = value !== undefined && value !== null;
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className={`p-2 text-xs text-center rounded ${isAvailable
+                                                            ? `${ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
+                                                            : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
+                                                            }`}
+                                                    >
+                                                        {isAvailable ? formatCurrency(value) : 'N/A'}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Results Summary */}
+                <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                    <div className="text-sm text-gray-600">
+                        Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
+                    </div>
+                </div>
+            </div>
+        }
+        return (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                <div className="text-gray-400 mb-4">
+                    <TrendingUp className="mx-auto h-12 w-12" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Customer LTV Data Available</h3>
+                <p className="text-gray-500">
+                    No customer LTV analytics found for {getLtvMonthRangeDisplay()}.
+                </p>
+            </div>
+        )
+    }
+        return (
+            <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+                <div className="max-w-full mx-auto">
+                    {/* Header */}
+                    <div className="mb-4 sm:mb-6">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Customers</h1>
+                        <p className="text-sm sm:text-base text-gray-600">Manage and analyze your customer base</p>
+                    </div>
+
+                    {/* Customer LTV Cohort Analysis */}
+                    <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+                        {/* LTV Header */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 rounded-lg">
+                                    <TrendingUp className="w-6 h-6 text-purple-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900">Customer LTV Cohort Analysis</h2>
+                                    <p className="text-gray-600">{getLtvMetricLabel()} for {getLtvMonthRangeDisplay()}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Select Product SKU:
+                            </label>
+                            <SearchableSelect
+                                value={selectedProductSku}
+                                onChange={handleProductSelection}
+                                options={[
+                                    { value: '', label: 'Choose a product...' },
+                                    ...productSkus.map(sku => ({ value: sku.sku_id, label: sku.sku_title }))
+                                ]}
+                                placeholder="Select a product to analyze"
+                                searchPlaceholder="Search products..."
+                                size="md"
+                                className="w-full max-w-md"
+                            />
+                        </div>
+                        {/* LTV Controls */}
+                        <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center mb-6">
+                            {/* Metric Selection */}
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">Metric:</label>
+                                <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                                    <button
+                                        onClick={() => handleLtvMetricChange('customer-ltv-revenue')}
+                                        className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'customer-ltv-revenue'
+                                            ? 'bg-purple-600 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <DollarSign className="w-4 h-4 inline mr-1" />
+                                        Customer - LTV (Revenue)
+                                    </button>
+                                    <button
+                                        onClick={() => handleLtvMetricChange('customer-ltv-profit')}
+                                        className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'customer-ltv-profit'
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <TrendingUp className="w-4 h-4 inline mr-1" />
+                                        Customer - LTV (Profit)
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            handleLtvMetricChange('product-ltv-revenue')
+                                        }}
+                                        className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'product-ltv-revenue'
+                                            ? 'bg-purple-600 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <TrendingUp className="w-4 h-4 inline mr-1" />
+                                        Product LTV (Revenue)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Year and Month Range Selectors */}
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-gray-600" />
+                                    <span className="text-sm font-medium text-gray-700">Period:</span>
+                                </div>
+
+                                {/* Start Year and Month */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-700">From:</span>
+
+                                    <BeautifulSelect
+                                        value={ltvStartYear}
+                                        onChange={handleLtvStartYearChange}
+                                        options={yearOptions.map(year => ({ value: year, label: year.toString() }))}
+                                        placeholder="Select year"
+                                        size="sm"
+                                        style={{ height: 36 }}
+                                        className="min-w-[80px]"
+                                    />
+
+                                    <BeautifulSelect
+                                        value={ltvStartMonth}
+                                        onChange={handleLtvStartMonthChange}
+                                        options={monthOptions}
+                                        placeholder="Select month"
+                                        size="sm"
+                                        style={{ height: 36 }}
+                                        className="min-w-[120px]"
+                                    />
+                                </div>
+
+                                <span className="text-sm font-medium text-gray-700">to</span>
+
+                                {/* End Year and Month */}
+                                <div className="flex items-center gap-2">
+                                    <BeautifulSelect
+                                        value={ltvEndYear}
+                                        onChange={handleLtvEndYearChange}
+                                        options={yearOptions.map(year => ({ value: year, label: year.toString() }))}
+                                        placeholder="Select year"
+                                        size="sm"
+                                        style={{ height: 36 }}
+                                        className="min-w-[80px]"
+                                    />
+
+                                    <BeautifulSelect
+                                        value={ltvEndMonth}
+                                        onChange={handleLtvEndMonthChange}
+                                        options={monthOptions}
+                                        placeholder="Select month"
+                                        size="sm"
+                                        style={{ height: 36 }}
+                                        className="min-w-[120px]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* LTV Loading State */}
+                        {ltvLoading && (
+                            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                    <span>Loading customer LTV data for {getLtvMonthRangeDisplay()}...</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* LTV Data Table */}
+                        {ltvLoading ? (
+                            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ position: 'relative' }}>
+                                {/* Loading Skeleton */}
+                                <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="h-6 bg-gray-200 rounded w-64 animate-pulse"></div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                                            <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                                            <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="px-4 py-3 border-b border-gray-200 bg-white">
+                                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                                </div>
+
+                                <div className="p-4">
+                                    <div className="space-y-4">
+                                        {[1, 2, 3].map((i) => (
+                                            <div key={i} className="flex items-center space-x-4">
+                                                <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                                                <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                                <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                                <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                                                <div className="flex-1 grid grid-cols-6 gap-1">
+                                                    {Array.from({ length: 6 }, (_, j) => (
+                                                        <div key={j} className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {(ltvSyncProgress.stage === 'calculating' || ltvSyncProgress.stage === 'completed') && (
+                                    <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center" style={{ backgroundColor: 'white' }}>
+                                        <div className="relative w-48 bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
+                                            <div
+                                                className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full transition-all duration-500 ease-out"
+                                                style={{ width: `${ltvSyncProgress.progress}%` }}
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 rounded-full" />
+                                        </div>
+                                        <div className="flex items-center justify-between ml-2">
+                                            <span className="text-xs font-medium text-gray-800 flex-shrink-0">{ltvSyncProgress.progress}%</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            renderLtvData()
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    export default CustomerLTV;

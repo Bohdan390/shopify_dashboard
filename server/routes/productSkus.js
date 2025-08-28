@@ -366,8 +366,7 @@ router.put('/:id', async (req, res) => {
       .select()
       .single();
 
-    await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq("product_sku", sku_id);
-    common.productSkus = [];
+    common.initialSiteData("", sku_id);
 
     if (error) throw error;
 
@@ -391,13 +390,19 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    const { data } = await supabase
+      .from('product_skus')
+      .select('*')
+      .eq('sku_id', id)
+      .limit(1);
+
+
     const { error } = await supabase
       .from('product_skus')
       .delete()
       .eq('id', id);
 
-    await supabase.from("customer_ltv_cohorts").update({created_at: new Date("1900-01-01")}).eq("product_sku", id);
-    common.productSkus = [];
+    common.initialSiteData(data[0].store_id, id);
 
     if (error) throw error;
 

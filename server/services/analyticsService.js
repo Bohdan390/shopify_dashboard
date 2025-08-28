@@ -1373,194 +1373,250 @@ class AnalyticsService {
 		}
 	}
 
-	async recalculateAllProductTrends(socket = null, startDate = null, endDate = null, storeId = 'buycosari') {
+	async recalculateAllProductTrends(sockets, startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
-			if (socket) {
-				this.sendWebSocketMessage(socket, 'productTrendsProgress', {
-					stage: 'starting',
-					message: `🔄 Starting product trends recalculation for ${storeId}...`,
-					progress: 0,
-					total: 100
-				});
-			}
+			if (common.productLtvCohorts.length == 0) {
+				var chunkSize = 1000;
 
-			// Step 1: Calculate and store basic trends (revenue, orders)
-			if (socket) {
-				this.sendWebSocketMessage(socket, "productTrendsProgress", {
-					stage: 'calculating_revenue',
-					message: `📊 Calculating revenue trends...`,
-					progress: 20,
-					total: 100
-				});
-			}
-
-			var startYear = startDate.split('-')[0];
-			var startMonth = startDate.split('-')[1];
-			var endYear = endDate.split('-')[0];
-			var endMonth = endDate.split('-')[1];
-			var uniqueDates = [];
-			var products = [];
-
-			var {count: productCount} = await supabase.from('products')
-				.select('*', {count: 'exact', head: true}).eq('store_id', storeId);
-
-			var chunk = 1000;
-			for (var i = 0; i < productCount; i += chunk) {
-				var {data: productsItems} = await supabase.from('products')
-					.select('*').eq('store_id', storeId)
-					.range(i, i + chunk - 1);
-					products.push(...productsItems);
-			}
-
-			for (var year = startYear; year <= endYear; year++) {
-				var sm = 1, em = 12;
-				if (year == startYear) {
-					sm = parseInt(startMonth);
-				}
-				if (year == endYear) {
-					em = parseInt(endMonth);
-				}
-				for (var month = sm; month <= em; month++) {
-					uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
-				}
-			}
-
-			await supabase.from('product_trends').delete().eq('store_id', storeId).in('month_year', uniqueDates);
-
-			var adsCampaignData = [];
-			var {count: adCampaignCount} = await supabase.from('product_campaign_links')
-				.select('*', {count: 'exact', head: true}).eq('store_id', storeId);
-			
-			for (var i = 0; i < adCampaignCount; i += chunk) {
-				var adCampaignItems = await supabase.from('product_campaign_links')
-					.select('*').eq('store_id', storeId)
-					.range(i, i + chunk - 1);
-				adsCampaignData.push(adCampaignItems.data);
-			}
-
-			for (const [index, date] of uniqueDates.entries()) {
-				const lastDay = new Date(date.split('-')[0], date.split('-')[1], 0).getDate();
-				var {count: orderCount} = await supabase.from('order_line_items')
-					.select('*', {count: 'exact', head: true}).eq('store_id', storeId)
-					.gte('created_at', `${date}-01T00:00:00`)
-					.lte('created_at', `${date}-${lastDay}T23:59:59.999`)
-					.neq('financial_status', 'refunded')
-					.neq('financial_status', 'cancelled');
-
-				var orderLineData = [], adsData = [], cogsData = [];
-
-				for (var i = 0; i < orderCount; i += chunk) {
-					var {data: orderLineItems} = await supabase.from('order_line_items')
-						.select('*').eq('store_id', storeId)
-						.gte('created_at', `${date}-01T00:00:00`)
-						.lte('created_at', `${date}-${lastDay}T23:59:59.999`)
-						.neq('financial_status', 'refunded')
-						.neq('financial_status', 'cancelled')
-						.range(i, i + chunk - 1);
-					orderLineData.push(...orderLineItems);
+				// Emit initial progress
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: 'Starting Customer LTV calculation...',
+							progress: 0,
+							total: 'unlimited'
+						});
+					})
 				}
 
-				var {count: adCount} = await supabase.from('ad_spend_details')
-					.select('*', {count: 'exact', head: true}).eq('store_id', storeId)
-					.gte('created_at', `${date}-01T00:00:00`)
-					.lte('created_at', `${date}-${lastDay}T23:59:59.999`);
+				// var {data: adsMonth, error: adsMonthError} = await supabase.rpc("get_monthly_ad_spend", {
+				// 	store_id_param: storeId
+				// });
 
-				for (var i = 0; i < adCount; i += chunk) {
-					var adItems = await supabase.from('ad_spend_details')
-						.select('*').eq('store_id', storeId)
-						.gte('created_at', `${date}-01T00:00:00`)
-						.lte('created_at', `${date}-${lastDay}T23:59:59.999`)
-						.range(i, i + chunk - 1);
-					adsData.push(...adItems.data);
-				}
+				console.log(-1)
+				var dd = new Date();
+				const {data: skuData, error: skuError} = await supabase.from("product_skus").select("sku_id, sku_title").eq("store_id", storeId);
+				if (skuError) throw skuError;
 
-				var {count: cogsCount} = await supabase.from('cost_of_goods')
-					.select('*', {count: 'exact', head: true}).eq('store_id', storeId)
-					.gte('created_at', `${date}-01T00:00:00`)
-					.lte('created_at', `${date}-${lastDay}T23:59:59.999`);
-
-				for (var i = 0; i < cogsCount; i += chunk) {
-					var cogsItems = await supabase.from('cost_of_goods')
-						.select('*').eq('store_id', storeId)
-						.gte('created_at', `${date}-01T00:00:00`)
-						.lte('created_at', `${date}-${lastDay}T23:59:59.999`)
-						.range(i, i + chunk - 1);
-					cogsData.push(...cogsItems.data);
-				}
-				var monthlyProductTrends = [];
-				orderLineData.forEach(orderLineItem => {
-					var productSku = common.extractProductSku(orderLineItem.product_title);
-					var productTrend = monthlyProductTrends.find(p => p.product_sku === productSku);
-					if (productTrend) {
-						productTrend.total_revenue += parseFloat(orderLineItem.total_price);
-						productTrend.order_count++;
-						productTrend.total_profit = parseFloat(orderLineItem.total_price) - Math.random() * 1500;
+				var allProductSkus = new Map();
+				skuData.forEach(sku => {
+					if (allProductSkus.has(sku.sku_id)) {
+						allProductSkus.get(sku.sku_id).push(sku);
 					}
 					else {
-						monthlyProductTrends.push({
-							product_sku: productSku,
-							store_id: storeId,
-							total_revenue: parseFloat(orderLineItem.total_price),
-							order_count: 1,
-							total_profit: parseFloat(orderLineItem.total_price),
-							ad_spend: 0,
-							month_year: date,
-							month: parseInt(date.split('-')[1]),
-							year: parseInt(date.split('-')[0]),
-							cost_of_goods: 0,
-							created_at: new Date().toISOString(),
-							updated_at: new Date().toISOString()
-						})
+						allProductSkus.set(sku.sku_id, {...sku});
 					}
-				})
-
-				cogsData.forEach(cogs => {
-					var productSku = common.extractProductSku(cogs.product_title);
-					var productTrend = monthlyProductTrends.find(p => p.product_sku === productSku);
-					if (productTrend) {
-						productTrend.cost_of_goods += parseFloat(cogs.total_cost);
-						productTrend.total_profit -= productTrend.cost_of_goods;
-					}
-				})
-
-				adsData.forEach(ad => {
-					var adCampaigns = adsCampaignData.filter(a => a.campaign_id === ad.ad_campaign_id);
-					adCampaigns.forEach(adCampaign => {
-						var productSku = common.extractProductSku(adCampaign.product_title);
-						var productTrend = monthlyProductTrends.find(p => p.product_sku === productSku);
-						if (productTrend) {
-							productTrend.ad_spend += parseFloat(ad.spend_amount * ad.currency);
-							productTrend.total_profit -= productTrend.ad_spend;
-						}
-					})
 				});
 
-				for (var i = 0; i < monthlyProductTrends.length; i += chunk) {
-					const {insertError} = await supabase.from('product_trends').insert(monthlyProductTrends.slice(i, i + chunk));
-					if (insertError) {
-						console.error('❌ Error inserting product trends:', insertError);
-						throw insertError;
+				startDate = "2023-01";
+				const {data: minData} = await supabase
+					.from('order_line_items')
+					.select('created_at')
+					.eq('store_id', storeId)
+					.order('created_at', { ascending: true })
+					.limit(1);
+				if (minData.length > 0) {
+					startDate = minData[0].created_at.substring(0, 7);
+				}
+				endDate = new Date().toISOString().substring(0, 7);
+				const {count: rangeOrderCount} = await supabase
+					.from('order_line_items')
+					.select('*', { count: 'exact', head: true })
+					.eq('store_id', storeId)
+					.eq('financial_status', 'paid')
+					.gte('created_at', `${startDate}-01T00:00:00Z`)
+					.lte('created_at', `${endDate}-31T23:59:59Z`);
+
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '',
+							progress: 5,
+							total: 'unlimited'
+						});
+					})
+				}
+
+				var rangeOrders = [];
+				console.log(0, rangeOrderCount)
+				for (var i = 0; i < rangeOrderCount; i += chunkSize) {
+					const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
+						.select('customer_id, total_price, created_at, sku')
+						.eq('financial_status', 'paid')
+						.eq('store_id', storeId)
+						.gte('created_at', `${startDate}-01T00:00:00Z`)
+						.lte('created_at', `${endDate}-31T23:59:59Z`)
+						.range(i, i + chunkSize - 1);
+					if (rangeOrdersError) throw rangeOrdersError;
+					rangeOrders.push(...orders);
+					if (sockets.length > 0) {
+						sockets.forEach(socket => {
+							sendWebSocketMessage(socket, 'syncProgress', {
+								stage: 'calculating',
+								message: '📥 Fetching customers data...',
+								progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(1)),
+								total: 'unlimited'
+							});
+						})
+					}
+				}
+				console.log(1)
+
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '📥 Fetching product campaign links data...',
+							progress: 50,
+							total: 'unlimited'
+						});
+					})
+				}
+
+				const {count: adsProductCampaignCount} = await supabase
+					.from('product_campaign_links')
+					.select('*', { count: 'exact', head: true })
+					.eq('store_id', storeId)
+					.eq('is_active', true)
+
+				var allProductCampaignLinks = [];
+				for (var i = 0; i < adsProductCampaignCount; i += chunkSize) {
+					const { data: productCampaignLinks, error: productCampaignLinksError } = await supabase.from('product_campaign_links')
+						.select('*')
+						.eq('store_id', storeId)
+						.eq('is_active', true)
+						.range(i, i + chunkSize - 1);
+					if (productCampaignLinksError) throw productCampaignLinksError;
+					allProductCampaignLinks.push(...productCampaignLinks);
+					if (sockets.length > 0) {
+						sockets.forEach(socket => {
+							sendWebSocketMessage(socket, 'syncProgress', {
+								stage: 'calculating',
+								message: '📥 Fetching products data...',
+								progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+								total: 'unlimited'
+							});
+						})
+					}
+				}
+				console.log(2)
+
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '📥 Fetching products data...',
+							progress: 60,
+							total: 'unlimited'
+						});
+					})
+				}
+
+				const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId);
+				var allCostOfGoods = [];
+				for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
+					const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).range(i, i + chunkSize - 1);
+					if (costOfGoodsError) throw costOfGoodsError;
+					allCostOfGoods.push(...costOfGoods);
+				}
+
+				if (sockets.length > 0) {
+					sockets.forEach(socket => {
+						sendWebSocketMessage(socket, 'syncProgress', {
+							stage: 'calculating',
+							message: '� Calculating LTV cohorts...',
+							progress: 70,
+							total: 'unlimited'
+						});
+					})
+				}
+				console.log(3)
+
+				var adsIds = allProductCampaignLinks.map(productCampaignLink => productCampaignLink.campaign_id);
+
+				var allAdsSpend = [];
+				if (adsIds.length > 0) {
+					const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
+						.select('campaign_id, spend_amount, date, currency')
+						.eq('store_id', storeId)
+						.in('campaign_id', adsIds)
+					if (adsSpendError) throw adsSpendError;
+					allAdsSpend.push(...adsSpend);
+					if (sockets.length > 0) {
+						sockets.forEach((socket) => {
+							sendWebSocketMessage(socket, 'syncProgress', {
+								stage: 'calculating',
+								message: '� Calculating LTV cohorts...',
+								progress: Number((70 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+								total: 'unlimited'
+							});
+						})
+					}
+				}
+				allProductCampaignLinks.forEach(productCampaignLink => {
+					allAdsSpend.forEach(ad => {
+						if (ad.campaign_id === productCampaignLink.campaign_id) {
+							var product = allProductSkus.get(productCampaignLink.product_sku);
+							if (product) {
+								if (product.ad_spend) {
+									product.ad_spend += ad.spend_amount;
+								}
+								else {
+									product.ad_spend = ad.spend_amount;
+								}
+							}
+						}
+					})
+				})
+				console.log(4)
+				
+				var startYear = parseInt(startDate.split('-')[0]);
+				var startMonth = parseInt(startDate.split('-')[1]);
+				var endYear = parseInt(endDate.split('-')[0]);
+				var endMonth = parseInt(endDate.split('-')[1]);
+				var uniqueDates = [];
+
+				for (var year = startYear; year <= endYear; year++) {
+					var sm = 1, em = 12;
+					if (year == startYear) {
+						sm = parseInt(startMonth);
+					}
+					if (year == endYear) {
+						em = parseInt(endMonth);
+					}
+					for (var month = sm; month <= em; month++) {
+						uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
 					}
 				}
 				
-				if (socket) {
-					this.sendWebSocketMessage(socket, "productTrendsProgress", {
-						stage: 'updating_ads_cogs',
-						message: `💰 Updating with ads and COGS data...`,
-						progress: (index + 1) / uniqueDates.length * 100,
-						total: 100
-					});
-				}
+				Array.from(allProductSkus.values()).forEach(product => {
+					for (var i = 0; i < uniqueDates.length; i++) {
+						var date = uniqueDates[i];
+						var orderCount = 0, totalPrice = 0;
+						rangeOrders.forEach(order => {
+							if (order.created_at.includes(date) && order.sku.includes(product.sku_id)) {
+								orderCount++;
+								totalPrice += parseFloat(order.total_price);
+							}
+						})
+						product[date] = common.roundPrice(totalPrice)
+					}
+				})
+				common.productLtvCohorts = Array.from(allProductSkus.values());
+			console.log(common.productLtvCohorts[0], new Date().getTime() - dd.getTime());
 			}
 
 			// Step 2: Update with ads and COGS data
-			if (socket) {
-				this.sendWebSocketMessage(socket, "productTrendsProgress", {
-					stage: 'completed',
-					message: `✅ Product trends recalculation completed for ${storeId}!`,
-					progress: 100,
-					total: 100
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, "syncProgress", {
+						stage: 'get_product_ltv_cohorts',
+						message: `✅ Product trends recalculation completed for ${storeId}!`,
+						data: JSON.stringify(common.productLtvCohorts)
+					});
+				})
 			}
 
 			return { success: true, message: 'Product trends recalculated successfully' };
@@ -1568,14 +1624,16 @@ class AnalyticsService {
 		} catch (error) {
 			console.error('❌ Error in full product trends recalculation:', error);
 			
-			if (socket) {
-				this.sendWebSocketMessage(socket, "productTrendsProgress", {
-					stage: 'error',
-					message: `❌ Error recalculating product trends: ${error.message}`,
-					progress: 0,
-					total: 100,
-					error: error.message
-				});
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, "syncProgress", {
+						stage: 'error',
+						message: `❌ Error recalculating product trends: ${error.message}`,
+						progress: 0,
+						total: 100,
+						error: error.message
+					});
+				})
 			}
 
 			throw error;
@@ -1767,6 +1825,17 @@ function formatMonthYear(monthYear) {
 	const [year, month] = monthYear.split('-');
 	const date = new Date(parseInt(year), parseInt(month) - 1);
 	return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+}
+
+function sendWebSocketMessage(socket, eventType, data) {
+	if (socket && socket.readyState === 1) { // WebSocket.OPEN
+		const message = JSON.stringify({
+			type: eventType,
+			data: data,
+			timestamp: Date.now()
+		});
+		socket.send(message);
+	}
 }
 
 module.exports = new AnalyticsService(); 
