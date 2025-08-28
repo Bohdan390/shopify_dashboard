@@ -217,7 +217,7 @@ class AnalyticsService {
 	}
 
 	// Filter analytics data by country-specific campaigns
-	async filterAnalyticsByCountry(analyticsData, startDate, endDate, storeId, countryCode) {
+	async filterAnalyticsByCountry(analyticsData, startDate, endDate, storeId, countryName, countryCode) {
 		try {
 			// Get country-specific campaigns
 			const {count: campaignCount, error: campaignCountError} = await supabase.from("ad_campaigns")
@@ -268,12 +268,6 @@ class AnalyticsService {
 				adSpendData.push(...adSpendDataChunk);
 			}
 			
-			const {data:countryCodes} = await supabase.from("countries").select("country_code, country_name").eq("country_code", countryCode).limit(1);
-			var countryName = "";
-			if (countryCodes.length > 0) {
-				countryName = countryCodes[0].country_name;
-			}
-
 			console.log(countryName, adSpendData.length)
 			var {data: ordersByDateCountry, error: ordersByDateCountryError} = await supabase.rpc("get_orders_total_price_by_date_country", {
 				p_store_id: storeId,
@@ -281,6 +275,14 @@ class AnalyticsService {
 				end_date: endDate,
 				p_country_name: countryName
 			});
+
+			var totalOrdersPrice = 0, paidOrdersPrice = 0, totalOrdersCount = 0, paidOrdersCount = 0;
+			ordersByDateCountry.forEach((order) => {
+				totalOrdersPrice += parseFloat(order.total_price);
+				paidOrdersPrice += parseFloat(order.paid_orders_price);
+				paidOrdersCount += order.paid_orders_count;
+				totalOrdersCount += order.total_orders_count;
+			})
 
 			if (ordersByDateCountryError) {
 				console.error('❌ Error fetching country orders:', ordersByDateCountryError);
@@ -299,7 +301,7 @@ class AnalyticsService {
 			adSpendData.forEach(spend => {
 				const date = spend.date;
 				if (!countryAdSpendByDate[date]) {
-					countryAdSpendByDate[date] = { google: 0, facebook: 0 };
+					countryAdSpendByDate[date] = { google: 0, facebook: 0, taboola: 0 };
 				}
 				if (spend.platform === 'google') {
 					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount * spend.currency);
@@ -314,11 +316,13 @@ class AnalyticsService {
 			const countryRevenueByDate = {};
 			ordersByDateCountry.forEach(order => {
 				const date = order.date;
-				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.total_price);
+				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.paid_orders_price);
 			});
 
+			console.log(ordersByDateCountry[0])
+
 			// Update analytics data with country-specific values
-			return analyticsData.map(day => {
+			var analytics =analyticsData.map(day => {
 				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
 				return {
@@ -328,10 +332,19 @@ class AnalyticsService {
 					google_ads_spend: countryAdSpend.google,
 					facebook_ads_spend: countryAdSpend.facebook,
 					revenue: countryRevenue,
-					profit: countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook,
+					profit: countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola,
+					profit_margin: countryRevenue > 0 ? (countryRevenue - (day.cost_of_goods || 0) - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola) / countryRevenue * 100 : 0,
 					cost_of_goods: day.cost_of_goods || 0
 				};
 			});
+
+			return {analytics, summaryData: {
+				totalOrders: totalOrdersCount,
+				paidOrders: paidOrdersCount,
+				totalRevenue: paidOrdersPrice,
+				paidRevenue: paidOrdersPrice,
+				avgOrderValue: paidOrdersPrice / totalOrdersCount,
+			}}
 
 		} catch (error) {
 			console.error('❌ Error filtering analytics by country:', error);
@@ -370,31 +383,41 @@ class AnalyticsService {
 					}
 				}
 
-				// If country filtering is applied, filter the data
+				var data = {}
+				var countryName = ""
 				if (country && country !== 'all') {
-					allAnalyticsData = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, country);
+					const {data:countryCodes} = await supabase.from("countries").select("country_code, country_name").eq("country_code", country).limit(1);
+					if (countryCodes.length > 0) {
+						countryName = countryCodes[0].country_name;
+					}
+					var {analytics, summaryData} = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, countryName, country);
+					allAnalyticsData = analytics;
+					data = summaryData;
 				}
 
 				const completeData = this.generateCompleteDateRange(startDate, endDate, allAnalyticsData);
 				// Get total order count (no chunking needed for count)
-				const stats = await supabase.rpc('get_orders_price_stats', {
-					p_store_id: storeId,
-					p_start_date: startDate + 'T00:00:00',
-					p_end_date: endDate + 'T23:59:59.999'
-				});
+				if (countryName == '') {
+					const stats = await supabase.rpc('get_orders_price_stats', {
+						p_store_id: storeId,
+						p_start_date: startDate + 'T00:00:00',
+						p_end_date: endDate + 'T23:59:59.999',
+					});
 
-				if (stats.error) {
-					console.error('❌ Error fetching orders stats:', stats.error);
-					throw stats.error;
+					if (stats.error) {
+						console.error('❌ Error fetching orders stats:', stats.error);
+						throw stats.error;
+					}
+
+					data = {
+						totalOrders: stats.data[0].total_orders_count,
+						paidOrders: stats.data[0].paid_orders_count,
+						totalRevenue: stats.data[0].paid_orders_price,
+						paidRevenue: stats.data[0].paid_orders_price,
+						avgOrderValue: stats.data[0].total_orders_price / stats.data[0].total_orders_count,
+					}
 				}
 
-				var data = {
-					totalOrders: stats.data[0].total_orders_count,
-					paidOrders: stats.data[0].paid_orders_count,
-					totalRevenue: stats.data[0].paid_orders_price,
-					paidRevenue: stats.data[0].paid_orders_price,
-					avgOrderValue: stats.data[0].total_orders_price / stats.data[0].total_orders_count,
-				}
 				const summary = allAnalyticsData.reduce((acc, row) => {
 					acc.totalGoogleAds += parseFloat(row.google_ads_spend || 0);
 					acc.totalFacebookAds += parseFloat(row.facebook_ads_spend || 0);
