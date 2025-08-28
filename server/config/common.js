@@ -190,34 +190,6 @@ async function initialSiteData(store_id, product_sku) {
     productLtvCohorts = [];
 }
 
-// Socket health check and cleanup
-function cleanupDeadSockets() {
-    let cleanedCount = 0;
-    const now = Date.now();
-    
-    activeSockets.forEach((ws, id) => {
-        // Remove sockets that are not in OPEN state
-        if (ws.readyState !== 1) {
-            console.log(`🧹 Cleaning up dead socket ${id} (state: ${ws.readyState})`);
-            activeSockets.delete(id);
-            cleanedCount++;
-        }
-        // Remove sockets that haven't had activity in 5 minutes
-        else if (ws.lastActivity && (now - ws.lastActivity) > 300000) {
-            console.log(`🧹 Cleaning up inactive socket ${id} (inactive for ${Math.round((now - ws.lastActivity) / 1000)}s)`);
-            activeSockets.delete(id);
-            cleanedCount++;
-        }
-    });
-    
-    if (cleanedCount > 0) {
-        console.log(`🧹 Cleaned up ${cleanedCount} dead/inactive sockets`);
-        console.log(`🔌 Remaining active sockets:`, Array.from(activeSockets.keys()));
-    }
-    
-    return cleanedCount;
-}
-
 module.exports = {
     currencyRates: {
         USD: 1,
@@ -229,5 +201,5 @@ module.exports = {
     productLtvCohorts: productLtvCohorts,
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
     diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern,
-    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, cleanupDeadSockets, initialSiteData
+    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, initialSiteData
 }
