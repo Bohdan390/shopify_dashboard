@@ -195,7 +195,8 @@ module.exports = {
     currencyRates: {
         USD: 1,
         SEK: 0.1,
-        EUR: 1.16
+        EUR: 1.16,
+        GBP: 1.32
     },
     productSkus: productSkus,
     activeSockets: activeSockets,

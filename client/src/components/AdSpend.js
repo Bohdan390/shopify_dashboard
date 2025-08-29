@@ -590,7 +590,7 @@ const AdSpend = () => {
 			}
 
 			const response = await api.get(`/api/ads/summary-stats?${params}`);
-			const { totalSpend, totalGoogleAmount, totalFacebookAmount, roiPercentage, revenue, campaigns, totalCount } = response.data;
+			const { totalSpend, totalGoogleAmount, totalFacebookAmount, totalTaboolaAmount, roiPercentage, revenue, campaigns, totalCount } = response.data;
 
 			setCampaigns(campaigns);
 			setCampaignPagination(prev => ({
@@ -604,6 +604,7 @@ const AdSpend = () => {
 				totalSpend: totalSpend,
 				facebookSpend: totalFacebookAmount,
 				googleSpend: totalGoogleAmount,
+				taboolaSpend: totalTaboolaAmount || 0,
 				roas: roiPercentage,
 				totalRevenue: revenue
 			};
@@ -667,7 +668,8 @@ const AdSpend = () => {
 				daysCount: chunk.length,
 				facebook: chunk.reduce((sum, item) => sum + (item.facebook || 0), 0),
 				google: chunk.reduce((sum, item) => sum + (item.google || 0), 0),
-				total: chunk.reduce((sum, item) => sum + (item.facebook || 0) + (item.google || 0), 0)
+				taboola: chunk.reduce((sum, item) => sum + (item.taboola || 0), 0),
+				total: chunk.reduce((sum, item) => sum + (item.facebook || 0) + (item.google || 0) + (item.taboola || 0), 0)
 			};
 			aggregated.push(aggregatedPoint);
 		}
@@ -844,10 +846,18 @@ const AdSpend = () => {
 	};
 
 	const getPlatformData = () => {
-		return [
-			{ name: 'Facebook', value: summaryStats.facebookSpend, color: '#1877F2' },
-			{ name: 'Google', value: summaryStats.googleSpend, color: '#f59e0b' }
-		];
+		if (selectedStore === "cosara") {
+			return [
+				{ name: 'Facebook', value: summaryStats.facebookSpend, color: '#1877F2' },
+				{ name: 'Google', value: summaryStats.googleSpend, color: '#f59e0b' },
+				{ name: 'Taboola', value: summaryStats.taboolaSpend, color: '#10B981' }
+			];
+		} else {
+			return [
+				{ name: 'Facebook', value: summaryStats.facebookSpend, color: '#1877F2' },
+				{ name: 'Google', value: summaryStats.googleSpend, color: '#f59e0b' }
+			];
+		}
 	};
 
 	// Pagination functions
@@ -1522,6 +1532,23 @@ const AdSpend = () => {
 							</div>
 						</div>
 
+						{/* Taboola Card - Only show for cosara store */}
+						{selectedStore === "cosara" && (
+							<div className="bg-white p-6 rounded-lg shadow-sm border">
+								<div className="flex items-center">
+									<div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+										<span className="text-white text-sm font-bold">T</span>
+									</div>
+									<div className="ml-4">
+										<p className="text-sm font-medium text-gray-600">Taboola Spend</p>
+										<p className="text-2xl font-bold text-green-600">
+											{displayCurrency(summaryStats.taboolaSpend, "USD")}
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
+
 						<div className="bg-white p-6 rounded-lg shadow-sm border">
 							<div className="flex items-center">
 								<TrendingUp className="w-8 h-8 text-purple-600" />
@@ -1630,6 +1657,18 @@ const AdSpend = () => {
 											animationDuration={1000}
 											activeDot={{ r: 6  }}
 										/>
+										{/* Taboola Line - Only show for cosara store */}
+										{selectedStore === "cosara" && (
+											<Line 
+												type="monotone" 
+												dataKey="taboola" 
+												stroke="#10B981" 
+												name="Taboola" 
+												strokeWidth={2}
+												animationDuration={1000}
+												activeDot={{ r: 6  }}
+											/>
+										)}
 									</LineChart>
 								</ResponsiveContainer>
 							) : (
@@ -1814,14 +1853,20 @@ const AdSpend = () => {
 														{displayCurrency(campaign.total_spend / campaign.currency_rate, campaign.currency_symbol)}
 													</div>
 												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
+																									<td className="px-6 py-4 whitespace-nowrap">
 														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
 															campaign.platform === 'facebook' 
 																? 'bg-blue-100 text-blue-800' 
+																: campaign.platform === 'taboola'
+																? 'bg-green-100 text-green-800'
 																: 'bg-amber-100 text-amber-800'
 														}`}>
 															{campaign.platform === 'facebook' ? (
 																<Facebook className="w-3 h-3 mr-1" />
+															) : campaign.platform === 'taboola' ? (
+																<div className="w-3 h-3 mr-1 bg-green-600 rounded-full flex items-center justify-center">
+																	<span className="text-white text-xs font-bold">T</span>
+																</div>
 															) : (
 																<Chrome className="w-3 h-3 mr-1" />
 															)}
@@ -1996,10 +2041,16 @@ const AdSpend = () => {
 														<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
 															item.platform === 'facebook' 
 																? 'bg-blue-100 text-blue-800' 
+																: item.platform === 'taboola'
+																? 'bg-green-100 text-green-800'
 																: 'bg-amber-100 text-amber-800'
 														}`}>
 															{item.platform === 'facebook' ? (
 																<Facebook className="w-3 h-3 mr-1" />
+															) : item.platform === 'taboola' ? (
+																<div className="w-3 h-3 mr-1 bg-green-600 rounded-full flex items-center justify-center">
+																	<span className="text-white text-xs font-bold">T</span>
+																</div>
 															) : (
 																<Chrome className="w-3 h-3 mr-1" />
 															)}
