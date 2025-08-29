@@ -125,7 +125,7 @@ class WindsorService {
         if (campaignLinks.length > 0) {
           var productSkus = campaignLinks.map(item => item.product_sku);
           if (productSkus.length > 0) {
-            common.initialSiteData(storeId, productSkus);
+            await common.initialSiteData(common, storeId, productSkus);
           }
         }
 

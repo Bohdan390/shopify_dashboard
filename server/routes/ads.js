@@ -855,7 +855,7 @@ router.post('/cog', async (req, res) => {
 
       if (productSkuId) {
         productSkuId = productSkuId.includes("-") ? productSkuId.split("-")[0] + "-" + productSkuId.split("-")[1] : productSkuId;
-        common.initialSiteData(store_id, productSkuId);
+        common.initialSiteData(common, store_id, productSkuId);
       }
 
       const {data:analytic} = await supabase.from("analytics").select("cost_of_goods").eq('date', date).eq('store_id', store_id).limit(1);

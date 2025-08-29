@@ -833,6 +833,7 @@ const ProductSkus = () => {
             if (editingId) {
                 // Update existing
                 await api.put(`/api/product-skus/${editingId}`, {
+                    store_id: selectedStore,
                     sku_id: formData.sku_id,
                     sku_title: formData.sku_title,
                     product_ids: productIds

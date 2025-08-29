@@ -529,7 +529,7 @@ router.post('/product-campaign-links', async (req, res) => {
 				.eq('id', existingLink.id);
 
 			if (error) throw error;
-			common.initialSiteData(store_id, productSku);
+			await common.initialSiteData(common, store_id, productSku);
 		} else {
 			// Create new link
 			const { error } = await supabase
@@ -543,7 +543,7 @@ router.post('/product-campaign-links', async (req, res) => {
 				});
 
 			if (error) throw error;
-			common.initialSiteData(store_id, productSku);
+			await common.initialSiteData(common, store_id, productSku);
 		}
 
 		res.json({ success: true });
@@ -567,7 +567,7 @@ router.post('/product-campaign-links/:id', async (req, res) => {
 			.from('product_campaign_links')
 			.update({ is_active: false, updated_at: new Date() })
 			.eq('id', id);
-		common.initialSiteData(storeId, productSku);
+		await common.initialSiteData(common, storeId, productSku);
 		if (error) throw error;
 		res.json({ success: true });
 	} catch (error) {
@@ -713,6 +713,7 @@ function formatMonthDisplay(monthStr) {
 // Sync customer LTV cohorts
 router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 	try {
+
 		const { storeId = 'buycosari', startDate, endDate, sku } = req.body;
 
 		if (!startDate || !endDate) {
@@ -799,6 +800,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets = []) {
 	try {
 		// Get all orders for the store to determine customer first order dates
+
 		var chunkSize = 1000;
 
 		// Emit initial progress
