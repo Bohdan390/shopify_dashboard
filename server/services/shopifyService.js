@@ -199,7 +199,6 @@ class ShopifyService {
 
 				// Add a small delay to avoid rate limiting
 			}
-
 			console.log("sync completed")
 
 			if (socket) {
@@ -254,8 +253,6 @@ class ShopifyService {
 				if (productsError) throw productsError;
 				productsData.push(...productsDatas);
 			}
-
-			console.log(productSkusData.length, productsData.length);
 
 			// Transform all orders to database format
 			const orderDataArray = [];
@@ -410,7 +407,7 @@ class ShopifyService {
 						// Prepare line item data
 						lineItemsData.push({
 							shopify_order_id: order.id.toString(),
-							store_id: this.storeId, // Add store ID
+							store_id: this.storeId,
 							customer_id: order.customer ? order.customer.id.toString() : null,
 							financial_status: order.financial_status,
 							line_item_id: lineItem.id.toString(),
@@ -421,7 +418,11 @@ class ShopifyService {
 							sku: lineItem.sku || productId,
 							quantity: lineItem.quantity || 1,
 							price: parseFloat(lineItem.price || 0),
-							total_price: parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount,
+							total_price: (parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount) 
+								* (order.currency ? common.currencyRates[order.currency] : 1),
+							order_country: order.shipping_address?.country || null,
+							currency_symbol: order.currency ? order.currency : "USD",
+							currency_rate: order.currency ? common.currencyRates[order.currency] : 1,
 							refund_price: refundPrice,
 							created_at: new Date(order.created_at).toISOString()
 						});
@@ -484,11 +485,12 @@ class ShopifyService {
 					shopify_order_id: order.id.toString(),
 					store_id: this.storeId, // Add store ID
 					order_number: order.order_number,
-					total_price: parseFloat(order.total_price),
+					total_price: parseFloat(order.total_price) * common.currencyRates[order.currency],
 					subtotal_price: parseFloat(order.subtotal_price),
 					total_tax: parseFloat(order.total_tax),
 					total_discounts: parseFloat(order.total_discounts),
-					currency: order.currency,
+					currency_symbol: order.currency,
+					currency_rate: common.currencyRates[order.currency],
 					financial_status: order.financial_status,
 					fulfillment_status: order.fulfillment_status,
 					created_at: new Date(order.created_at).toISOString(),

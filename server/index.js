@@ -112,6 +112,16 @@ wss.on('connection', (ws, req) => {
 // Make WebSocket server available to routes
 app.set('wss', wss);
 
+(async () => {
+  for (var c in common.currencyRates) {
+    if (c != "USD") {
+      const res = await fetch(`https://api.frankfurter.app/2025-08-29?from=${c}&to=USD`);
+      const data = await res.json();
+      common.currencyRates[c] = data.rates.USD;
+    }
+  }
+})();
+
 // Debug endpoint for socket monitoring
 app.get('/api/debug/sockets', (req, res) => {
   const socketInfo = common.getActiveSocketsInfo();
