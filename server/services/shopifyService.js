@@ -91,6 +91,7 @@ class ShopifyService {
 	}
 
 	async fetchOrders(limit = 50, since_id = null, syncDate = null, socket = null, socketStatus = null) {
+		var products = [];
 		try {
 			let allOrders = [], orders = [];
 			let totalFetched = 0;
@@ -145,6 +146,13 @@ class ShopifyService {
 				const response = await axios.get(url, { headers: this.headers });
 				orders = response.data.orders;
 
+				orders.forEach((order) => {
+					order.line_items.forEach((line_item) => {
+						if (line_item.product_title && line_item.product_title.toLowerCase().includes("berberine")) {
+							products.push(line_item.product_title);
+						}
+					})
+				})
 				if (orders.length > 0) {
 					var minDate = orders.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))?.[0]?.updated_at;
 					minDate = common.createLocalDateWithTime(minDate);
@@ -199,7 +207,7 @@ class ShopifyService {
 
 				// Add a small delay to avoid rate limiting
 			}
-			console.log("sync completed")
+			console.log("sync completed", products)
 
 			if (socket) {
 				this.sendWebSocketMessage(socket, socketStatus, {
@@ -306,6 +314,7 @@ class ShopifyService {
 				// Extract customer data if customer exists
 				var priceStr = {};
 				if (order.line_items && order.line_items.length > 0) {
+					var currency = common.currencyRates[order.currency] || 1;
 					order.line_items.forEach(lineItem => {
 						// Skip line items without product_id
 						if (!lineItem.product_id) {
@@ -335,6 +344,7 @@ class ShopifyService {
 							updateProductSkus.push(sku);
 						}
 						var totalPrice = parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount;
+						totalPrice = totalPrice * currency;
 						var refundPrice = 0;
 						if (lineItem.sku) {
 							if (!priceStr[lineItem.sku]) {
@@ -347,6 +357,7 @@ class ShopifyService {
 							else if(order.financial_status == "partially_refunded") {
 								priceStr[lineItem.sku] += totalPrice;
 								order.refunds.forEach(refund => {
+									refund.amount = refund.amount * currency;
 									if (refund.line_item_id == lineItem.id) {
 										totalPrice -= refund.amount;
 										priceStr[lineItem.sku] -= refund.amount;
@@ -417,12 +428,11 @@ class ShopifyService {
 							variant_title: lineItem.variant_title || null,
 							sku: lineItem.sku || productId,
 							quantity: lineItem.quantity || 1,
-							price: parseFloat(lineItem.price || 0),
-							total_price: (parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount) 
-								* (order.currency ? common.currencyRates[order.currency] : 1),
+							price: parseFloat(lineItem.price || 0) * currency,
+							total_price: (parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount) * currency,
 							order_country: order.shipping_address?.country || null,
 							currency_symbol: order.currency ? order.currency : "USD",
-							currency_rate: order.currency ? common.currencyRates[order.currency] : 1,
+							currency_rate: currency,
 							refund_price: refundPrice,
 							created_at: new Date(order.created_at).toISOString()
 						});
@@ -443,7 +453,7 @@ class ShopifyService {
 							last_name: order.customer.last_name || null,
 							phone: order.customer.phone || null,
 							orders_count: order.customer.orders_count || 0,
-							total_spent: parseFloat(order.customer.total_spent || 0),
+							total_spent: parseFloat(order.customer.total_spent || 0) * currency,
 							// Address fields
 							address1: defaultAddress.address1 || null,
 							address2: defaultAddress.address2 || null,
@@ -478,6 +488,7 @@ class ShopifyService {
 				else if (order.financial_status == "refunded") {
 					totalRefunds = order.total_price;
 				}
+				totalRefunds = totalRefunds * currency;
 				if (order.currency != "USD") {
 					console.log(order.id, "NOT USD")
 				}
@@ -485,12 +496,12 @@ class ShopifyService {
 					shopify_order_id: order.id.toString(),
 					store_id: this.storeId, // Add store ID
 					order_number: order.order_number,
-					total_price: parseFloat(order.total_price) * common.currencyRates[order.currency],
-					subtotal_price: parseFloat(order.subtotal_price),
-					total_tax: parseFloat(order.total_tax),
-					total_discounts: parseFloat(order.total_discounts),
+					total_price: parseFloat(order.total_price) * currency,
+					subtotal_price: parseFloat(order.subtotal_price) * currency,
+					total_tax: parseFloat(order.total_tax) * currency,
+					total_discounts: parseFloat(order.total_discounts) * currency,
 					currency_symbol: order.currency,
-					currency_rate: common.currencyRates[order.currency],
+					currency_rate: currency,
 					financial_status: order.financial_status,
 					fulfillment_status: order.fulfillment_status,
 					created_at: new Date(order.created_at).toISOString(),

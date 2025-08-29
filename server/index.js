@@ -51,7 +51,7 @@ const { supabase } = require('./config/database-supabase');
 // Import socket manager
 const cronJobManager = require('./services/CronJobManager');
 // WebSocket connection handling
-cronJobManager.startCronJob();
+// cronJobManager.startCronJob();
 wss.on('connection', (ws, req) => {
   // Generate a unique ID for this WebSocket connection
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

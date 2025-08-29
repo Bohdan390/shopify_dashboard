@@ -1037,10 +1037,10 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					adsSpend.forEach(ad => {
 						var d = ad.date.split("-")[0] + "-" + ad.date.split("-")[1];
 						if (adsMonth.has(d)) {
-							adsMonth.get(d).spend_amount += ad.spend_amount * ad.currency;
+							adsMonth.get(d).spend_amount += ad.spend_amount;
 						}
 						else {
-							adsMonth.set(d, { spend_amount: ad.spend_amount * ad.currency });
+							adsMonth.set(d, { spend_amount: ad.spend_amount });
 						}
 					})
 					allAdsSpend.push(...adsSpend);
