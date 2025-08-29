@@ -85,11 +85,11 @@ class AnalyticsService {
 					.select("*").eq("store_id", storeId).eq("date", date).range(i, i + chunk - 1);
 				adSpendChunk.forEach(ad => {
 					if (ad.platform === "google") {
-						googleAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+						googleAdsSpend += parseFloat(ad.spend_amount);
 					} else if (ad.platform === "facebook") {
-						facebookAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+						facebookAdsSpend += parseFloat(ad.spend_amount);
 					} else if (ad.platform === "taboola") {
-						taboolaAdsSpend += parseFloat(ad.spend_amount * ad.currency);
+						taboolaAdsSpend += parseFloat(ad.spend_amount);
 					}
 				});
 			}
@@ -299,12 +299,12 @@ class AnalyticsService {
 					countryAdSpendByDate[date] = { google: 0, facebook: 0, taboola: 0 };
 				}
 				if (spend.platform === 'google') {
-					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount * spend.currency);
+					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount);
 				} else if (spend.platform === 'facebook') {
-					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount * spend.currency);
+					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount);
 				}
 				else if (spend.platform === 'taboola') {
-					countryAdSpendByDate[date].taboola += parseFloat(spend.spend_amount * spend.currency);
+					countryAdSpendByDate[date].taboola += parseFloat(spend.spend_amount);
 				}
 			});
 
@@ -1079,9 +1079,9 @@ class AnalyticsService {
 					taboolaAdsData.push(ad);
 				}
 			});
-			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-			let taboolaAdsSpend = taboolaAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
+			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let taboolaAdsSpend = taboolaAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			taboolaAdsSpend = common.roundPrice(taboolaAdsSpend);

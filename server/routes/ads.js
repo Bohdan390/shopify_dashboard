@@ -286,6 +286,15 @@ router.get('/summary-stats', async (req, res) => {
   try {
     const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search } = req.query;
     
+
+    var {data:productss} = await supabase.from("products").select("*").eq("store_id", store_id);
+
+    var all_products = []
+    productss.forEach((_product) => {
+      if (_product.product_title.toLowerCase().includes("berberine")) {
+        all_products.push({product_id: _product.product_id, product_title: _product.product_title, product_sku:_product.product_sku_id});
+      }
+    })
     // Get revenue data from orders using the RPC function
     let revenueData = { totalRevenue: 0 };
     if (startDate && endDate && store_id) {
@@ -448,11 +457,11 @@ router.get('/chart-data', async (req, res) => {
       }
       
       if (item.platform === 'facebook') {
-        chartData[date].facebook += parseFloat(item.spend_amount * item.currency) || 0;
+        chartData[date].facebook += parseFloat(item.spend_amount) || 0;
       } else if (item.platform === 'google') {
-        chartData[date].google += parseFloat(item.spend_amount * item.currency) || 0;
+        chartData[date].google += parseFloat(item.spend_amount) || 0;
       } else if (item.platform === 'taboola') {
-        chartData[date].taboola += parseFloat(item.spend_amount * item.currency) || 0;
+        chartData[date].taboola += parseFloat(item.spend_amount) || 0;
       }
     });
 
