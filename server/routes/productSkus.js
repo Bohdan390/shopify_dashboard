@@ -54,10 +54,6 @@ router.get('/:storeId', async (req, res) => {
     // await supabase.from("product_skus").insert(Array.from(productSkus.values()));
     // console.log(123)
     // return;
-    if (refresh == "true") {
-        common.productSkus = [];
-    }
-    console.log(common.productSkus.length, refresh)
     let query = supabase
       .from('product_skus')
       .select('*')
@@ -76,7 +72,7 @@ router.get('/:storeId', async (req, res) => {
       .eq('store_id', storeId);
 
     var allProductSkus = []
-    if (common.productSkus.length == 0) {
+    if (!common.productSkus.get(storeId) || common.productSkus.get(storeId).length == 0) {
         const { data, error } = await supabase.rpc('get_product_sku_revenue', {
             p_store_id: storeId,
             p_start_date: startDate,
@@ -168,10 +164,10 @@ router.get('/:storeId', async (req, res) => {
             product.profit_per_sale = common.roundPrice(product.profit_per_sale);
         });
 
-        common.productSkus.push(...allProductSkus);
+        common.productSkus.set(storeId, allProductSkus);
     }
     else {
-        allProductSkus.push(...common.productSkus);
+        allProductSkus.push(...common.productSkus.get(storeId));
     }
 
     if (search) {
@@ -335,7 +331,7 @@ let productSkus = [];
 // Update product SKU link
 router.put('/:id', async (req, res) => {
   try {
-    const { product_ids, sku_id, sku_title } = req.body;
+    const { product_ids, sku_id, sku_title, store_id } = req.body;
 
     // Check if record exists
     const { data: existing } = await supabase
@@ -366,7 +362,7 @@ router.put('/:id', async (req, res) => {
       .select()
       .single();
 
-    common.initialSiteData("", sku_id);
+    await common.initialSiteData(common, store_id, sku_id);
 
     if (error) throw error;
 
@@ -402,7 +398,7 @@ router.delete('/:id', async (req, res) => {
       .delete()
       .eq('id', id);
 
-    common.initialSiteData(data[0].store_id, id);
+    await common.initialSiteData(common, data[0].store_id, id);
 
     if (error) throw error;
 
@@ -415,54 +411,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete product SKU link',
-      error: error.message
-    });
-  }
-});
-
-// Bulk update product SKUs (RPC function)
-router.post('/bulk-update', async (req, res) => {
-  try {
-    const { store_id, updates } = req.body;
-
-    if (!store_id || !updates || !Array.isArray(updates)) {
-      return res.status(400).json({
-        success: false,
-        message: 'store_id and updates array are required'
-      });
-    }
-
-    // Process updates in batches
-    const batchSize = 100;
-    const results = [];
-    
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
-      
-      const { data, error } = await supabase
-        .from('product_skus')
-        .upsert(batch.map(update => ({
-          ...update,
-          store_id,
-          updated_at: new Date().toISOString()
-        })), {
-          onConflict: 'id'
-        });
-
-      if (error) throw error;
-      results.push(...(data || []));
-    }
-
-    res.json({
-      success: true,
-      message: `Successfully updated ${results.length} product SKU links`,
-      data: results
-    });
-  } catch (error) {
-    console.error('Error bulk updating product SKUs:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to bulk update product SKUs',
       error: error.message
     });
   }

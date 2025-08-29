@@ -123,7 +123,6 @@ class AnalyticsService {
 				profit_margin: common.roundPrice(profitMargin)
 			};
 
-			console.log(analyticsData)
 			// Delete existing record for this date first, then insert new one
 			try {
 				// Delete existing analytics for this date
@@ -212,7 +211,6 @@ class AnalyticsService {
 			currentDate.setDate(currentDate.getDate() + 1);
 		}
 
-		console.log(completeData.length, existingData.length)
 		return completeData;
 	}
 
@@ -268,7 +266,6 @@ class AnalyticsService {
 				adSpendData.push(...adSpendDataChunk);
 			}
 			
-			console.log(countryName, adSpendData.length)
 			var {data: ordersByDateCountry, error: ordersByDateCountryError} = await supabase.rpc("get_orders_total_price_by_date_country", {
 				p_store_id: storeId,
 				start_date: startDate,
@@ -288,8 +285,6 @@ class AnalyticsService {
 				console.error('❌ Error fetching country orders:', ordersByDateCountryError);
 				return analyticsData; // Return original data if error
 			}
-
-			console.log(new Date().getTime() - d.getTime(), "--------")
 
 			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("order_country", countryName);
 			if (customerCountError) {
@@ -1087,7 +1082,6 @@ class AnalyticsService {
 			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
 			let taboolaAdsSpend = taboolaAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount * ad.currency), 0);
-			console.log(googleAdsSpend, facebookAdsSpend, taboolaAdsSpend)
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			taboolaAdsSpend = common.roundPrice(taboolaAdsSpend);
@@ -1384,7 +1378,8 @@ class AnalyticsService {
 
 	async recalculateAllProductTrends(sockets, startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
-			if (common.productLtvCohorts.length == 0) {
+			var productLtvCohorts = common.productLtvCohorts.get(storeId);
+			if (productLtvCohorts == undefined || productLtvCohorts.length == 0) {
 				var chunkSize = 1000;
 
 				// Emit initial progress
@@ -1576,15 +1571,31 @@ class AnalyticsService {
 						if (ad.campaign_id === productCampaignLink.campaign_id) {
 							var product = allProductSkus.get(productCampaignLink.product_sku);
 							if (product) {
-								if (product.ad_spend) {
-									product.ad_spend += ad.spend_amount;
+								if (product[ad.date.substring(0, 7) + '_adSpend']) {
+									product[ad.date.substring(0, 7) + '_adSpend'] += ad.spend_amount;
 								}
 								else {
-									product.ad_spend = ad.spend_amount;
+									product[ad.date.substring(0, 7) + '_adSpend'] = ad.spend_amount;
 								}
 							}
 						}
 					})
+				})
+
+				allCostOfGoods.forEach(cogs => {
+					var ss = cogs.product_sku_id;
+					if (ss.includes("-")) {
+						ss = ss.split("-")[0] + "-" + ss.split("-")[1];
+					}
+					var product = allProductSkus.get(ss);
+					if (product) {
+						if (product[cogs.date.substring(0, 7) + '_cogs']) {
+							product[cogs.date.substring(0, 7) + '_cogs'] += cogs.total_cost;
+						}
+						else {
+							product[cogs.date.substring(0, 7) + "_cogs"] = cogs.total_cost;
+						}
+					}
 				})
 				console.log(4)
 				
@@ -1619,7 +1630,7 @@ class AnalyticsService {
 				Array.from(allProductSkus.values()).forEach(product => {
 					for (var i = 0; i < uniqueDates.length; i++) {
 						var date = uniqueDates[i];
-						var orderCount = 0, totalPrice = 0, createdAt = null;
+						var orderCount = 0, totalPrice = 0, createdAt = null, profitPrice = 0;
 						rangeOrders.forEach(order => {
 							if (order.created_at.includes(date) && order.sku.includes(product.sku_id)) {
 								if (createdAt != order.created_at.split(" ")[0]) {
@@ -1629,19 +1640,28 @@ class AnalyticsService {
 								totalPrice += parseFloat(order.total_price);
 							}
 						})
-						product[date] = common.roundPrice(totalPrice) / (orderCount == 0 ? 1 : orderCount)
+						
+						profitPrice = totalPrice - (product[date + '_cogs'] || 0) - (product[date + '_adSpend'] || 0);
+						product[date + '_revenue'] = common.roundPrice(totalPrice) / (orderCount == 0 ? 1 : orderCount);
+						product[date + '_profit'] = common.roundPrice(profitPrice) / (orderCount == 0 ? 1 : orderCount);
 					}
 				})
-				common.productLtvCohorts = Array.from(allProductSkus.values());
+				Array.from(allProductSkus.values()).forEach(product => {
+					for (var key in product) {
+						if (key.includes("_cogs") || key.includes("_adSpend")) {
+							delete product[key];
+						}
+					}
+				})
+				common.productLtvCohorts.set(storeId, Array.from(allProductSkus.values()));
 			}
-
 			// Step 2: Update with ads and COGS data
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, "syncProgress", {
 						stage: 'get_product_ltv_cohorts',
 						message: `✅ Product trends recalculation completed for ${storeId}!`,
-						data: JSON.stringify(common.productLtvCohorts)
+						data: JSON.stringify(common.productLtvCohorts.get(storeId))
 					});
 				})
 			}

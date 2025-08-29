@@ -238,23 +238,21 @@ class ShopifyService {
 			}
 
 			var productSkusData = [], productsData = [];
-			if (this.storeId == "meonutrition") {
-				const {count: productSkuCount} = await supabase.from("product_skus")
-					.select("*", {count: 'exact', head: true})
-					.eq("store_id", this.storeId)
-				for (var i = 0; i < productSkuCount; i+= 1000) {
-					const {data: skuDatas, error: skuError} = await supabase.from("product_skus")
-					.select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
-					if (skuError) throw skuError;
-					productSkusData.push(...skuDatas);
-				}
+			const {count: productSkuCount} = await supabase.from("product_skus")
+				.select("*", {count: 'exact', head: true})
+				.eq("store_id", this.storeId)
+			for (var i = 0; i < productSkuCount; i+= 1000) {
+				const {data: skuDatas, error: skuError} = await supabase.from("product_skus")
+				.select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
+				if (skuError) throw skuError;
+				productSkusData.push(...skuDatas);
+			}
 
-				const {count: productsCount} = await supabase.from("products").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
-				for (var i = 0; i < productsCount; i+= 1000) {
-					const {data: productsDatas, error: productsError} = await supabase.from("products").select("product_id").eq("store_id", this.storeId).range(i, i + 999);
-					if (productsError) throw productsError;
-					productsData.push(...productsDatas);
-				}
+			const {count: productsCount} = await supabase.from("products").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
+			for (var i = 0; i < productsCount; i+= 1000) {
+				const {data: productsDatas, error: productsError} = await supabase.from("products").select("product_id").eq("store_id", this.storeId).range(i, i + 999);
+				if (productsError) throw productsError;
+				productsData.push(...productsDatas);
 			}
 
 			console.log(productSkusData.length, productsData.length);
@@ -375,20 +373,37 @@ class ShopifyService {
 							order.financial_status = "unpaid";
 						}
 
-						if (this.storeId == "meonutrition") {
-							var productSku = productSkusData.find(productSku => lineItem.sku.includes(productSku.sku_id));
-							if (productSku) {
-								if (!productSku.product_ids.includes(productId) && !productsData.find(_product => _product.product_id == productId)) {
-									productSku.product_ids += "," + productId;
-									if (!uniqueProductSkus.has(productSku.sku_id)) {
-										uniqueProductSkus.set(productSku.sku_id, {
-											sku_id: productSku.sku_id,
-											product_ids: productSku.product_ids
-										});
+						var productSku = productSkusData.find(productSku => sku.includes(productSku.sku_id));
+						if (productSku) {
+							if (!productSku.product_ids.includes(productId) && !productsData.find(_product => _product.product_id == productId)) {
+								productSku.product_ids += "," + productId;
+								if (!uniqueProductSkus.has(productSku.sku_id)) {
+									uniqueProductSkus.set(productSku.sku_id, {
+										sku_id: productSku.sku_id,
+										store_id: this.storeId,
+										product_ids: productSku.product_ids
+									});
+								}
+								else {
+									uniqueProductSkus.get(productSku.sku_id).product_ids += "," + productId;
+								}
+							}
+						}
+						else {
+							if (!productsData.find(_product => _product.product_id == productId)) {
+								if (!uniqueProductSkus.has(sku)) {
+									uniqueProductSkus.set(sku, {
+										sku_id: sku,
+										store_id: this.storeId,
+										product_ids: productId,
+										sku_title: common.extractProductSku(lineItem.title)
+									});
+								}
+								else {
+									if (common.hasNumberXPattern(lineItem.title)) {
+										uniqueProductSkus.get(sku).sku_title = common.extractProductSku(lineItem.title);
 									}
-									else {
-										uniqueProductSkus.get(productSku.sku_id).product_ids += "," + productId;
-									}
+									uniqueProductSkus.get(sku).product_ids += "," + productId;
 								}
 							}
 						}
@@ -488,9 +503,8 @@ class ShopifyService {
 			
 			// Extract unique products from line items and prepare for products table
 			
-			common.initialSiteData(this.storeId, updateProductSkus);
+			await common.initialSiteData(common, this.storeId, updateProductSkus);
 			
-			console.log(uniqueProductSkus.values());
 			if (this.storeId == "meonutrition") {
 				await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
 					onConflict: 'sku_id',

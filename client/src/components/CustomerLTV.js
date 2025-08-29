@@ -146,7 +146,7 @@ const CustomerLTV = () => {
     // Format number for display
 
     useEffect(() => {
-        if (ltvMetric.includes("product")) {
+        if (ltvMetric.includes("product") && ltvProductData.length == 0) {
             fetchIndividualProductLtv();
         }
     }, [ltvMetric]);
@@ -496,7 +496,6 @@ const CustomerLTV = () => {
                                                 const monthKey = ltvMetric === 'customer-ltv-profit' ? `monthProfit${i}` : `monthRevenue${i}`;
                                                 const value = cohort[monthKey];
                                                 const isAvailable = value !== undefined && value !== null;
-
                                                 return (
                                                     <div
                                                         key={i}
@@ -525,7 +524,7 @@ const CustomerLTV = () => {
                 </div>
             </div>
         }
-        else if (ltvMetric === 'product-ltv-revenue') {
+        else if (ltvMetric === 'product-ltv-revenue' || ltvMetric === 'product-ltv-profit') {
             return <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {/* Table Header */}
                 <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
@@ -602,13 +601,13 @@ const CustomerLTV = () => {
                                                     }
                                                 }
                                                 const monthKey = uniqueDates[i];
-                                                const value = cohort[monthKey];
+                                                const value = ltvMetric === 'product-ltv-profit' ? cohort[monthKey + '_profit'] : cohort[monthKey + '_revenue'];
                                                 const isAvailable = value !== undefined && value !== null;
                                                 return (
                                                     <div
                                                         key={i}
                                                         className={`p-2 text-xs text-center rounded ${isAvailable
-                                                            ? `${ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
+                                                            ? `${ltvMetric === 'product-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
                                                             : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
                                                             }`}
                                                     >
@@ -639,7 +638,7 @@ const CustomerLTV = () => {
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Customer LTV Data Available</h3>
                 <p className="text-gray-500">
-                    No customer LTV analytics found for {getLtvMonthRangeDisplay()}.
+                    No LTV analytics found for {getLtvMonthRangeDisplay()}.
                 </p>
             </div>
         )
@@ -683,6 +682,7 @@ const CustomerLTV = () => {
                                 searchPlaceholder="Search products..."
                                 size="md"
                                 className="w-full max-w-md"
+                                disabled={ltvMetric.includes("product")}
                             />
                         </div>
                         {/* LTV Controls */}
@@ -722,6 +722,18 @@ const CustomerLTV = () => {
                                     >
                                         <TrendingUp className="w-4 h-4 inline mr-1" />
                                         Product LTV (Revenue)
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            handleLtvMetricChange('product-ltv-profit')
+                                        }}
+                                        className={`px-4 py-2 text-sm font-medium transition-colors duration-200 ${ltvMetric === 'product-ltv-profit'
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <TrendingUp className="w-4 h-4 inline mr-1" />
+                                        Product LTV (Profit)
                                     </button>
                                 </div>
                             </div>
