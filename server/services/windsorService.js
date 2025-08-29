@@ -231,8 +231,8 @@ class WindsorService {
           record.currency_symbol = originCampaign.currency_symbol;
         }
         else {
-          record.currency = record.platform == "google" ? 1 : 0.1;
           record.currency_symbol = record.platform == "google" ? "USD" : "SEK";
+          record.currency = record.platform == "google" ? 1 : common.currencyRates[record.currency_symbol];
         }
 
         // Create ad spend record
@@ -240,7 +240,7 @@ class WindsorService {
           date: record.date,
           campaign_id: record.campaign_id,
           platform: record.platform,
-          spend_amount: record.spend,
+          spend_amount: record.spend * record.currency,
           impressions: record.impressions,
           clicks: record.clicks,
           conversions: record.conversions,
