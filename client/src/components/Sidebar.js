@@ -8,7 +8,8 @@ import {
   Package2,
   Users,
   Hash,
-  LogOut
+  LogOut,
+  BarChart
 } from 'lucide-react';
 import GlobalStoreSelector from './GlobalStoreSelector';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,7 +24,7 @@ const Sidebar = () => {
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/customers', icon: Users, label: 'Customers' },
-    { path: '/customer-ltv', icon: Users, label: 'Customer LTV' },
+    { path: '/customer-ltv', icon: BarChart, label: 'LTV Analysis' },
     { path: '/ad-spend', icon: DollarSign, label: 'Ad Spend' },
     { path: '/cost-of-goods', icon: Package, label: 'Cost of Goods' },
     ...(selectedStore === 'meonutrition' ? [{ path: '/product-skus', icon: Hash, label: 'Product SKUs' }] : [{ path: '/product-analytics', icon: Package2, label: 'Product Analytics' }]),
