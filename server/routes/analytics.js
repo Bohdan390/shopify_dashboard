@@ -57,6 +57,24 @@ router.get('/summary', async (req, res) => {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
+		const start = '2024-04-01T00:00:00'; // Feb 1 midnight in GMT+3
+		const end   = '2024-04-30T23:59:59'; // Feb 28 end in GMT+3
+
+		const { count: customerCount } = await supabase
+			.from('customers')
+			.select('*', { count: 'exact', head: true })
+			.eq('store_id', "meonutrition")
+			.gte('first_order_date', start)
+			.lte('first_order_date', end);
+
+		const {data: customers} = await supabase
+			.from("customers")
+			.select("first_order_date")
+			.eq('store_id', "meonutrition")
+			.gte('first_order_date', start)
+			.lte('first_order_date', end);
+		
+		console.log(customerCount)
 		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId, country);
 		res.json(summary);
 	} catch (error) {
@@ -768,6 +786,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 
 		let result = {}
 
+		synced = false;
 		if (!synced) {
 			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets);
 		}
@@ -839,13 +858,15 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			startDate = minData[0].created_at.substring(0, 7);
 		}
 		endDate = new Date().toISOString().substring(0, 7);
+		endDate = common.getLastDayOfMonthISO(endDate.split('-')[0], endDate.split('-')[1])
 		const {count: rangeOrderCount} = await supabase
 			.from('order_line_items')
 			.select('*', { count: 'exact', head: true })
+			.eq("financial_status", "paid")
 			.eq('store_id', storeId)
-			.in('product_id', productIds)
+			.eq('sku', sku)
 			.gte('created_at', `${startDate}-01T00:00:00Z`)
-			.lte('created_at', `${endDate}-31T23:59:59Z`);
+			.lte('created_at', `${endDate}T23:59:59Z`);
 
 		if (sockets.length > 0) {
 			sockets.forEach(socket => {
@@ -862,10 +883,11 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		for (var i = 0; i < rangeOrderCount; i += chunkSize) {
 			const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
 				.select('customer_id, total_price, created_at, sku, financial_status')
+				.eq("financial_status", "paid")
 				.eq('store_id', storeId)
-				.in('product_id', productIds)
+				.eq('sku', sku)
 				.gte('created_at', `${startDate}-01T00:00:00Z`)
-				.lte('created_at', `${endDate}-31T23:59:59Z`)
+				.lte('created_at', `${endDate}T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
 			if (rangeOrdersError) throw rangeOrdersError;
 			rangeOrders.push(...orders);
@@ -874,7 +896,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					sendWebSocketMessage(socket, 'syncProgress', {
 						stage: 'calculating',
 						message: '📥 Fetching customers data...',
-						progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(1)),
+						progress: Number((5 + (i / rangeOrderCount) * 25).toFixed(0)),
 						total: 'unlimited'
 					});
 				})
@@ -893,36 +915,43 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		var allCustomers = [];
+
 		const {count: customerCount} = await supabase
 			.from('customers')
-			.select('*', { count: 'exact', head: true })
+			.select('*', { count: 'exact' })
 			.eq('store_id', storeId)
-			.like('first_order_sku', '%' + sku + '%')
 			.gte('first_order_date', `${startDate}-01T00:00:00Z`)
-			.lte('first_order_date', `${endDate}-31T23:59:59Z`);
+			.lte('first_order_date', `${endDate}T23:59:59Z`)
 
+			console.log(startDate, customerCount)
 		for (var i = 0; i < customerCount; i += chunkSize) {
 			const { data: customers, error: customersError } = await supabase.from("customers")
-				.select('customer_id, first_order_date, first_order_sku, first_order_prices')
+				.select('customer_id, first_order_date, first_order_product_ids, first_order_prices')
 				.eq('store_id', storeId)
-				.like('first_order_sku', '%' + sku + '%')
 				.gte('first_order_date', `${startDate}-01T00:00:00Z`)
-				.lte('first_order_date', `${endDate}-31T23:59:59Z`)
+				.lte('first_order_date', `${endDate}T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
 			if (customersError) throw customersError;
-			allCustomers.push(...customers);
+			customers.forEach(customer => {
+				var f = false
+				for (var i = 0; i < productIds.length; i++) {
+					if (customer.first_order_product_ids != null && customer.first_order_product_ids.includes(productIds[i])) {
+						f = true
+					}
+				}
+				if (f) allCustomers.push(customer);
+			})
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, 'syncProgress', {
 						stage: 'calculating',
 						message: '📥 Fetching customers data...',
-						progress: Number((30 + (i / customerCount) * 20).toFixed(1)),
+						progress: Number((30 + (i / customerCount) * 20).toFixed(0)),
 						total: 'unlimited'
 					});
 				})
 			}
 		}
-
 		if (sockets.length > 0) {
 			sockets.forEach(socket => {
 				sendWebSocketMessage(socket, 'syncProgress', {
@@ -955,7 +984,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					sendWebSocketMessage(socket, 'syncProgress', {
 						stage: 'calculating',
 						message: '📥 Fetching products data...',
-						progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+						progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(0)),
 						total: 'unlimited'
 					});
 				})
@@ -1049,7 +1078,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 							sendWebSocketMessage(socket, 'syncProgress', {
 								stage: 'calculating',
 								message: '� Calculating LTV cohorts...',
-								progress: Number((70 + (i / adsSpendCount) * 10).toFixed(1)),
+								progress: Number((70 + (i / adsSpendCount) * 10).toFixed(0)),
 								total: 'unlimited'
 							});
 						})
@@ -1112,7 +1141,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			customers.forEach(customer => {
 				var firstOrderPrices = JSON.parse(customer.first_order_prices);
 				for (var key in firstOrderPrices) {
-					if (key.includes(sku)) {
+					if (productIds.includes(key)) {
 						totalFOrderPrice += Number(firstOrderPrices[key]) || 0;
 					}
 				}
@@ -1122,17 +1151,23 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			var cac = adMonth / customers.length || 0;
 			var totalRevenue = 0, totalProfit = 0;
 			dates.forEach((date, i) => {
-				var orders = rangeOrders.filter(order => order.created_at.includes(date) && customerIds.includes(order.customer_id));
-				orders.forEach(order => {
-					totalRevenue += parseFloat(order.total_price);
-					totalProfit += parseFloat(order.total_price);
-					var ss = order.sku
+				var orderLineItems = rangeOrders.filter(orderLineItem => orderLineItem.created_at.includes(date) && customerIds.includes(orderLineItem.customer_id));
+				orderLineItems.forEach(orderLineItem => {
+					totalRevenue += parseFloat(orderLineItem.total_price);
+					totalProfit += parseFloat(orderLineItem.total_price);
+					var ss = orderLineItem.sku
 					if (ss.includes("-")) {
 						ss = ss.split("-")[0] + "-" + ss.split("-")[1];
 					}
 					var product = allProducts.get(ss);
 					if (product && product.ad_spend) {
 						totalProfit -= product.ad_spend / (product.sale_quantity == 0 ? 1 : product.sale_quantity);
+					}
+				})
+				var orders = []
+				orderLineItems.forEach(orderLineItem => {
+					if (!orders.includes(orderLineItem.shopify_order_id)) {
+						orders.push(orderLineItem.shopify_order_id);
 					}
 				})
 				allCostOfGoods.forEach(cost => {
@@ -1166,7 +1201,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					sendWebSocketMessage(socket, 'syncProgress', {
 						stage: 'calculating',
 						message: '🔄 Calculating LTV cohorts...',
-						progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(1)),
+						progress: Number((80 + (i / uniqueDates.length) * 10).toFixed(0)),
 						total: 'unlimited'
 					});
 				})

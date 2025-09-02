@@ -16,9 +16,13 @@ function createLocalDate(dateString) {
 }
 
 function createLocalDateWithTime(dateString) {
+    if (dateString.toString()[dateString.length - 6] == "-") {
+        const offset = dateString.substring(dateString.length - 6); 
+        dateString = dateString.replace(offset, "");
+    }
     var date = new Date(dateString)
     var offsetMinutes = new Date().getTimezoneOffset()
-    var time = date.getTime() - offsetMinutes * 60 * 1000
+    var time = date.getTime() + offsetMinutes * 60 * 1000
     return new Date(time)
 }
 
@@ -142,17 +146,6 @@ function removeSocket(id) {
 
 function getSocket(id) {
     const socket = activeSockets.get(id);
-    if (!socket) {
-        console.warn(`⚠️ Socket ${id} not found in activeSockets`);
-        console.log(`🔌 Available socket IDs:`, Array.from(activeSockets.keys()));
-        
-        // Log additional debugging info
-        console.log('🔍 Socket lookup failed. Possible causes:');
-        console.log('   - Server restarted and lost connections');
-        console.log('   - Socket disconnected unexpectedly');
-        console.log('   - Multiple server instances running');
-        console.log('   - Client using stale socket ID');
-    }
     return socket;
 }
 
@@ -188,8 +181,20 @@ async function initialSiteData(self, store_id, product_sku) {
     await query;
     self.productSkus.set(store_id, []);
     self.productLtvCohorts.set(store_id, []);
-    console.log(11111111, self.productSkus.get(store_id), self.productLtvCohorts.get(store_id), product_sku)
 }
+
+function getLastDayOfMonth(year, month) {
+    console.log(year, month)
+    return new Date(year, month, 0); // day 0 of next month = last day of current month
+}
+
+function getLastDayOfMonthISO(year, month) {
+    const lastDay = getLastDayOfMonth(year, month); // 0-indexed month, 8 = September
+    console.log(lastDay)
+    return lastDay.toISOString().split('T')[0]; // "2025-09-30T21:59:59.000Z"
+}
+  
+  
 
 module.exports = {
     currencyRates: {
@@ -203,5 +208,5 @@ module.exports = {
     productLtvCohorts: productLtvCohorts,
     createLocalDate, createDoubleLocalDate, extractProductSku, createLocalDateWithTime,
     diffInDays, updateSyncTracking, roundPrice, diffInMilliSeconds, diffInMonths, hasNumberX, hasNumberXPattern,
-    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, initialSiteData
+    broadcastToStore, addSocket, removeSocket, getSocket, getActiveSocketsInfo, initialSiteData, getLastDayOfMonthISO
 }
