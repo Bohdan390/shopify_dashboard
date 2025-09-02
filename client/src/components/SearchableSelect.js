@@ -121,7 +121,7 @@ const SearchableSelect = ({
   };
 
   return (
-    <div className={`relative ${className}`} ref={selectRef}>
+    <div className={`relative ${className}`} ref={selectRef} onClick={handleToggle}>
       {/* Main Select Container */}
       <div
         className={`
@@ -141,7 +141,6 @@ const SearchableSelect = ({
       >
         <button
           type="button"
-          onClick={handleToggle}
           disabled={disabled}
           className="flex-1 text-left h-full"
         >
@@ -150,16 +149,6 @@ const SearchableSelect = ({
           </span>
         </button>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {selectedOption && (
-            <button
-              type="button"
-              onClick={clearSelection}
-              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              title="Clear selection"
-            >
-              <X className="w-3 h-3 text-gray-400" />
-            </button>
-          )}
           <ChevronDown 
             className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
               isOpen ? 'rotate-180' : ''

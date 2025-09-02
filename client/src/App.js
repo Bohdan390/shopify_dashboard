@@ -11,7 +11,7 @@ import ProductTrendsChart from './components/ProductTrendsChart';
 import Customers from './components/Customers';
 import CustomerLTV from './components/CustomerLTV';
 import ProductSkus from './components/ProductSkus';
-
+import api from './config/axios';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import { StoreProvider, useStore } from './contexts/StoreContext';
@@ -23,6 +23,8 @@ import './App.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
+
+const G = require('./config/global');
 
 // Protected Route component for Product Trends
 const ProtectedProductTrendsRoute = () => {
@@ -37,6 +39,19 @@ const ProtectedProductTrendsRoute = () => {
 
 function AppRoutes() {
   const { selectedStore, setSelectedStore } = useStore();
+
+  useEffect(() => {
+    api.post(`/api/get-currency`)
+    .then((res) => {
+      console.log(res.data);
+      if (res.data.currencyRates) {
+        G.currencyRates = res.data.currencyRates;
+      }
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+  }, []);
 
   return (
     <ProtectedRoute>

@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../config/database-supabase');
+const { supabase, update } = require('../config/database-supabase');
 const windsorService = require('../services/windsorService');
 const common = require('../config/common');
+const { calculateAdsOnlyAnalytics } = require('../services/analyticsService');
 
 // Sync ad data from Windsor.ai
 router.post('/sync-windsor', async (req, res) => {
@@ -71,8 +72,15 @@ router.post('/sync-windsor', async (req, res) => {
 // Get detailed ad spend data with pagination
 router.get('/spend-detailed', async (req, res) => {
   try {
-    const { startDate, endDate, platform, store_id, product_id, page = 1, pageSize = 20, sortBy = 'date', sortOrder = 'desc' } = req.query;
+    let { startDate, endDate, platform, store_id, product_id, page = 1, pageSize = 20, sortBy = 'date', sortOrder = 'desc', campaign_search } = req.query;
     
+    if (platform) {
+      platform = platform.filter(_p => _p != '')
+      if (platform.length > 0) {
+        platform = platform[0]
+      }
+    }
+
     let countQuery = supabase
     .from('ad_spend_detailed')
     .select('*', { count: 'exact' });
@@ -106,6 +114,7 @@ router.get('/spend-detailed', async (req, res) => {
       p_end_date: endDate,
       p_platform: platform || null,
       p_store_id: store_id || null,
+      p_campaign_search: campaign_search || null,
       p_sort_by: sortBy,
       p_sort_order: sortOrder,
       p_page: page,
@@ -215,35 +224,74 @@ router.get('/campaigns', async (req, res) => {
 
 // Get summary stats (aggregated data without pagination)
 router.post('/update-campaign-currency', async (req, res) => {
-  const { campaign_id, currency_symbol, store_id } = req.body;
-  if (currency_symbol) {
-    var currencies = {
-      "USD": 1,
-      "SEK": 0.1,
-      "EUR": 1.16
+  try {
+    const { campaign_id, currency_symbol, store_id } = req.body;
+    if (currency_symbol) {
+      const rate = common.currencyRates[currency_symbol];
+      const {count}  = await supabase
+        .from('ad_spend_detailed')
+        .select('*', { count: 'exact', head: true })
+        .eq("campaign_id", campaign_id)
+        .eq('store_id', store_id)
+  
+      var chunk = 1000, adSpendData = [], dates = [];
+      for (var i = 0; i < count; i+= chunk) {
+        const {data} = await supabase
+          .from('ad_spend_detailed')
+          .select('id, date, campaign_id, currency, currency_symbol, spend_amount')
+          .eq('campaign_id', campaign_id)
+          .eq('store_id', store_id)
+          .range(i, i + chunk - 1);
+  
+        adSpendData.push(...data);
+      }
+  
+      var updates = []
+      adSpendData.forEach((spend) => {
+        dates.push(spend.date)
+        updates.push({
+          id: spend.id,
+          spend_amount: spend.spend_amount / spend.currency * rate,
+          currency_symbol,
+          currency: rate,
+        })
+      });
+  
+      console.log(updates.length, 'updates')
+  
+      const updatesJsonb = JSON.stringify(updates);
+  
+      const { data, error } = await supabase.rpc('update_ad_spend_detailed_bulk', {
+        updates: updates  // your array of JSON objects
+      });
+  
+      if (error) throw error
+      console.log(data)
+      const {campaignError} = await supabase.from('ad_campaigns')
+        .update({currency_symbol, currency: rate})
+        .eq('campaign_id', campaign_id)
+        .eq('store_id', store_id);
+      if (campaignError) {
+        console.error('❌ Error updating campaign currency:', campaignError);
+        throw campaignError;
+      }
+      const promises = dates.map(date => 
+        calculateAdsOnlyAnalytics(date, store_id).catch(error => {
+          console.error(`Error processing date ${date}:`, error);
+          return { error, date };
+        })
+      );
+      
+      Promise.allSettled(promises).then(results => {
+        console.log('All analytics calculations completed');
+        // Handle results if needed
+      });
     }
-    const rate = currencies[currency_symbol];
-    const { error } = await supabase
-    .from('ad_spend_detailed')
-    .update({ currency_symbol, currency: rate })
-    .eq('campaign_id', campaign_id)
-    .eq('store_id', store_id);
-
-    if (error) {
-      console.error('❌ Error updating campaign currency:', error);
-      throw error;
-    }
-
-    const {campaignError} = await supabase.from('ad_campaigns')
-      .update({currency_symbol, currency: rate})
-      .eq('campaign_id', campaign_id)
-      .eq('store_id', store_id);
-    if (campaignError) {
-      console.error('❌ Error updating campaign currency:', campaignError);
-      throw campaignError;
-    }
+    res.json({ message: 'Campaign currency updated successfully' });
+  } catch (error) {
+    console.error('❌ Error updating campaign currency:', error);
+    res.status(500).json({ error: 'Failed to update campaign currency' });
   }
-  res.json({ message: 'Campaign currency updated successfully' });
 })
 
 // Update campaign country
@@ -284,7 +332,7 @@ router.put('/campaigns/:campaignId/country', async (req, res) => {
 
 router.get('/summary-stats', async (req, res) => {
   try {
-    const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search } = req.query;
+    const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search, platform } = req.query;
     
 
     var {data:productss} = await supabase.from("products").select("*").eq("store_id", store_id);
@@ -322,7 +370,6 @@ router.get('/summary-stats', async (req, res) => {
       p_store_id: store_id,
       p_platform: null
     });
-
     
     if (adSpendError) {
       console.error('❌ Error fetching ad spend data:', adSpendError);
@@ -356,7 +403,11 @@ router.get('/summary-stats', async (req, res) => {
       return 0;
     });
 
-    var paginatedAdSpendData = adSpendData.slice((page - 1) * pageSize, (page) * pageSize);
+    var paginatedAdSpendData = adSpendData.slice()
+    if (platform && platform != '') {
+      paginatedAdSpendData = paginatedAdSpendData.filter(item => item.platform == platform)
+    }
+    paginatedAdSpendData = paginatedAdSpendData.slice((page - 1) * pageSize, (page) * pageSize);
 
     console.log(adSpendData.length, paginatedAdSpendData.length, page, pageSize)
     res.json({ 

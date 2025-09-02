@@ -116,7 +116,7 @@ app.set('wss', wss);
   try {
     for (var c in common.currencyRates) {
       if (c != "USD") {
-        const res = await fetch(`https://api.frankfurter.app/2025-08-29?from=${c}&to=USD`);
+        const res = await fetch(`https://api.frankfurter.app/latest?from=${c}&to=USD`);
         const data = await res.json();
         common.currencyRates[c] = data.rates.USD;
       }
@@ -152,6 +152,9 @@ app.use('/api/ads', require('./routes/ads'));
 app.use('/api/product-groups', require('./routes/productGroups'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/product-skus', require('./routes/productSkus'));
+app.post('/api/get-currency', (req, res) => {
+  res.json({success: true, currencyRates: common.currencyRates})
+});
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '../client/build');

@@ -82,8 +82,6 @@ router.post('/sync-orders', async (req, res) => {
     } else {
       console.warn('⚠️ Cannot send error to client - socket not found');
     }
-    
-    res.status(500).json({ error: 'Failed to sync orders' });
   }
 });
 
@@ -201,7 +199,7 @@ router.get('/orders', async (req, res) => {
        const hoursAgo = new Date(now.getTime() - parseInt(unfulfilledOlderThan) * 60 * 60 * 1000);
        console.log(`🔍 Unfulfilled filter: ${unfulfilledOlderThan} hours ago = ${hoursAgo.toISOString()}`);
        query = query
-         .eq('fulfillment_status', 'unfulfilled')
+         .neq('fulfillment_status', 'fulfilled')
          .lt('created_at', hoursAgo.toISOString());
      }
     
@@ -230,7 +228,7 @@ router.get('/orders', async (req, res) => {
       const hoursAgo = new Date(now.getTime() - parseInt(unfulfilledOlderThan) * 60 * 60 * 1000);
       console.log(`🔍 Count query unfulfilled filter: ${unfulfilledOlderThan} hours ago = ${hoursAgo.toISOString()}`);
       countQuery = countQuery
-        .eq('fulfillment_status', 'unfulfilled')
+        .neq('fulfillment_status', 'fulfilled')
         .lt('created_at', hoursAgo.toISOString());
     }
     
