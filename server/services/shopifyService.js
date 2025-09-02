@@ -202,10 +202,8 @@ class ShopifyService {
 				if (!nextPage) {
 					break;
 				}
-
 				// Add a small delay to avoid rate limiting
 			}
-			console.log("sync completed", allOrders[0])
 
 			if (socket) {
 				this.sendWebSocketMessage(socket, socketStatus, {
@@ -376,39 +374,24 @@ class ShopifyService {
 							order.financial_status = "unpaid";
 						}
 
-						var productSku = productSkusData.find(productSku => sku.includes(productSku.sku_id));
-						if (productSku) {
-							if (!productSku.product_ids.includes(productId) && !productsData.find(_product => _product.product_id == productId)) {
-								productSku.product_ids += "," + productId;
-								if (!uniqueProductSkus.has(productSku.sku_id)) {
-									uniqueProductSkus.set(productSku.sku_id, {
-										sku_id: productSku.sku_id,
-										store_id: this.storeId,
-										product_ids: productSku.product_ids
-									});
-								}
-								else {
-									uniqueProductSkus.get(productSku.sku_id).product_ids += "," + productId;
-								}
-							}
-						}
-						else {
-							if (!productsData.find(_product => _product.product_id == productId)) {
+						if (this.storeId != 'meonutrition') {
+							var productSku = productSkusData.find(productSku => sku.includes(productSku.sku_id));
+							if (!productSku) {
 								if (!uniqueProductSkus.has(sku)) {
 									uniqueProductSkus.set(sku, {
 										sku_id: sku,
 										store_id: this.storeId,
-										product_ids: productId,
-										sku_title: common.extractProductSku(lineItem.title)
+										sku_title: lineItem.title,
+										product_ids: productId
 									});
 								}
-								else {
-									if (common.hasNumberXPattern(lineItem.title)) {
-										uniqueProductSkus.get(sku).sku_title = common.extractProductSku(lineItem.title);
-									}
-									uniqueProductSkus.get(sku).product_ids += "," + productId;
-								}
 							}
+						}
+						var lineTaxAmount = 0
+						if (lineItem.tax_lines && lineItem.tax_lines.length > 0) {
+							lineItem.tax_lines.forEach((item) => {
+								lineTaxAmount += parseFloat(item.amount || 0) * currency;
+							})
 						}
 						// Prepare line item data
 						lineItemsData.push({
@@ -424,7 +407,7 @@ class ShopifyService {
 							sku: lineItem.sku || productId,
 							quantity: lineItem.quantity || 1,
 							price: parseFloat(lineItem.price || 0) * currency,
-							total_price: (parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount) * currency,
+							total_price: (parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount) * currency - lineTaxAmount - parseFloat(lineItem.total_discount || 0),
 							order_country: order.shipping_address?.country || null,
 							currency_symbol: order.currency ? order.currency : "USD",
 							currency_rate: currency,
@@ -510,11 +493,16 @@ class ShopifyService {
 			
 			await common.initialSiteData(common, this.storeId, updateProductSkus);
 			
-			if (this.storeId == "meonutrition") {
-				await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
+			if (this.storeId != "meonutrition") {
+			console.log(uniqueProductSkus.values())
+				const {error: productSkusError} = await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
 					onConflict: 'sku_id',
 					ignoreDuplicates: false
 				});
+				if (productSkusError) {
+					console.error('❌ Error in product skus upsert:', productSkusError);
+					throw productSkusError;
+				}
 			}
 			const startTime = Date.now();
 

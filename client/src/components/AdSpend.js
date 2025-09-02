@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
+import SearchableSelect from './SearchableSelect';
 import { useSocket } from '../contexts/SocketContext';
 import AdSpendLoader from './loaders/AdSpendLoader';
 import AdSpendTableLoader from './loaders/AdSpendTableLoader';
@@ -343,6 +344,10 @@ const AdSpend = () => {
 		productId: ''
 	});
 
+	// Campaign Performance table filter states
+	const [performancePlatformFilter, setPerformancePlatformFilter] = useState('');
+	const [performanceCampaignSearch, setPerformanceCampaignSearch] = useState('');
+
 	const [adSpendPagination, setAdSpendPagination] = useState({
 		currentPage: 1,
 		pageSize: 10,
@@ -444,6 +449,26 @@ const AdSpend = () => {
 			fetchChartData();
 		}, 100);
 	}, [dateRange, filters, selectedStore, syncProgress]);
+
+	// Effect for performance table platform filter changes
+	useEffect(() => {
+		if (selectedStore) {
+			// Reset to first page when platform filter changes
+			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
+			// Fetch performance data with platform filter
+			fetchAdSpendData(1);
+		}
+	}, [performancePlatformFilter]);
+
+	// Effect for performance table campaign search changes
+	useEffect(() => {
+		if (selectedStore && performanceCampaignSearch.trim() === "") {
+			// Reset to first page when search changes
+			setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
+			// Fetch performance data with search
+			fetchAdSpendData(1);
+		}
+	}, [performanceCampaignSearch]);
 
 	// Listen for ads sync completion from GlobalStoreSelector
 	useEffect(() => {
@@ -588,6 +613,11 @@ const AdSpend = () => {
 			if (campaignSearch.trim()) {
 				params.append('search', campaignSearch.trim());
 			}
+			
+			// Add platform filter if selected
+			if (campaignPlatformFilter) {
+				params.append('platform', campaignPlatformFilter);
+			}
 
 			const response = await api.get(`/api/ads/summary-stats?${params}`);
 			const { totalSpend, totalGoogleAmount, totalFacebookAmount, totalTaboolaAmount, roiPercentage, revenue, campaigns, totalCount } = response.data;
@@ -615,8 +645,6 @@ const AdSpend = () => {
 			stats.roas = stats.totalSpend > 0 ? (stats.totalRevenue / stats.totalSpend) : 0;
 
 			setSummaryStats(stats);
-
-			console.log(stats)
 		} catch (error) {
 			console.error('Error fetching summary stats:', error);
 		}
@@ -803,6 +831,14 @@ const AdSpend = () => {
 				...filters
 			});
 
+			// Add performance table specific filters
+			if (performancePlatformFilter) {
+				params.append('platform', performancePlatformFilter);
+			}
+			if (performanceCampaignSearch.trim()) {
+				params.append('campaign_search', performanceCampaignSearch.trim());
+			}
+
 			const response = await api.get(`/api/ads/spend-detailed?${params}`);
 			const { data, pagination } = response.data;
 			
@@ -867,38 +903,6 @@ const AdSpend = () => {
 			currentPage: newPage
 		}));
 		fetchAdSpendDataWithSort(newPage);
-	};
-
-	const fetchAdSpendDataForPage = async (page) => {
-		try {
-			setLoading(true);
-			const params = new URLSearchParams({
-				startDate: dateRange.startDate,
-				endDate: dateRange.endDate,
-				page: page,
-				pageSize: adSpendPagination.pageSize,
-				...filters
-			});
-
-			const response = await api.get(`/api/ads/spend-detailed?${params}`);
-			const { data, pagination } = response.data;
-			setAdSpendData(data || []);
-
-			// Update pagination from server response
-			setAdSpendPagination(prev => ({
-				...prev,
-				totalPages: pagination.totalPages,
-				currentPage: pagination.currentPage,
-				totalItems: pagination.totalItems
-			}));
-
-			// Summary stats and chart data are handled separately
-			// Only fetch table data here
-		} catch (error) {
-			console.error('Error fetching ad spend data:', error);
-		} finally {
-			setLoading(false);
-		}
 	};
 
 	const PaginationControls = () => {
@@ -1082,6 +1086,9 @@ const AdSpend = () => {
 	// Campaign search state
 	const [campaignSearch, setCampaignSearch] = useState('');
 	
+	// Campaign platform filter state
+	const [campaignPlatformFilter, setCampaignPlatformFilter] = useState('');
+	
 	// Campaign pagination state
 	const [campaignPagination, setCampaignPagination] = useState({
 		currentPage: 1,
@@ -1105,6 +1112,16 @@ const AdSpend = () => {
 			fetchSummaryStats(1);
 		}
 	}, [campaignSearch]);
+
+	// Effect to handle platform filter changes
+	useEffect(() => {
+		if (selectedStore) {
+			// Reset to first page when platform filter changes
+			setCampaignPagination(prev => ({ ...prev, currentPage: 1 }));
+			// Fetch campaigns with platform filter
+			fetchSummaryStats(1);
+		}
+	}, [campaignPlatformFilter]);
 
 	// Separate effect for campaign pagination changes
 	useEffect(() => {
@@ -1144,6 +1161,8 @@ const AdSpend = () => {
 		setCurrencyChange(null);
 
 		fetchSummaryStats(campaignPagination.currentPage);
+		fetchAdSpendData(1);
+
 	};
 
 	const handleCampaignSort = (key) => {
@@ -1164,6 +1183,13 @@ const AdSpend = () => {
 		setCampaignPagination(prev => ({ ...prev, currentPage: 1 }));
 		// Fetch campaigns with search
 		fetchSummaryStats(1);
+	};
+
+	const handlePerformanceCampaignSearch = () => {
+		// Reset to first page when searching
+		setAdSpendPagination(prev => ({ ...prev, currentPage: 1 }));
+		// Fetch performance data with search
+		fetchAdSpendData(1);
 	};
 
 	const getCampaignSortIcon = (key) => {
@@ -1282,7 +1308,7 @@ const AdSpend = () => {
 								{ value: 50, label: '50' },
 								{ value: 100, label: '100' }
 							]}
-							selectClass="pagesize-select"
+							selectClass="nopa-pagesize-select"
 							placeholder="Select"
 							disabled={loadingCampaigns}
 							className="w-28"
@@ -1735,6 +1761,24 @@ const AdSpend = () => {
 							<div className="flex items-center justify-between">
 								<h3 className="text-lg font-semibold text-gray-900">Ads Campaigns</h3>
 								<div className="flex items-center gap-3">
+									{/* Platform Filter */}
+									<div className="flex flex-col">
+										<BeautifulSelect
+											value={campaignPlatformFilter}
+											onChange={setCampaignPlatformFilter}
+											options={[
+												{ value: '', label: 'All Platforms' },
+												{ value: 'facebook', label: 'Facebook' },
+												{ value: 'google', label: 'Google' },
+												{ value: 'taboola', label: 'Taboola' }
+											]}
+											placeholder="Filter by platform"
+											searchPlaceholder="Search platforms..."
+											selectClass='normal-select'
+											className="w-40"
+											size="sm"
+										/>
+									</div>
 									{/* Search Input */}
 									<div className="relative">
 										<input
@@ -1759,7 +1803,7 @@ const AdSpend = () => {
 						{campaignPagination.totalPages > 1 && <CampaignPaginationControls />}
 
 						{/* Search Results Info */}
-						{campaignSearch && (
+						{(campaignSearch || campaignPlatformFilter) && (
 							<div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
 								<div className="flex items-center justify-between text-sm">
 									<div className="flex items-center gap-2">
@@ -1767,7 +1811,12 @@ const AdSpend = () => {
 											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
 										</svg>
 										<span className="text-blue-800 font-medium">
-											Search results for "{campaignSearch}"
+											{campaignSearch && campaignPlatformFilter 
+												? `Search results for "${campaignSearch}" on ${campaignPlatformFilter} platform`
+												: campaignSearch 
+													? `Search results for "${campaignSearch}"`
+													: `Filtered by ${campaignPlatformFilter} platform`
+											}
 										</span>
 									</div>
 									<span className="text-blue-600">
@@ -1912,6 +1961,7 @@ const AdSpend = () => {
 																{ value: 'SEK', label: 'SEK (kr)' },
 																{ value: 'EUR', label: 'EUR (€)' }
 															]}
+															selectClass='normal-select'
 															className="w-32"
 															size="small"
 														/>
@@ -1931,11 +1981,72 @@ const AdSpend = () => {
 					{/* Campaign Table */}
 					<div className="bg-white rounded-lg shadow-sm border">
 						<div className="px-6 py-4 border-b border-gray-200">
-							<h3 className="text-lg font-semibold text-gray-900">Campaign Performance</h3>
+							<div className="flex items-center justify-between">
+								<h3 className="text-lg font-semibold text-gray-900">Campaign Performance</h3>
+								<div className="flex items-center gap-3">
+									{/* Platform Filter */}
+									<div className="flex flex-col">
+										<BeautifulSelect
+											value={performancePlatformFilter}
+											onChange={setPerformancePlatformFilter}
+											options={[
+												{ value: '', label: 'All Platforms' },
+												{ value: 'facebook', label: 'Facebook' },
+												{ value: 'google', label: 'Google' },
+												{ value: 'taboola', label: 'Taboola' }
+											]}
+											placeholder="Filter by platform"
+											selectClass='normal-select'
+											className="w-40"
+											size="sm"
+										/>
+									</div>
+									{/* Campaign Search Input */}
+									<div className="relative">
+										<input
+											type="text"
+											placeholder="Search campaigns..."
+											value={performanceCampaignSearch}
+											onChange={(e) => setPerformanceCampaignSearch(e.target.value)}
+											onKeyPress={(e) => e.key === 'Enter' && handlePerformanceCampaignSearch()}
+											className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
+										/>
+										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+											<svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+											</svg>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 
 						{/* Top Pagination */}
 						<PaginationControls />
+
+						{/* Search Results Info */}
+						{(performanceCampaignSearch || performancePlatformFilter) && (
+							<div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
+								<div className="flex items-center justify-between text-sm">
+									<div className="flex items-center gap-2">
+										<svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+										</svg>
+										<span className="text-blue-800 font-medium">
+											{performanceCampaignSearch && performancePlatformFilter 
+												? `Search results for "${performanceCampaignSearch}" on ${performancePlatformFilter} platform`
+												: performanceCampaignSearch 
+													? `Search results for "${performanceCampaignSearch}"`
+													: `Filtered by ${performancePlatformFilter} platform`
+											}
+										</span>
+									</div>
+									<span className="text-blue-600">
+										{adSpendPagination.totalItems} record{adSpendPagination.totalItems !== 1 ? 's' : ''} found
+									</span>
+								</div>
+							</div>
+						)}
 
 						<div className="table-container overflow-x-auto relative">
 							{loading ? (

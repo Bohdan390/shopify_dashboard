@@ -150,9 +150,7 @@ class WindsorService {
         currency_symbol = "SEK";
         currency = common.currencyRates[currency_symbol];
       }
-      if (item.source == "taboola") {
-        console.log(currency, currency_symbol, item.spend)
-      }
+      console.log(item.source, currency, currency_symbol, item.spend)
       return ({
         date: item.date,
         campaign_id: item.campaign || 'unknown',
@@ -203,7 +201,7 @@ class WindsorService {
     try {
       // Group data by campaign for campaign table
       const campaigns = new Map();
-      const adSpendRecords = [];
+      const adSpendRecords = [], dates = [];
 
       var originCampaigns = [];
       const { count: campaignsCount } = await this.supabase.from('ad_campaigns').select('*', { count: 'exact' }).eq("store_id", storeId);
@@ -238,12 +236,14 @@ class WindsorService {
           record.currency = record.platform == "google" ? 1 : common.currencyRates[record.currency_symbol];
         }
 
+        dates.push(record.date)
+
         // Create ad spend record
         adSpendRecords.push({
           date: record.date,
           campaign_id: record.campaign_id,
           platform: record.platform,
-          spend_amount: record.spend * record.currency,
+          spend_amount: record.spend,
           impressions: record.impressions,
           clicks: record.clicks,
           conversions: record.conversions,
@@ -308,6 +308,11 @@ class WindsorService {
         const chunkSize = 1000; // Supabase limit
         const chunks = [];
 
+        const {deleteError} = await this.supabase.from('ad_spend_detailed')
+          .delete().eq('store_id', storeId).in('date', dates)
+
+        if (deleteError) throw deleteError;
+
         for (let i = 0; i < adSpendRecords.length; i += chunkSize) {
           chunks.push(adSpendRecords.slice(i, i + chunkSize));
         }
@@ -326,10 +331,7 @@ class WindsorService {
 
           const { error: spendError } = await this.supabase
             .from('ad_spend_detailed')
-            .upsert(chunk, {
-              onConflict: 'date,campaign_id,platform',
-              ignoreDuplicates: false
-            });
+            .insert(chunk);
 
           if (spendError) {
             console.error(`❌ Error saving ad spend chunk ${i + 1}:`, spendError);

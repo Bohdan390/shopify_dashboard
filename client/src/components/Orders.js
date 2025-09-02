@@ -1249,25 +1249,7 @@ const Orders = () => {
 					</div>
 					
 					{/* Action Buttons */}
-					<div className="flex justify-between items-center">
-						<div className="flex items-center gap-3">
-							{urgentOrdersCount > 0 && (
-								<div className="flex items-center gap-2">
-									<span className="text-sm text-red-600 font-medium">
-										🚨 {urgentOrdersCount} urgent orders need attention
-									</span>
-								</div>
-							)}
-							{urgentOrdersCount > 0 && (
-								<button
-									onClick={showUrgentOrders}
-									disabled={searchLoading || tableLoading}
-									className="text-sm text-red-600 hover:text-red-800 underline disabled:opacity-50 disabled:cursor-not-allowed"
-								>
-									Show All Urgent Orders
-								</button>
-							)}
-						</div>
+					<div style={{textAlign: 'right'}}>
 						<button
 							onClick={clearAllFilters}
 							disabled={searchLoading || tableLoading}
@@ -1301,7 +1283,7 @@ const Orders = () => {
 
 			{/* Success Message */}
 
-			<div className="grid grid-cols-1 md:grid-cols-5 gap-6 mt-4">
+			<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
 				<div className="stat-card">
 					<div className="flex items-center justify-between">
 						<div>
@@ -1370,27 +1352,6 @@ const Orders = () => {
 						</div>
 						<div className="p-3 rounded-lg bg-warning-50">
 							<div className="w-6 h-6 text-warning-600">📊</div>
-						</div>
-					</div>
-				</div>
-				
-				<div className="stat-card">
-					<div className="flex items-center justify-between">
-						<div>
-							<p className="text-sm font-medium text-gray-600">🚨 Urgent Orders</p>
-							<p className="text-2xl font-bold text-gray-900">
-								{refreshing ? (
-									<div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
-								) : (
-									urgentOrdersCount
-								)}
-							</p>
-							<p className="text-xs text-gray-500 mt-1">
-								Unfulfilled &gt; 48h
-							</p>
-						</div>
-						<div className="p-3 rounded-lg bg-red-50">
-							<div className="w-6 h-6 text-red-600">🚨</div>
 						</div>
 					</div>
 				</div>
@@ -1534,7 +1495,7 @@ const Orders = () => {
 														? 'bg-success-100 text-success-800'
 														: 'bg-gray-100 text-gray-800'
 														}`}>
-														{order.fulfillment_status || 'unfulfilled'}
+														{order.fulfillment_status == 'fulfilled' ? 'Fulfilled' : 'Unfulfilled'}
 													</span>
 													{isOrderUrgent(order) && (
 														<span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">

@@ -39,6 +39,10 @@ g:focus, path:focus {
   padding: 5px 12px !important;
   width: 60px;
 }
+.nopa-pagesize-select .MuiSelect-select {
+  padding: 0px 12px !important;
+  width: 60px;
+}
 .normal-select .MuiSelect-select {
   padding: 6px 32px 6px 10px !important;
   min-width: 61px !important;
