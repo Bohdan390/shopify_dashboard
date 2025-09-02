@@ -38,7 +38,6 @@ class ShopifyService {
 				data: data,
 				timestamp: Date.now()
 			});
-			console.log(message, socket.id)
 			socket.send(message);
 		}
 	}
@@ -96,36 +95,36 @@ class ShopifyService {
 			let allOrders = [], orders = [];
 			let totalFetched = 0;
 			let pageCount = 0;
-			if (this.storeId == "buycosari") {
-				if (new Date(syncDate) < new Date("2023-09-26")) {
-					syncDate = "2023-09-26";
-				}
-			}
-			else if (this.storeId == "meonutrition") {
-				if (new Date(syncDate) < new Date("2024-05-19")) {
-					syncDate = "2024-05-19";
-				}
-			}
-			else if (this.storeId == "dermao") {
-				if (new Date(syncDate) < new Date("2024-05-01")) {
-					syncDate = "2024-05-01";
-				}
-			}
-			else if (this.storeId == "nomobark") {
-				if (new Date(syncDate) < new Date("2024-05-14")) {
-					syncDate = "2024-05-14";
-				}
-			}
-			else if (this.storeId == "gamoseries") {
-				if (new Date(syncDate) < new Date("2025-06-26")) {
-					syncDate = "2025-06-26";
-				}
-			}
-			else if (this.storeId == "cosara") {
-				if (new Date(syncDate) < new Date("2024-05-27")) {
-					syncDate = "2024-05-27";
-				}
-			}
+			// if (this.storeId == "buycosari") {
+			// 	if (new Date(syncDate) < new Date("2023-09-26")) {
+			// 		syncDate = "2023-09-26";
+			// 	}
+			// }
+			// else if (this.storeId == "meonutrition") {
+			// 	if (new Date(syncDate) < new Date("2024-05-19")) {
+			// 		syncDate = "2024-05-19";
+			// 	}
+			// }
+			// else if (this.storeId == "dermao") {
+			// 	if (new Date(syncDate) < new Date("2024-05-01")) {
+			// 		syncDate = "2024-05-01";
+			// 	}
+			// }
+			// else if (this.storeId == "nomobark") {
+			// 	if (new Date(syncDate) < new Date("2024-05-14")) {
+			// 		syncDate = "2024-05-14";
+			// 	}
+			// }
+			// else if (this.storeId == "gamoseries") {
+			// 	if (new Date(syncDate) < new Date("2025-06-26")) {
+			// 		syncDate = "2025-06-26";
+			// 	}
+			// }
+			// else if (this.storeId == "cosara") {
+			// 	if (new Date(syncDate) < new Date("2024-05-27")) {
+			// 		syncDate = "2024-05-27";
+			// 	}
+			// }
 			var nextPage = false, pageInfo = "";
 			var now = common.createLocalDateWithTime(new Date());
 			var totalDiff = common.diffInMilliSeconds(now, common.createLocalDateWithTime(syncDate));
@@ -148,8 +147,8 @@ class ShopifyService {
 
 				orders.forEach((order) => {
 					order.line_items.forEach((line_item) => {
-						if (line_item.product_title && line_item.product_title.toLowerCase().includes("berberine")) {
-							products.push(line_item.product_title);
+						if (line_item.title && line_item.title.toLowerCase().includes("berberine") && !products.includes(line_item.title)) {
+							products.push(line_item.title);
 						}
 					})
 				})
@@ -163,7 +162,6 @@ class ShopifyService {
 					}
 					lastDate = minDate;
 					var diff = common.diffInMilliSeconds(minDate, now);
-					console.log(diff, totalDiff)
 					if (diff < 0) diff = 0;
 					if (socket) {
 						let progress = Number((100 * diff / totalDiff).toFixed(1));
@@ -207,7 +205,7 @@ class ShopifyService {
 
 				// Add a small delay to avoid rate limiting
 			}
-			console.log("sync completed", products)
+			console.log("sync completed", allOrders[0])
 
 			if (socket) {
 				this.sendWebSocketMessage(socket, socketStatus, {
@@ -273,6 +271,7 @@ class ShopifyService {
 			
 			var chunk = 1000;
 			var allCustomers = [];
+
 			for (var i = 0; i < customerCount; i+= chunk) {
 				const currentChunk = Math.floor(i / chunk) + 1;
 
@@ -334,8 +333,8 @@ class ShopifyService {
 								product_title: lineItem.title || 'Unknown Product',
 								vendor: lineItem.vendor || null,
 								status: 'active',
-								created_at: new Date().toISOString(),
-								updated_at: new Date().toISOString()
+								created_at: common.createLocalDateWithTime(new Date()).toISOString(),
+								updated_at: common.createLocalDateWithTime(new Date()).toISOString()
 							});
 						}
 						
@@ -346,36 +345,32 @@ class ShopifyService {
 						var totalPrice = parseFloat(lineItem.price || 0) * (lineItem.quantity || 1) - lineItem.total_discount;
 						totalPrice = totalPrice * currency;
 						var refundPrice = 0;
-						if (lineItem.sku) {
-							if (!priceStr[lineItem.sku]) {
-								priceStr[lineItem.sku] = 0;
-							}
-							if (order.financial_status == "refunded") {
-								priceStr[lineItem.sku] += 0;
-								refundPrice += totalPrice;
-							}
-							else if(order.financial_status == "partially_refunded") {
-								priceStr[lineItem.sku] += totalPrice;
-								order.refunds.forEach(refund => {
-									refund.amount = refund.amount * currency;
-									if (refund.line_item_id == lineItem.id) {
-										totalPrice -= refund.amount;
-										priceStr[lineItem.sku] -= refund.amount;
-										refundPrice += refund.amount;
-									}
-								});
-							}
-							else {
-								priceStr[lineItem.sku] += totalPrice;
-							}
+						if (!priceStr[productId]) {
+							priceStr[productId] = 0;
 						}
-						if (order.product_sku_ids) {
-							if (!order.product_sku_ids.includes(lineItem.sku)) {
-								order.product_sku_ids += "," + lineItem.sku;
+						if (order.financial_status == "paid") {
+							priceStr[productId] += totalPrice;
+						}
+						if (order.financial_status == "refunded") {
+							refundPrice += totalPrice;
+						}
+						else if(order.financial_status == "partially_refunded") {
+							order.refunds.forEach(refund => {
+								refund.amount = refund.amount * currency;
+								if (refund.line_item_id == lineItem.id) {
+									totalPrice -= refund.amount;
+									refundPrice += refund.amount;
+								}
+							});
+						}
+						
+						if (order.product_ids) {
+							if (!order.product_ids.includes(productId)) {
+								order.product_ids += "," + productId;
 							}
 						}
 						else {
-							order.product_sku_ids = lineItem.sku;
+							order.product_ids = productId;
 						}
 						if (!order.financial_status) {
 							order.financial_status = "unpaid";
@@ -434,7 +429,7 @@ class ShopifyService {
 							currency_symbol: order.currency ? order.currency : "USD",
 							currency_rate: currency,
 							refund_price: refundPrice,
-							created_at: new Date(order.created_at).toISOString()
+							created_at: common.createLocalDateWithTime(order.created_at).toISOString()
 						});
 					});
 				}
@@ -462,21 +457,22 @@ class ShopifyService {
 							country: defaultAddress.country || null,
 							order_country: order.shipping_address?.country || null,
 							zip: defaultAddress.zip || null,
-							created_at: new Date(order.customer.created_at || order.created_at).toISOString(),
-							updated_at: new Date(order.customer.updated_at || order.updated_at).toISOString(),
-							// Track first order date - will be updated during upsert
-							first_order_date: customer ? new Date(customer.first_order_date).toISOString() : new Date(order.created_at).toISOString(),
+							created_at: common.createLocalDateWithTime(order.customer.created_at || order.created_at).toISOString(),
+							updated_at: common.createLocalDateWithTime(order.customer.updated_at || order.updated_at).toISOString(),
+							first_order_date: order.financial_status != "paid" ? null : (customer ? common.createLocalDateWithTime(customer.first_order_date).toISOString() : common.createLocalDateWithTime(order.created_at).toISOString()),
 							first_order_id: customer ? customer.first_order_id : order.id.toString(),
 							first_order_prices: customer ? customer.first_order_prices : JSON.stringify(priceStr),
-							first_order_sku: customer ? customer.first_order_sku : order.product_sku_ids
+							first_order_product_ids: customer ? customer.first_order_product_ids : order.product_ids
 						});
 					}
 					else {
-						if (uniqueCustomers.get(customerId).first_order_date > order.created_at) {
-							uniqueCustomers.get(customerId).first_order_date = new Date(order.created_at).toISOString();
-							uniqueCustomers.get(customerId).first_order_id = order.id.toString();
-							uniqueCustomers.get(customerId).first_order_sku = order.product_sku_ids;
-							uniqueCustomers.get(customerId).first_order_prices = JSON.stringify(priceStr);
+						if (order.financial_status == "paid") {
+							if (uniqueCustomers.get(customerId).first_order_date == null || new Date(uniqueCustomers.get(customerId).first_order_date).getTime() > new Date(order.created_at).getTime()) {
+								uniqueCustomers.get(customerId).first_order_date = common.createLocalDateWithTime(order.created_at).toISOString();
+								uniqueCustomers.get(customerId).first_order_id = order.id.toString();
+								uniqueCustomers.get(customerId).first_order_product_ids = order.product_ids;
+								uniqueCustomers.get(customerId).first_order_prices = JSON.stringify(priceStr);
+							}
 						}
 					}
 				}
@@ -489,9 +485,6 @@ class ShopifyService {
 					totalRefunds = order.total_price;
 				}
 				totalRefunds = totalRefunds * currency;
-				if (order.currency != "USD") {
-					console.log(order.id, "NOT USD")
-				}
 				orderDataArray.push({
 					shopify_order_id: order.id.toString(),
 					store_id: this.storeId, // Add store ID
@@ -504,11 +497,10 @@ class ShopifyService {
 					currency_rate: currency,
 					financial_status: order.financial_status,
 					fulfillment_status: order.fulfillment_status,
-					created_at: new Date(order.created_at).toISOString(),
-					updated_at: new Date(order.updated_at).toISOString(),
+					created_at: common.createLocalDateWithTime(order.created_at).toISOString(),
+					updated_at: common.createLocalDateWithTime(order.updated_at).toISOString(),
 					customer_email: order.customer?.email || null,
 					customer_id: order.customer?.id?.toString() || null,
-					product_sku_ids: order.product_sku_ids || "",
 					refund_price: totalRefunds,
 					country: order.shipping_address?.country || null
 				})
@@ -843,7 +835,7 @@ class ShopifyService {
 			// Group by date and calculate daily revenue
 			const dailyRevenue = {};
 			data.forEach(order => {
-				const date = new Date(order.created_at).toISOString().split('T')[0];
+				const date = common.createLocalDateWithTime(order.created_at).toISOString().split('T')[0];
 				if (!dailyRevenue[date]) {
 					dailyRevenue[date] = { revenue: 0, count: 0 };
 				}

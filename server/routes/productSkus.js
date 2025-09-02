@@ -272,15 +272,44 @@ router.get('/:storeId', async (req, res) => {
 // Create new product SKU link
 router.post('/', async (req, res) => {
   try {
-    const { store_id, product_ids, sku_id, sku_title } = req.body;
+    const { store_id, product_ids, sku_title } = req.body;
 
     // Validate required fields
-    if (!store_id || !sku_id || !sku_title) {
+    if (!store_id || !sku_title) {
       return res.status(400).json({
         success: false,
         message: 'store_id, sku_id, and sku_title are required'
       });
     }
+
+    var sku_id = "sku" + "-" + new Date().getTime();
+    var productIds = product_ids.split(",");
+    const {error: productUpdateError} = await supabase
+      .from("products")
+      .update({
+        product_sku_id: sku_id
+      })
+      .in('product_id', productIds);
+
+    if (productUpdateError) throw productUpdateError;
+
+    const {error: lineItemsUpdateError} = await supabase
+      .from("order_line_items")
+      .update({
+        sku: sku_id
+      })
+      .in('product_id', productIds);
+
+    if (lineItemsUpdateError) throw lineItemsUpdateError;
+
+    const {error:costOfGoodsUpdateError} = await supabase
+      .from("cost_of_goods")
+      .update({
+        product_sku_id: sku_id
+      })
+      .in('product_id', productIds)
+
+    if (costOfGoodsUpdateError) throw costOfGoodsUpdateError;
 
     // Check if SKU already exists for this store
     const { data: existing } = await supabase
@@ -347,6 +376,64 @@ router.put('/:id', async (req, res) => {
       });
     }
 
+    var originalProductIds = existing.product_ids.split(",")
+    var newProductIds = product_ids.split(",")
+    var productIdsToUpdate = newProductIds.filter(id => !originalProductIds.includes(id))
+    var productIdsToDelete = originalProductIds.filter(id => !newProductIds.includes(id))
+    const {error: productUpdateError} = await supabase
+      .from("products")
+      .update({
+        product_sku_id: sku_id
+      })
+      .in('product_id', productIdsToUpdate);
+      
+    if (productUpdateError) throw productUpdateError;
+
+    const {error: lineItemsUpdateError} = await supabase
+      .from("order_line_items")
+      .update({
+        sku: sku_id
+      })
+      .in('product_id', productIdsToUpdate);
+
+    if (lineItemsUpdateError) throw lineItemsUpdateError;
+
+    const {error: costOfGoodsUpdateError} = await supabase
+      .from("cost_of_goods")
+      .update({
+        product_sku_id: sku_id
+      })
+      .in('product_id', productIdsToUpdate);
+
+    if (costOfGoodsUpdateError) throw costOfGoodsUpdateError;
+
+    const {error: productDeleteError} = await supabase
+      .from("products")
+      .update({
+        product_sku_id: null
+      })
+      .in('product_id', productIdsToDelete);
+
+    if (productDeleteError) throw productDeleteError;
+
+    const {error: lineItemsDeleteError} = await supabase
+      .from("order_line_items")
+      .update({
+        sku: null
+      })
+      .in('product_id', productIdsToDelete);
+
+    if (lineItemsDeleteError) throw lineItemsDeleteError;
+
+    const {error: costOfGoodsDeleteError} = await supabase
+      .from("cost_of_goods")
+      .update({
+        product_sku_id: null
+      })
+      .in('product_id', productIdsToDelete);
+
+    if (costOfGoodsDeleteError) throw costOfGoodsDeleteError;
+
     // Check if new SKU ID conflicts with existing ones (excluding current record)
     const updateData = {
       updated_at: new Date().toISOString()
@@ -392,11 +479,36 @@ router.delete('/:id', async (req, res) => {
       .eq('sku_id', id)
       .limit(1);
 
+    var originalProductIds = data[0].product_ids.split(",")
+
+    const {error: productDeleteError} = await supabase
+      .from("products")
+      .update({
+        product_sku_id: null
+      })
+      .in('product_id', originalProductIds);
+    if (productDeleteError) throw productDeleteError;
+
+    const {error: lineItemsDeleteError} = await supabase
+      .from("order_line_items")
+      .update({
+        sku: null
+      })
+      .in('product_id', originalProductIds);
+    if (lineItemsDeleteError) throw lineItemsDeleteError;
+
+    const {error: costOfGoodsDeleteError} = await supabase
+      .from("cost_of_goods")
+      .update({
+        product_sku_id: null
+      })
+      .in('product_id', originalProductIds);
+    if (costOfGoodsDeleteError) throw costOfGoodsDeleteError;
 
     const { error } = await supabase
       .from('product_skus')
       .delete()
-      .eq('id', id);
+      .eq('sku_id', id);
 
     await common.initialSiteData(common, data[0].store_id, id);
 

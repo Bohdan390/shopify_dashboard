@@ -150,6 +150,9 @@ class WindsorService {
         currency_symbol = "SEK";
         currency = common.currencyRates[currency_symbol];
       }
+      if (item.source == "taboola") {
+        console.log(currency, currency_symbol, item.spend)
+      }
       return ({
         date: item.date,
         campaign_id: item.campaign || 'unknown',
@@ -158,7 +161,7 @@ class WindsorService {
         adset_name: null,
         ad_id: null,
         ad_name: null,
-        spend: parseFloat(item.spend || 0),
+        spend: parseFloat(item.spend || 0) * currency,
         impressions: 0, // Not available in this API
         clicks: parseInt(item.clicks || 0),
         conversions: 0, // Not available in this API
