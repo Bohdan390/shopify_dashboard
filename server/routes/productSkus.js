@@ -293,6 +293,7 @@ router.post('/', async (req, res) => {
 
     if (productUpdateError) throw productUpdateError;
 
+    console.log(1)
     const {error: lineItemsUpdateError} = await supabase
       .from("order_line_items")
       .update({
@@ -301,6 +302,7 @@ router.post('/', async (req, res) => {
       .in('product_id', productIds);
 
     if (lineItemsUpdateError) throw lineItemsUpdateError;
+    console.log(2)
 
     const {error:costOfGoodsUpdateError} = await supabase
       .from("cost_of_goods")
