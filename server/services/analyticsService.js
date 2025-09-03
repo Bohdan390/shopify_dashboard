@@ -1385,7 +1385,7 @@ class AnalyticsService {
 				// Emit initial progress
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: 'Starting Customer LTV calculation...',
 							progress: 0,
@@ -1436,7 +1436,7 @@ class AnalyticsService {
 
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '',
 							progress: 5,
@@ -1459,7 +1459,7 @@ class AnalyticsService {
 					rangeOrders.push(...orders);
 					if (sockets.length > 0) {
 						sockets.forEach(socket => {
-							sendWebSocketMessage(socket, 'syncProgress', {
+							sendWebSocketMessage(socket, 'syncProductProgress', {
 								stage: 'calculating',
 								message: '📥 Fetching customers data...',
 								progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(1)),
@@ -1472,7 +1472,7 @@ class AnalyticsService {
 
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '📥 Fetching product campaign links data...',
 							progress: 50,
@@ -1498,7 +1498,7 @@ class AnalyticsService {
 					allProductCampaignLinks.push(...productCampaignLinks);
 					if (sockets.length > 0) {
 						sockets.forEach(socket => {
-							sendWebSocketMessage(socket, 'syncProgress', {
+							sendWebSocketMessage(socket, 'syncProductProgress', {
 								stage: 'calculating',
 								message: '📥 Fetching products data...',
 								progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
@@ -1511,7 +1511,7 @@ class AnalyticsService {
 
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '📥 Fetching products data...',
 							progress: 60,
@@ -1530,7 +1530,7 @@ class AnalyticsService {
 
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '� Calculating LTV cohorts...',
 							progress: 70,
@@ -1556,7 +1556,7 @@ class AnalyticsService {
 							allAdsSpend.push(...adsSpend);
 							if (sockets.length > 0) {
 								sockets.forEach((socket) => {
-									sendWebSocketMessage(socket, 'syncProgress', {
+									sendWebSocketMessage(socket, 'syncProductProgress', {
 										stage: 'calculating',
 										message: '� Calculating LTV cohorts...',
 										progress: Number((70 + (i / adsSpendCount) * 30).toFixed(1)),
@@ -1621,7 +1621,7 @@ class AnalyticsService {
 				}
 				if (sockets.length > 0) {
 					sockets.forEach((socket) => {
-						sendWebSocketMessage(socket, 'syncProgress', {
+						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '� Calculating LTV cohorts...',
 							progress: 100,
@@ -1660,7 +1660,7 @@ class AnalyticsService {
 			// Step 2: Update with ads and COGS data
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
-					sendWebSocketMessage(socket, "syncProgress", {
+					sendWebSocketMessage(socket, "syncProductProgress", {
 						stage: 'get_product_ltv_cohorts',
 						message: `✅ Product trends recalculation completed for ${storeId}!`,
 						data: JSON.stringify(common.productLtvCohorts.get(storeId))
@@ -1675,7 +1675,7 @@ class AnalyticsService {
 			
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
-					sendWebSocketMessage(socket, "syncProgress", {
+					sendWebSocketMessage(socket, "syncProductProgress", {
 						stage: 'error',
 						message: `❌ Error recalculating product trends: ${error.message}`,
 						progress: 0,

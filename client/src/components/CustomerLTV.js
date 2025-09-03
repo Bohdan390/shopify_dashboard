@@ -12,6 +12,7 @@ import {
     Grid,
 } from 'lucide-react';
 let isLtvLoading = false, timeOut = null
+let metric = 'customer-ltv-revenue'
 const CustomerLTV = () => {
     const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
     const [loading, setLoading] = useState(true);
@@ -37,7 +38,15 @@ const CustomerLTV = () => {
     const [ltvSyncSuccess, setLtvSyncSuccess] = useState(false);
 
     // LTV Sync Progress Modal State
-    const [ltvSyncProgress, setLtvSyncProgress] = useState({
+    const [customerLtvSyncProgress, setCustomerLtvSyncProgress] = useState({
+        stage: '',
+        message: '',
+        progress: 0,
+        total: 0,
+        current: 0
+    });
+
+    const [productLtvSyncProgress, setProductLtvSyncProgress] = useState({
         stage: '',
         message: '',
         progress: 0,
@@ -146,6 +155,8 @@ const CustomerLTV = () => {
     // Format number for display
 
     useEffect(() => {
+        if (ltvMetric.includes("product") && productLtvSyncProgress.stage != "") return
+        if (ltvMetric.includes("customer") && customerLtvSyncProgress.stage != "") return
         if (ltvMetric.includes("product") && ltvProductData.length == 0) {
             fetchIndividualProductLtv();
         }
@@ -182,6 +193,7 @@ const CustomerLTV = () => {
 
     // Handle LTV metric change
     const handleLtvMetricChange = (newMetric) => {
+        metric = newMetric;
         setLtvMetric(newMetric);
     };
 
@@ -310,9 +322,10 @@ const CustomerLTV = () => {
             console.log('🔌 Refreshing product skus');
             fetchIndividualProductLtv();
         });
-        const removeListener = addEventListener('syncProgress', (data) => {
+        const removeCustomerLtvListener = addEventListener('syncCustomerProgress', (data) => {
+            console.log('🔌 Product LTV data received', data, metric);
             if (data.stage && data.stage === 'calculating') {
-                setLtvSyncProgress({
+                setCustomerLtvSyncProgress({
                     stage: data.stage,
                     message: data.message,
                     progress: data.progress,
@@ -322,7 +335,7 @@ const CustomerLTV = () => {
             }
             else if (data.stage === 'completed') {
                 setTimeout(() => {
-                    setLtvSyncProgress({
+                    setCustomerLtvSyncProgress({
                         stage: "",
                         message: "",
                         progress: 100,
@@ -336,6 +349,30 @@ const CustomerLTV = () => {
                 setLtvLoading(false);
                 setLtvData(JSON.parse(data.data) || []);
             }
+        });
+
+        const removeProductLtvListener = addEventListener('syncProductProgress', (data) => {
+            console.log('🔌 Product LTV data received', data, metric);
+            if (data.stage && data.stage === 'calculating') {
+                setProductLtvSyncProgress({
+                    stage: data.stage,
+                    message: data.message,
+                    progress: data.progress,
+                    total: data.total || 0,
+                    current: data.current || 0
+                });
+            }
+            else if (data.stage === 'completed') {
+                setTimeout(() => {
+                    setProductLtvSyncProgress({
+                        stage: "",
+                        message: "",
+                        progress: 100,
+                        total: 0,
+                        current: 0
+                    });
+                }, 500);
+            }
             else if (data.stage == "get_product_ltv_cohorts") {
                 console.log('🔌 Product LTV data received', JSON.parse(data.data));
                 setLtvLoading(false);
@@ -344,7 +381,7 @@ const CustomerLTV = () => {
         });
 
         // Cleanup event listener when component unmounts
-        return removeListener;
+        return removeProductLtvListener;
     }, [socket, selectedStore, selectStore, addEventListener]);
 
     // Fetch product SKUs
@@ -844,17 +881,28 @@ const CustomerLTV = () => {
                                         ))}
                                     </div>
                                 </div>
-                                {(ltvSyncProgress.stage === 'calculating' || ltvSyncProgress.stage === 'completed') && (
+                                {((metric.includes("customer")) && (customerLtvSyncProgress.stage === 'calculating' || customerLtvSyncProgress.stage === 'completed')) && (
                                     <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center" style={{ backgroundColor: 'white' }}>
                                         <div className="relative w-48 bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
                                             <div
                                                 className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full transition-all duration-500 ease-out"
-                                                style={{ width: `${ltvSyncProgress.progress}%` }}
+                                                style={{ width: `${customerLtvSyncProgress.progress}%` }}
                                             />
                                             <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 rounded-full" />
                                         </div>
                                         <div className="flex items-center justify-between ml-2">
-                                            <span className="text-xs font-medium text-gray-800 flex-shrink-0">{ltvSyncProgress.progress}%</span>
+                                            <span className="text-xs font-medium text-gray-800 flex-shrink-0">{customerLtvSyncProgress.progress}%</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {(metric.includes("product") && (productLtvSyncProgress.stage === 'calculating' || productLtvSyncProgress.stage === 'completed')) && (
+                                    <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center" style={{ backgroundColor: 'white' }}>
+                                        <div className="relative w-48 bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200">
+                                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full transition-all duration-500 ease-out" style={{ width: `${productLtvSyncProgress.progress}%` }} />
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-white/40 rounded-full" />
+                                        </div>
+                                        <div className="flex items-center justify-between ml-2">
+                                            <span className="text-xs font-medium text-gray-800 flex-shrink-0">{productLtvSyncProgress.progress}%</span>
                                         </div>
                                     </div>
                                 )}
