@@ -1423,14 +1423,16 @@ class AnalyticsService {
 				if (minData.length > 0) {
 					startDate = minData[0].created_at.substring(0, 7);
 				}
-				endDate = new Date().toISOString().substring(0, 7);
-				const {count: rangeOrderCount} = await supabase
+				endDate = common.getLastDayOfMonthISO(endDate.split('-')[0], endDate.split('-')[1]);
+				const {count: rangeOrderCount, error: rangeOrderCountError} = await supabase
 					.from('order_line_items')
 					.select('*', { count: 'exact', head: true })
 					.eq('store_id', storeId)
 					.eq('financial_status', 'paid')
 					.gte('created_at', `${startDate}-01T00:00:00Z`)
-					.lte('created_at', `${endDate}-31T23:59:59Z`);
+					.lte('created_at', `${endDate}T23:59:59Z`);
+				
+				if (rangeOrderCountError) throw rangeOrderCountError;
 
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
@@ -1451,7 +1453,7 @@ class AnalyticsService {
 						.eq('financial_status', 'paid')
 						.eq('store_id', storeId)
 						.gte('created_at', `${startDate}-01T00:00:00Z`)
-						.lte('created_at', `${endDate}-31T23:59:59Z`)
+						.lte('created_at', `${endDate}T23:59:59Z`)
 						.range(i, i + chunkSize - 1);
 					if (rangeOrdersError) throw rangeOrdersError;
 					rangeOrders.push(...orders);
