@@ -323,6 +323,7 @@ class ShopifyService {
 							lineItem.sku = productId;
 						}
 
+						lineItem.sku = productSkusData.find(productSku => productSku.product_ids.includes(productId))?.sku_id || lineItem.sku;
 						if (!uniqueProducts.has(productId)) {
 							uniqueProducts.set(productId, {
 								product_id: productId,
