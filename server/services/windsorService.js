@@ -144,12 +144,17 @@ class WindsorService {
     var { data: adCampaigns } = await this.supabase.from("ad_campaigns").select("campaign_id, currency, currency_symbol").eq("store_id", storeId);
     return data.map((item) => {
       var campaign = adCampaigns.find(campaign => campaign.campaign_id == item.campaign);
-      var currency = campaign?.currency || 1.0;
-      var currency_symbol = campaign?.currency_symbol || 'USD';
+      var currency_symbol = 'USD';
+      var currency = 1.0;
+      if (campaign) {
+        currency_symbol = campaign.currency_symbol;
+        currency = campaign.currency;
+      }
       if (!campaign && item.source == "facebook") {
         currency_symbol = "SEK";
         currency = common.currencyRates[currency_symbol];
       }
+      
       console.log(item.source, currency, currency_symbol, item.spend)
       return ({
         date: item.date,
