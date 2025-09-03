@@ -1092,7 +1092,6 @@ const Dashboard = () => {
 		}
 		// Convert grouped data to array and calculate metrics
 		return Object.values(groupedData).map(item => {
-			// Add mock Taboola data for grouped view
 
 			const totalAdSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + (item.taboola_ads_spend || 0);
 			return {
