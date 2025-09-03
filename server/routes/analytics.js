@@ -455,7 +455,6 @@ router.post('/recalculate-product-trends', async (req, res) => {
 		}
 	} catch (error) {
 		console.error('Error recalculating product trends:', error);
-		res.status(500).json({ error: error.message });
 	}
 });
 
