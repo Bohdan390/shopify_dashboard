@@ -16,7 +16,7 @@ function createLocalDate(dateString) {
 }
 
 function createLocalDateWithTime(dateString) {
-    if (dateString.toString()[dateString.length - 6] == "-") {
+    if (dateString && dateString.toString()[dateString.length - 6] == "-") {
         const offset = dateString.substring(dateString.length - 6); 
         dateString = dateString.replace(offset, "");
     }

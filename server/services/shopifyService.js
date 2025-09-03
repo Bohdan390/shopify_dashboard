@@ -442,7 +442,9 @@ class ShopifyService {
 							zip: defaultAddress.zip || null,
 							created_at: common.createLocalDateWithTime(order.customer.created_at || order.created_at).toISOString(),
 							updated_at: common.createLocalDateWithTime(order.customer.updated_at || order.updated_at).toISOString(),
-							first_order_date: order.financial_status != "paid" ? null : (customer ? common.createLocalDateWithTime(customer.first_order_date).toISOString() : common.createLocalDateWithTime(order.created_at).toISOString()),
+							first_order_date: order.financial_status != "paid" ? null : 
+								(customer ? common.createLocalDateWithTime(customer.first_order_date || order.created_at).toISOString() : 
+									common.createLocalDateWithTime(order.created_at).toISOString()),
 							first_order_id: customer ? customer.first_order_id : order.id.toString(),
 							first_order_prices: customer ? customer.first_order_prices : JSON.stringify(priceStr),
 							first_order_product_ids: customer ? customer.first_order_product_ids : order.product_ids
