@@ -142,6 +142,9 @@ class CronJobManager {
             const { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
             
             console.log("syncingOrders", ordersStartDate, endDate)
+            if (!ordersStartDate) {
+                ordersStartDate = new Date(2023, 1, 1);
+            }
             // Call the real Shopify order sync service with the actual start date
             const storeService = new ShopifyService(storeId);
             const ordersCount = await storeService.syncOrders(250, ordersStartDate.toISOString().split('T')[0], null, 'autoSyncProgress');
@@ -161,6 +164,9 @@ class CronJobManager {
             let { adsStartDate, endDate } = await this.getLastSyncDates(storeId);
             endDate = new Date(endDate.getTime() + 1000 * 60 * 60 * 48)
             console.log("syncingAds", adsStartDate, endDate)
+            if (!adsStartDate) {
+                adsStartDate = new Date(2023, 1, 1);
+            }
             // Call the real Windsor ads sync service with the actual start date
             const result = await windsorService.fetchAndSaveAdData(
                 adsStartDate.toISOString().split('T')[0], 

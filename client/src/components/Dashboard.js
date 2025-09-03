@@ -1087,17 +1087,16 @@ const Dashboard = () => {
 			groupedData[key].cost_of_goods += item.cost_of_goods || 0;
 		});
 
+		if (period === 'weekly') {
+			console.log(Object.values(groupedData))
+		}
 		// Convert grouped data to array and calculate metrics
 		return Object.values(groupedData).map(item => {
 			// Add mock Taboola data for grouped view
-			const mockTaboolaSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) > 0
-				? ((item.google_ads_spend || 0) + (item.facebook_ads_spend || 0)) * 0.18
-				: 0;
 
-			const totalAdSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + mockTaboolaSpend;
+			const totalAdSpend = (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + (item.taboola_ads_spend || 0);
 			return {
 				...item,
-				taboola_ads_spend: mockTaboolaSpend,
 				total_ad_spend: totalAdSpend,
 				profit: (item.revenue || 0) - (item.cost_of_goods || 0) - totalAdSpend,
 				aov: (item.revenue || 0) > 0 ? (item.revenue || 0) / item.orders : 0,
