@@ -23,8 +23,8 @@ class CronJobManager {
                 storeId,
                 type: 'auto',
                 stage: 'ads_completed',
-                message: `Auto Sync Completed. ${ordersCount} orders synced. ${adsCount} ads synced`,
-                progress: 65,
+                message: `Auto Sync Completed.`,
+                progress: 100,
                 timestamp: new Date().toISOString()
             });
         }, {
@@ -44,15 +44,6 @@ class CronJobManager {
         try {
             console.log(`🔄 Starting auto-sync for store: ${storeId}`);
             this.syncInProgress.set(storeId, true);
-            
-            // Check if sync is needed (last sync > 1 hour ago)
-            const needsSync = await this.checkSyncNeeded(storeId);
-            if (!needsSync) {
-                console.log(`✅ Store ${storeId} is up to date, skipping auto-sync`);
-                this.syncInProgress.set(storeId, false);
-                return;
-            }
-
             // Run sync operations with progress tracking
             const ordersCount = await this.syncOrders(storeId);
             
