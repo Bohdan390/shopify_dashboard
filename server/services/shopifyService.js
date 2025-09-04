@@ -215,6 +215,7 @@ class ShopifyService {
 				});
 			}
 
+			console.log(allOrders[0].created_at)
 			return allOrders;
 		} catch (error) {
 			console.error('❌ Error fetching orders:', error.message);
@@ -262,10 +263,16 @@ class ShopifyService {
 			const orderDataArray = [];
 			const uniqueCustomers = new Map();
 			
+			var cIds = []
+			orders.forEach((order) => {
+				if (order.customer && !cIds.includes(order.customer.id)) cIds.push(order.customer.id)
+			})
+
 			var {count: customerCount} = await supabase
 				.from('customers')
 				.select('*', {count: 'exact', head: true})
-				.eq('store_id', this.storeId);
+				.eq('store_id', this.storeId)
+				.in('customer_id', cIds);
 			
 			var chunk = 1000;
 			var allCustomers = [];
@@ -277,6 +284,7 @@ class ShopifyService {
 					.from('customers')
 					.select('*')
 					.eq('store_id', this.storeId)
+					.in('customer_id', cIds)
 					.range(i, i + chunk - 1);
 
 				if (customersError) {
@@ -424,6 +432,15 @@ class ShopifyService {
 						// Get default address from customer
 						const defaultAddress = order.customer.default_address || {};
 						var customer = allCustomers.find(customer => customer.customer_id === customerId);
+						var firstOrderDate = null, firstOrderProductIds = ''
+						if (customer && customer.first_order_date) {
+							firstOrderDate = common.createLocalDateWithTime(customer.first_order_date).toISOString()
+							firstOrderProductIds = customer.first_order_product_ids
+						}
+						else if (order.financial_status == 'paid') {
+							firstOrderDate = common.createLocalDateWithTime(order.created_at).toISOString()
+							firstOrderProductIds = order.product_ids
+						}
 						uniqueCustomers.set(customerId, {
 							customer_id: customerId,
 							store_id: this.storeId,
@@ -443,12 +460,10 @@ class ShopifyService {
 							zip: defaultAddress.zip || null,
 							created_at: common.createLocalDateWithTime(order.customer.created_at || order.created_at).toISOString(),
 							updated_at: common.createLocalDateWithTime(order.customer.updated_at || order.updated_at).toISOString(),
-							first_order_date: order.financial_status != "paid" ? null : 
-								(customer ? common.createLocalDateWithTime(customer.first_order_date || order.created_at).toISOString() : 
-									common.createLocalDateWithTime(order.created_at).toISOString()),
+							first_order_date: firstOrderDate,
 							first_order_id: customer ? customer.first_order_id : order.id.toString(),
 							first_order_prices: customer ? customer.first_order_prices : JSON.stringify(priceStr),
-							first_order_product_ids: customer ? customer.first_order_product_ids : order.product_ids
+							first_order_product_ids: firstOrderProductIds
 						});
 					}
 					else {
@@ -959,9 +974,7 @@ class ShopifyService {
 
 	async processCustomerChunk(customers) {
 		try {
-			// Process each customer individually to handle first_order_date logic
 			for (const customer of customers) {
-				// Check if customer already exists
 				const { data: existingCustomer, error: fetchError } = await supabase
 					.from('customers')
 					.select('first_order_date')

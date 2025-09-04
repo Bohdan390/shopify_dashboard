@@ -785,6 +785,7 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 
 		let result = {}
 
+		synced = false
 		if (!synced) {
 			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets);
 		}
@@ -813,6 +814,44 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 	}
 });
 
+function arraysEqual(a, b) {
+	if (a.length !== b.length) return false;
+	var f = true;
+	var c = 0;
+	var c2 = 0;
+	var c3 = 0;
+	var a2 = [];
+	var b2 = []
+	for (var i = 0; i < aa.length; i++) {
+		if (a[i].first_order_date && (a[i].first_order_date > '2025-02-01' && a[i].first_order_date < '2025-03-01')) {
+			c2 ++;
+			a2.push(a[i])
+		}
+		if (b[i].first_order_date && (b[i].first_order_date > '2025-02-01' && b[i].first_order_date < '2025-03-01')) {
+			c3 ++;
+			b2.push(b[i])
+		}
+		if (a[i].first_order_product_ids !== b[i].first_order_product_ids) {
+			f = false;
+			c ++;
+		}
+	}
+	a2.forEach((aa) => {
+		if (!b2.find(bb => bb.customer_id == aa.customer_id)) {
+			console.log(aa.customer_id, b.find(bb => bb.customer_id == aa.customer_id))
+		}
+	})
+	b.forEach((item) => {
+		if (!a.find(aa => aa.customer_id == item.customer_id)) {
+			console.log(item.customer_id)
+		}
+	})
+	console.log(a.length, 'a', b.length, 'b', c2, 'c2', c3, 'c3')
+	if (!f) console.log(c, 'c')
+	return f;
+  }
+
+  let aa = []
 // Helper function to calculate customer LTV cohorts
 async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets = []) {
 	try {
@@ -912,7 +951,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			})
 		}
 
-		var allCustomers = [];
 
 		const {count: customerCount} = await supabase
 			.from('customers')
@@ -920,25 +958,17 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.eq('store_id', storeId)
 			.gte('first_order_date', `${startDate}-01T00:00:00Z`)
 			.lte('first_order_date', `${endDate}T23:59:59Z`)
-
-			console.log(startDate, customerCount)
+		var allCustomers = [];
 		for (var i = 0; i < customerCount; i += chunkSize) {
 			const { data: customers, error: customersError } = await supabase.from("customers")
 				.select('customer_id, first_order_date, first_order_product_ids, first_order_prices')
 				.eq('store_id', storeId)
 				.gte('first_order_date', `${startDate}-01T00:00:00Z`)
 				.lte('first_order_date', `${endDate}T23:59:59Z`)
+				.order('first_order_date', {ascending: true})
 				.range(i, i + chunkSize - 1);
 			if (customersError) throw customersError;
-			customers.forEach(customer => {
-				var f = false
-				for (var i = 0; i < productIds.length; i++) {
-					if (customer.first_order_product_ids != null && customer.first_order_product_ids.includes(productIds[i])) {
-						f = true
-					}
-				}
-				if (f) allCustomers.push(customer);
-			})
+			allCustomers.push(...customers);
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, 'syncCustomerProgress', {
@@ -950,6 +980,25 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				})
 			}
 		}
+
+		let filterCustomers = []; // reset before filling
+
+		if (aa.length > 0) console.log(arraysEqual(aa, allCustomers), 'if equal')
+		const localCustomers = [...allCustomers]
+		for (const customer of localCustomers) {
+			if (!customer.first_order_product_ids) continue;
+
+			const firstOrderProductIds = customer.first_order_product_ids
+				.split(",")
+				.map(id => id.trim()); // normalize spaces
+
+			if (productIds.some(id => firstOrderProductIds.includes(id))) {
+				filterCustomers.push(customer);
+			}
+		}
+
+		console.log(productIds, allCustomers.length, customerCount, filterCustomers.length, productIds.length, startDate, endDate)
+		aa = [...allCustomers]
 		if (sockets.length > 0) {
 			sockets.forEach(socket => {
 				sendWebSocketMessage(socket, 'syncCustomerProgress', {
@@ -1133,7 +1182,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 
 		var ltvData = [];
 		for (var uniqueDate of uniqueDates) {
-			var customers = allCustomers.filter(customer => customer.first_order_date.substring(0, 7) === uniqueDate);
+			var customers = filterCustomers.filter(customer => customer.first_order_date && customer.first_order_date.substring(0, 7) === uniqueDate);
 			var customerIds = customers.map(customer => customer.customer_id);
 			var totalFOrderPrice = 0;
 			customers.forEach(customer => {
