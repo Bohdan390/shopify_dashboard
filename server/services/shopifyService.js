@@ -265,7 +265,7 @@ class ShopifyService {
 			
 			var cIds = []
 			orders.forEach((order) => {
-				if (order.customer && !cIds.includes(order.customer.id)) cIds.push(order.customer.id)
+				if (order.customer && !cIds.includes(order.customer.id.toString())) cIds.push(order.customer.id.toString())
 			})
 
 			var {count: customerCount} = await supabase
@@ -282,7 +282,7 @@ class ShopifyService {
 
 				const { data: customers, error: customersError } = await supabase
 					.from('customers')
-					.select('*')
+					.select('customer_id, first_order_date, first_order_product_ids, first_order_prices, first_order_id')
 					.eq('store_id', this.storeId)
 					.in('customer_id', cIds)
 					.range(i, i + chunk - 1);
@@ -437,7 +437,7 @@ class ShopifyService {
 							firstOrderDate = common.createLocalDateWithTime(customer.first_order_date).toISOString()
 							firstOrderProductIds = customer.first_order_product_ids
 						}
-						else if (order.financial_status == 'paid') {
+						if (order.financial_status == 'paid' && (firstOrderDate == null || new Date(firstOrderDate).getTime() > new Date(order.created_at).getTime())) {
 							firstOrderDate = common.createLocalDateWithTime(order.created_at).toISOString()
 							firstOrderProductIds = order.product_ids
 						}
