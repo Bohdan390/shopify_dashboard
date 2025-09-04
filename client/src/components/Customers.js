@@ -399,7 +399,7 @@ const Customers = () => {
                                                 { value: 50, label: '50' },
                                                 { value: 100, label: '100' }
                                             ]}
-                                            selectClass="pagesize-select"
+                                            selectClass="nopa-pagesize-select"
                                             placeholder="Select"
                                             disabled={loading}
                                             className="w-28"
@@ -665,7 +665,7 @@ const Customers = () => {
                                                 { value: 50, label: '50' },
                                                 { value: 100, label: '100' }
                                             ]}
-                                            selectClass="pagesize-select"
+                                            selectClass="nopa-pagesize-select"
                                             placeholder="Select"
                                             disabled={loading || tableLoading}
                                             className="w-28"
