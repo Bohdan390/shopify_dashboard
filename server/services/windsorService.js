@@ -281,6 +281,8 @@ class WindsorService {
           chunks.push(campaignArray.slice(i, i + chunkSize));
         }
 
+        console.log(0)
+        console.log(chunks)
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
 
@@ -297,6 +299,7 @@ class WindsorService {
           }
         }
       }
+      console.log(1)
 
       // Save ad spend data to database
       if (socket) {
@@ -343,6 +346,7 @@ class WindsorService {
             throw spendError;
           }
         }
+        console.log(2)
       }
 
       return {

@@ -785,7 +785,6 @@ router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 
 		let result = {}
 
-		synced = false
 		if (!synced) {
 			result = await calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, sockets);
 		}
