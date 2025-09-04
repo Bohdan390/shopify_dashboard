@@ -14,6 +14,8 @@ export const StoreProvider = ({ children }) => {
   const [selectedStore, setSelectedStore] = useState(localStorage.getItem("selectedStore") || "buycosari");
   const [syncCompleted, setSyncCompleted] = useState(0);
   const [adsSyncCompleted, setAdsSyncCompleted] = useState(0);
+  const [syncCustomerLtv, setSyncCustomerLtv] = useState(false);
+  const [syncProductLtv, setSyncProductLtv] = useState(false);
 
   const notifySyncComplete = useCallback(() => {
     setSyncCompleted(prev => prev + 1);
@@ -30,6 +32,10 @@ export const StoreProvider = ({ children }) => {
     adsSyncCompleted,
     notifySyncComplete,
     notifyAdsSyncComplete,
+    syncCustomerLtv,
+    syncProductLtv,
+    setSyncCustomerLtv,
+    setSyncProductLtv,
   };
 
   return (

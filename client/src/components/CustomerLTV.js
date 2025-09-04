@@ -13,8 +13,9 @@ import {
 } from 'lucide-react';
 let isLtvLoading = false, timeOut = null
 let metric = 'customer-ltv-revenue'
+const G = require('../config/global')
 const CustomerLTV = () => {
-    const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
+    const { selectedStore, syncCompleted, adsSyncCompleted, syncCustomerLtv, syncProductLtv, setSyncCustomerLtv, setSyncProductLtv } = useStore();
     const [loading, setLoading] = useState(true);
     // Customer LTV State
     const [ltvData, setLtvData] = useState([]);
@@ -74,7 +75,7 @@ const CustomerLTV = () => {
     const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
     // Fetch individual product LTV data
-    const fetchIndividualProductLtv = async () => {
+    const fetchIndividualLtv = async () => {
         if (isLtvLoading) return;
         isLtvLoading = true;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -91,8 +92,10 @@ const CustomerLTV = () => {
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            console.log("isfinsiehd-----------", ltvMetric)
+            console.log("isfinsiehd-----------", ltvMetric, syncCustomerLtv)
             if (ltvMetric.includes("customer")) {
+                if (syncCustomerLtv) return;
+                setSyncCustomerLtv(true);
                 await api.post('/api/analytics/sync-customer-ltv-cohorts', {
                     startDate,
                     endDate,
@@ -102,6 +105,8 @@ const CustomerLTV = () => {
                 });
             }
             else if (ltvMetric.includes("product")) {
+                if (syncProductLtv) return;
+                setSyncProductLtv(true);
                 await api.post('/api/analytics/recalculate-product-trends', {
                     startDate,
                     endDate,
@@ -149,7 +154,7 @@ const CustomerLTV = () => {
     // Fetch customer LTV analytics
     const fetchCustomerLtvAnalytics = useCallback(async () => {
         if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || !selectedProductSku) return;
-        fetchIndividualProductLtv();
+        fetchIndividualLtv();
     }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku, socketConnected]);
 
     // Format number for display
@@ -158,7 +163,7 @@ const CustomerLTV = () => {
         if (ltvMetric.includes("product") && productLtvSyncProgress.stage != "") return
         if (ltvMetric.includes("customer") && customerLtvSyncProgress.stage != "") return
         if (ltvMetric.includes("product") && ltvProductData.length == 0) {
-            fetchIndividualProductLtv();
+            fetchIndividualLtv();
         }
     }, [ltvMetric]);
 
@@ -257,7 +262,6 @@ const CustomerLTV = () => {
         }
     }, [fetchCustomerLtvAnalytics]);
 
-    // Listen for sync completion from GlobalStoreSelector and refresh data
     useEffect(() => {
         if (syncCompleted > 0 || adsSyncCompleted > 0) {
             if (selectedStore) {
@@ -279,20 +283,12 @@ const CustomerLTV = () => {
     const { socket, selectStore, addEventListener, reconnect, isConnected } = useSocket();
 
     useEffect(() => {
-        console.log('🔌 Socket status check:', {
-            socket: !!socket,
-            connected: socket?.connected,
-            id: socket?.id,
-            store: selectedStore,
-            sku: selectedProductSku
-        });
         handleProductLtv();
     }, [socket, selectedStore, selectedProductSku]);
 
     const handleProductLtv = async () => {
         if (selectedStore && selectedProductSku) {
             // Check if socket is truly functional
-            console.log('Socket state:', socket?.readyState, 'Socket ID:', socket?.id);
             if (socket && socket.readyState === WebSocket.OPEN) {
                 clearTimeout(timeOut);
                 socket.send(JSON.stringify({
@@ -301,7 +297,6 @@ const CustomerLTV = () => {
                 }));
             }
             else {
-                console.log('🔌 Socket not connected, attempting to reconnect...');
                 timeOut = setTimeout(() => {
                     handleProductLtv();
                 }, 2000);
@@ -320,11 +315,11 @@ const CustomerLTV = () => {
         // Add event listener for syncProgress
         addEventListener('refresh_product_skus', (data) => {
             console.log('🔌 Refreshing product skus');
-            fetchIndividualProductLtv();
+            fetchIndividualLtv();
         });
-        const removeCustomerLtvListener = addEventListener('syncCustomerProgress', (data) => {
-            console.log('🔌 Product LTV data received', data, metric);
+        addEventListener('syncCustomerProgress', (data) => {
             if (data.stage && data.stage === 'calculating') {
+                if (!ltvLoading) setLtvLoading(true)
                 setCustomerLtvSyncProgress({
                     stage: data.stage,
                     message: data.message,
@@ -345,15 +340,15 @@ const CustomerLTV = () => {
                 }, 500);
             }
             else if (data.stage == "get_customer_ltv_cohorts") {
-                console.log('🔌 LTV data received', JSON.parse(data.data));
+                setSyncCustomerLtv(false);
                 setLtvLoading(false);
                 setLtvData(JSON.parse(data.data) || []);
             }
         });
 
         const removeProductLtvListener = addEventListener('syncProductProgress', (data) => {
-            console.log('🔌 Product LTV data received', data, metric);
             if (data.stage && data.stage === 'calculating') {
+                if (!ltvLoading) setLtvLoading(true)
                 setProductLtvSyncProgress({
                     stage: data.stage,
                     message: data.message,
@@ -374,7 +369,7 @@ const CustomerLTV = () => {
                 }, 500);
             }
             else if (data.stage == "get_product_ltv_cohorts") {
-                console.log('🔌 Product LTV data received', JSON.parse(data.data));
+                setSyncProductLtv(false);
                 setLtvLoading(false);
                 setLtvProductData(JSON.parse(data.data) || []);
             }
@@ -452,7 +447,7 @@ const CustomerLTV = () => {
                 </div>
 
                 {/* Table Content */}
-                <div className="overflow-x-auto">
+                {getFilteredLtvData().length > 0 && <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -551,12 +546,12 @@ const CustomerLTV = () => {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </div>}
 
                 {/* Results Summary */}
                 <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
                     <div className="text-sm text-gray-600">
-                        Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
+                        Showing {getFilteredLtvData().length} Customer cohorts
                     </div>
                 </div>
             </div>
@@ -581,7 +576,7 @@ const CustomerLTV = () => {
                 </div>
 
                 {/* Table Content */}
-                <div className="overflow-x-auto">
+                {ltvProductData.length > 0 && <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -658,12 +653,12 @@ const CustomerLTV = () => {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </div>}
 
                 {/* Results Summary */}
                 <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
                     <div className="text-sm text-gray-600">
-                        Showing {getFilteredLtvData().length} of {ltvData.length} customer cohorts
+                        Showing {ltvProductData.length} Product cohorts
                     </div>
                 </div>
             </div>
@@ -794,6 +789,7 @@ const CustomerLTV = () => {
                                         size="sm"
                                         style={{ height: 36 }}
                                         className="min-w-[80px]"
+                                        disabled={ltvMetric.includes('customer') ? syncCustomerLtv : syncProductLtv}
                                     />
 
                                     <BeautifulSelect
@@ -804,6 +800,7 @@ const CustomerLTV = () => {
                                         size="sm"
                                         style={{ height: 36 }}
                                         className="min-w-[120px]"
+                                        disabled={ltvMetric.includes('customer') ? syncCustomerLtv : syncProductLtv}
                                     />
                                 </div>
 
@@ -819,6 +816,7 @@ const CustomerLTV = () => {
                                         size="sm"
                                         style={{ height: 36 }}
                                         className="min-w-[80px]"
+                                        disabled={ltvMetric.includes('customer') ? syncCustomerLtv : syncProductLtv}
                                     />
 
                                     <BeautifulSelect
@@ -829,23 +827,25 @@ const CustomerLTV = () => {
                                         size="sm"
                                         style={{ height: 36 }}
                                         className="min-w-[120px]"
+                                        disabled={ltvMetric.includes('customer') ? syncCustomerLtv : syncProductLtv}
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* LTV Loading State */}
-                        {ltvLoading && (
+                        {((metric.includes("customer") && syncCustomerLtv) || (metric.includes("product") && syncProductLtv)) && (
                             <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6">
                                 <div className="flex items-center gap-3">
                                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                                    <span>Loading customer LTV data for {getLtvMonthRangeDisplay()}...</span>
+                                    <span>Loading {metric.includes("customer") ? "Customer LTV" : "Product LTV"} data for {getLtvMonthRangeDisplay()}...</span>
                                 </div>
                             </div>
                         )}
 
                         {/* LTV Data Table */}
-                        {ltvLoading ? (
+                        {renderLtvData()}
+                        {((metric.includes("customer") && syncCustomerLtv) || (metric.includes("product") && syncProductLtv)) && (
                             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden" style={{ position: 'relative' }}>
                                 {/* Loading Skeleton */}
                                 <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
@@ -907,8 +907,6 @@ const CustomerLTV = () => {
                                     </div>
                                 )}
                             </div>
-                        ) : (
-                            renderLtvData()
                         )}
                     </div>
                 </div>

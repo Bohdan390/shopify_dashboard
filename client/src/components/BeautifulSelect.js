@@ -97,6 +97,7 @@ const BeautifulSelect = ({
             transform: 'rotate(180deg)'
           }
         }}
+        disabled={disabled}
       >
         {options.map((option) => (
           <MenuItem 
