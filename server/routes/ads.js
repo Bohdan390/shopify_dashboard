@@ -66,7 +66,6 @@ router.post('/sync-windsor', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error syncing Windsor.ai data:', error);
-    res.status(500).json({ error: 'Failed to sync Windsor.ai data' });
   }
 });
 // Get detailed ad spend data with pagination

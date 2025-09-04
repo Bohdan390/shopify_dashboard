@@ -130,13 +130,14 @@ class CronJobManager {
     async syncOrders(storeId) {
         try {
             // Get the last sync date to use as start date
-            const { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
+            let { ordersStartDate, endDate } = await this.getLastSyncDates(storeId);
             
             console.log("syncingOrders", ordersStartDate, endDate)
             if (!ordersStartDate) {
                 ordersStartDate = new Date(2023, 1, 1);
             }
             // Call the real Shopify order sync service with the actual start date
+            ordersStartDate = common.createLocalDateWithTime(new Date(ordersStartDate.getTime() - 1000 * 60 * 60 * 3)).toISOString().split('T')[0]
             const storeService = new ShopifyService(storeId);
             const ordersCount = await storeService.syncOrders(250, ordersStartDate.toISOString().split('T')[0], null, 'autoSyncProgress');
 
