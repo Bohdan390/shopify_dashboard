@@ -133,6 +133,51 @@ function App() {
       <StoreProvider>
         <SocketProvider>
           <CurrencyProvider>
+            <style>
+              {
+                `
+                  .css-10d30g3-MuiPaper-root-MuiDialog-paper {
+                    border-radius: 5px !important;
+                  }
+
+                  #root .MuiButtonBase-root {
+                    border-radius: 5px !important;
+                    height: 38px !important;
+                  }
+
+                  .MuiStack-root {
+                    padding: 0px !important;
+                    overflow: hidden !important;
+                  }
+
+                  .css-qohrln-MuiPickersInputBase-root-MuiPickersOutlinedInput-root {
+                    height: 38px !important;
+                    border-radius: 6px !important;
+                  }
+
+                  .css-10o2lyd-MuiStack-root>.MuiTextField-root, .css-10o2lyd-MuiStack-root>.MuiPickersTextField-root {
+                    min-width: 140px !important;
+                  }
+
+                  .css-1fhcaus-MuiPickersSectionList-root-MuiPickersInputBase-sectionsContainer-MuiPickersOutlinedInput-sectionsContainer {
+                    width: 100px !important;
+                    font-size: 14px !important;
+                  }
+
+                  .css-1umw9bq-MuiSvgIcon-root {
+                    font-size: 20px !important;
+                  }
+
+                  .css-10o2lyd-MuiStack-root {
+                    flex-direction: column !important;
+                  }
+
+                  .date-picker .css-qohrln-MuiPickersInputBase-root-MuiPickersOutlinedInput-root.Mui-error .MuiPickersOutlinedInput-notchedOutline {
+                    border-color: rgb(209 213 219) !important;
+                  }
+                `
+              }
+            </style>
             <Toast ref={toast} />
             <Router
               future={{
