@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 let isLtvLoading = false, timeOut = null
 let metric = 'customer-ltv-revenue'
-const G = require('../config/global')
+
 const CustomerLTV = () => {
     const { selectedStore, syncCompleted, adsSyncCompleted, syncCustomerLtv, syncProductLtv, setSyncCustomerLtv, setSyncProductLtv } = useStore();
     const [loading, setLoading] = useState(true);

@@ -8,297 +8,14 @@ import ProductGroups from './ProductGroups';
 import BeautifulSelect from './BeautifulSelect';
 import { useStore } from '../contexts/StoreContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs from 'dayjs';
+import { Button } from '@mui/material';
 
-// Custom Calendar Component
-const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDateState, setSelectedDateState] = useState(selectedDate ? new Date(selectedDate) : null);
-  const [showYearSelector, setShowYearSelector] = useState(false);
-  const [showMonthSelector, setShowMonthSelector] = useState(false);
-
-  useEffect(() => {
-    if (selectedDate) {
-      setSelectedDateState(new Date(selectedDate));
-      setCurrentMonth(new Date(selectedDate));
-    }
-  }, [selectedDate]);
-
-  // Close year selector when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showYearSelector && !event.target.closest('.year-selector')) {
-        setShowYearSelector(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showYearSelector]);
-
-  // Close month selector when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showMonthSelector && !event.target.closest('.month-selector')) {
-        setShowMonthSelector(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMonthSelector]);
-
-  // Close calendar modal when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal')) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
-
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDay = firstDay.getDay();
-
-    const days = [];
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < startingDay; i++) {
-      days.push(null);
-    }
-    // Add all days of the month
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
-    }
-    return days;
-  };
-
-  const formatDate = (date) => {
-    // Use local timezone to avoid date shifting
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const isToday = (date) => {
-    const today = new Date();
-    return date && date.toDateString() === today.toDateString();
-  };
-
-  const isSelected = (date) => {
-    return date && selectedDateState && date.toDateString() === selectedDateState.toDateString();
-  };
-
-  const handleDateClick = (date) => {
-    if (date) {
-      setSelectedDateState(date);
-      onDateSelect(formatDate(date));
-      onClose();
-    }
-  };
-
-  const goToPreviousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
-
-  const goToPreviousYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1));
-  };
-
-  const goToNextYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
-  };
-
-  const selectYear = (year) => {
-    setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
-    setShowYearSelector(false);
-  };
-
-  const selectMonth = (month) => {
-    const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-    setCurrentMonth(newMonth);
-    setShowMonthSelector(false);
-  };
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
-			<div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
-				{/* Header */}
-				<div className="flex items-center justify-between mb-4">
-					<h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-					<button
-						onClick={onClose}
-						className="text-gray-400 hover:text-gray-600 transition-colors"
-					>
-						<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-						</svg>
-					</button>
-				</div>
-
-				{/* Enhanced Navigation */}
-				<div className="mb-4">
-					{/* Year Navigation */}
-					<div className="flex items-center justify-between mb-2">
-						<button
-							onClick={goToPreviousYear}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Previous Year"
-						>
-							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-							</svg>
-						</button>
-						<button
-							onClick={() => setShowYearSelector(!showYearSelector)}
-							className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-						>
-							{currentMonth.getFullYear()}
-						</button>
-						<button
-							onClick={goToNextYear}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Next Year"
-						>
-							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
-							</svg>
-						</button>
-					</div>
-
-					{/* Year Selector Dropdown */}
-					{showYearSelector && (
-						<div className="relative year-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{left: "50%", transform: "translateX(-50%)"}}>
-								<div className="grid grid-cols-3 gap-1">
-									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
-										<button
-											key={year}
-											onClick={() => selectYear(year)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-												}`}
-										>
-											{year}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
-
-					{/* Month Navigation */}
-					<div className="flex items-center justify-between mb-4">
-						<button
-							onClick={goToPreviousMonth}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Previous Month"
-						>
-							<ChevronLeft className="w-5 h-5 text-gray-500" />
-						</button>
-						<button
-							onClick={() => setShowMonthSelector(!showMonthSelector)}
-							className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors month-selector"
-						>
-							{monthNames[currentMonth.getMonth()]}
-						</button>
-						<button
-							onClick={goToNextMonth}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Next Month"
-						>
-							<ChevronRight className="w-5 h-5 text-gray-500" />
-						</button>
-					</div>
-
-					{/* Month Selector Dropdown */}
-					{showMonthSelector && (
-						<div className="relative month-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{width:260,left: "50%", transform: "translateX(-50%)"}}>
-								<div className="grid grid-cols-3 gap-1">
-									{monthNames.map((month, index) => (
-										<button
-											key={index}
-											onClick={() => selectMonth(index)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-												}`}
-										>
-											{month}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
-				</div>
-
-				{/* Day Headers */}
-				<div className="grid grid-cols-7 gap-1 mb-2">
-					{dayNames.map(day => (
-						<div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-							{day}
-						</div>
-					))}
-				</div>
-
-				{/* Calendar Grid */}
-				<div className="grid grid-cols-7 gap-1">
-					{getDaysInMonth(currentMonth).map((date, index) => (
-						<button
-							key={index}
-							onClick={() => handleDateClick(date)}
-							disabled={!date}
-							className={`
-                p-2 text-sm font-medium rounded-lg transition-all duration-200
-                ${!date ? 'invisible' : ''}
-                ${isToday(date) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
-                ${isSelected(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
-                ${date && !isToday(date) && !isSelected(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
-              `}
-						>
-							{date ? date.getDate() : ''}
-						</button>
-					))}
-				</div>
-
-				{/* Today Button */}
-				<div className="mt-4 pt-4 border-t border-gray-200">
-					<button
-						onClick={() => handleDateClick(new Date())}
-						className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-					>
-						Today
-					</button>
-				</div>
-			</div>
-		</div>
-  );
-};
+const G = require("../config/global")
 
 const ProductAnalytics = () => {
   const navigate = useNavigate();
@@ -454,11 +171,32 @@ const ProductAnalytics = () => {
     try {
       // Fetch available campaigns
       const campaignsResponse = await api.get('/api/analytics/available-campaigns', { params: { storeId: selectedStore } });
-      setAvailableCampaigns(campaignsResponse.data);
+
+      var campaigns = campaignsResponse.data;
+      
 
       // Fetch existing links for this product
-      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
-      const productLinks = linksResponse.data.filter(link => link.product_sku === product.product_sku);
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore, productSku: product.product_sku } });
+      const productLinks = linksResponse.data;
+
+      campaigns.forEach((campaign) => {
+        if (productLinks.find(cl => cl.campaign_id === campaign.campaign_id)) {
+          campaign.isLinked = true;
+        }
+        else {
+          campaign.isLinked = false;
+        }
+      })
+      campaigns.sort((a, b) => {
+        if (a.isLinked && !b.isLinked) {
+          return -1;
+        }
+        else if (!a.isLinked && b.isLinked) {
+          return 1;
+        }
+        return 0;
+      })
+      setAvailableCampaigns(campaigns);
       setLinkedCampaigns(productLinks);
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -482,9 +220,28 @@ const ProductAnalytics = () => {
       });
 
       // Refresh the links
-      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
-      const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore, productSku: selectedProduct.product_sku } });
+      const productLinks = linksResponse.data;
       setLinkedCampaigns(productLinks);
+
+      availableCampaigns.forEach((campaign) => {
+        if (productLinks.find(cl => cl.campaign_id === campaign.campaign_id)) {
+          campaign.isLinked = true;
+        }
+        else {
+          campaign.isLinked = false;
+        }
+      })
+      availableCampaigns.sort((a, b) => {
+        if (a.isLinked && !b.isLinked) {
+          return -1;
+        }
+        else if (!a.isLinked && b.isLinked) {
+          return 1;
+        }
+        return 0;
+      })
+      setAvailableCampaigns(availableCampaigns);
 
       // Refresh product analytics to show updated data
       fetchProductAnalytics();
@@ -509,10 +266,28 @@ const ProductAnalytics = () => {
       });
 
       // Refresh the links
-      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore } });
-      const productLinks = linksResponse.data.filter(link => link.product_sku === selectedProduct.product_sku);
+      const linksResponse = await api.get('/api/analytics/product-campaign-links', { params: { storeId: selectedStore, productSku: selectedProduct.product_sku } });
+      const productLinks = linksResponse.data;
       setLinkedCampaigns(productLinks);
 
+      availableCampaigns.forEach((campaign) => {
+        if (productLinks.find(cl => cl.campaign_id === campaign.campaign_id)) {
+          campaign.isLinked = true;
+        }
+        else {
+          campaign.isLinked = false;
+        }
+      })
+      availableCampaigns.sort((a, b) => {
+        if (a.isLinked && !b.isLinked) {
+          return -1;
+        }
+        else if (!a.isLinked && b.isLinked) {
+          return 1;
+        }
+        return 0;
+      })
+      setAvailableCampaigns(availableCampaigns);
       // Refresh product analytics to show updated data
       fetchProductAnalytics();
     } catch (error) {
@@ -860,24 +635,30 @@ const ProductAnalytics = () => {
             <div className="flex gap-2">
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">Start Date</label>
-                <button
-                  onClick={() => setShowStartCalendar(true)}
-                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-                >
-                  <span>{dateRange.startDate || 'Select start date'}</span>
-                  <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-                </button>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DemoContainer components={['DatePicker', 'DatePicker']}>
+                    <DatePicker
+                      value={dayjs(dateRange.startDate)}
+                      onChange={(newValue) => {
+                        var startDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+                        setDateRange({ ...dateRange, startDate })
+                      }} />
+                  </DemoContainer>
+                </LocalizationProvider>
               </div>
               <span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">End Date</label>
-                <button
-                  onClick={() => setShowEndCalendar(true)}
-                  className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-                >
-                  <span>{dateRange.endDate || 'Select end date'}</span>
-                  <Calendar className="w-4 h-4 text-gray-400 ml-2" />
-                </button>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DemoContainer components={['DatePicker', 'DatePicker']}>
+                    <DatePicker
+                      value={dayjs(dateRange.endDate)}
+                      onChange={(newValue) => {
+                        var endDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+                        setDateRange({ ...dateRange, endDate })
+                      }} />
+                  </DemoContainer>
+                </LocalizationProvider>
               </div>
 
               {/* Quick Filters Button */}
@@ -1337,7 +1118,9 @@ const ProductAnalytics = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {isLinked ? (
-                                    <button
+                                    <Button
+                                      variant='contained'
+                                      color="error"
                                       onClick={() => handleUnlinkCampaign(linkedCampaign.id, campaign.campaign_id)}
                                       disabled={linkingCampaigns.has(campaign.campaign_id)}
                                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
@@ -1353,9 +1136,10 @@ const ProductAnalytics = () => {
                                       ) : (
                                         'Unlink'
                                       )}
-                                    </button>
+                                    </Button>
                                   ) : (
-                                    <button
+                                    <Button
+                                      variant='contained'
                                       onClick={() => handleLinkCampaign(campaign)}
                                       disabled={linkingCampaigns.has(campaign.campaign_id)}
                                       className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${linkingCampaigns.has(campaign.campaign_id)
@@ -1371,7 +1155,7 @@ const ProductAnalytics = () => {
                                       ) : (
                                         '+ Link'
                                       )}
-                                    </button>
+                                    </Button>
                                   )}
                                 </div>
                               </div>
@@ -1399,25 +1183,6 @@ const ProductAnalytics = () => {
           </div>
         </div>
       )}
-
-
-
-      {/* Calendar Modals */}
-      <CustomCalendar
-        isOpen={showStartCalendar}
-        onClose={() => setShowStartCalendar(false)}
-        onDateSelect={handleStartDateSelect}
-        selectedDate={dateRange.startDate}
-        label="Select Start Date"
-      />
-
-      <CustomCalendar
-        isOpen={showEndCalendar}
-        onClose={() => setShowEndCalendar(false)}
-        onDateSelect={handleEndDateSelect}
-        selectedDate={dateRange.endDate}
-        label="Select End Date"
-      />
 
       {/* Product Groups Analytics Modal */}
       {showProductGroupsModal && (

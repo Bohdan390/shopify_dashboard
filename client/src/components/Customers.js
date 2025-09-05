@@ -18,6 +18,7 @@ import {
     RefreshCw,
     AlertCircle,
 } from 'lucide-react';
+import { Button } from '@mui/material';
 
 let isLoading = false;
 const Customers = () => {
@@ -226,21 +227,6 @@ const Customers = () => {
                         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Customers</h1>
                         <p className="text-sm sm:text-base text-gray-600">Manage and analyze your customer base</p>
                     </div>
-                    <button
-                        onClick={() => {
-                            fetchCustomerAnalytics(1, pagination.pageSize, sortConfig.field, sortConfig.direction, true);
-                            fetchSummaryStats();
-                        }}
-                        disabled={refreshing}
-                        className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {refreshing ? (
-                            <LoadingSpinner size="sm" variant="spinner" />
-                        ) : (
-                            <RefreshCw className="w-4 h-4" />
-                        )}
-                        {refreshing ? 'Refreshing...' : 'Refresh'}
-                    </button>
                 </div>
 
                 {/* Error Display */}
@@ -349,7 +335,8 @@ const Customers = () => {
                                 />
                             </div>
                         </div>
-                        <button
+                        <Button
+                            variant='contained'
                             onClick={handleSearch}
                             disabled={searchLoading || tableLoading}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -360,7 +347,7 @@ const Customers = () => {
                                 <Search className="w-4 h-4" />
                             )}
                             {searchLoading ? 'Searching...' : 'Search'}
-                        </button>
+                        </Button>
                     </div>
                 </div>
 

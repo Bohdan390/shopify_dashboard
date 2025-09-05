@@ -7,7 +7,8 @@ module.exports = {
   createLocalDateWithTime: function (dateString) {
     var date = new Date(dateString)
     var offsetMinutes = new Date().getTimezoneOffset()
-    var time = date.getTime() + offsetMinutes * 60 * 1000
+    console.log(offsetMinutes)
+    var time = date.getTime() - offsetMinutes * 60 * 1000
     return new Date(time)
   },
   roundPrice: function (price) {
