@@ -532,7 +532,7 @@ const CustomerLTV = () => {
                                                     <div
                                                         key={i}
                                                         className={`p-2 text-xs text-center rounded ${isAvailable
-                                                            ? `${ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
+                                                            ? `${value == 0 ? 'bg-gray-200' : (ltvMetric === 'customer-ltv-profit' ? 'bg-green-100' : 'bg-purple-100')} text-purple-900 border border-purple-200`
                                                             : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
                                                             }`}
                                                     >
@@ -639,7 +639,7 @@ const CustomerLTV = () => {
                                                     <div
                                                         key={i}
                                                         className={`p-2 text-xs text-center rounded ${isAvailable
-                                                            ? `${ltvMetric === 'product-ltv-profit' ? 'bg-green-100' : 'bg-purple-100'} text-purple-900 border border-purple-200`
+                                                            ? `${value == 0 ? 'bg-gray-200' : (ltvMetric === 'product-ltv-profit' ? 'bg-green-100' : 'bg-purple-100')} text-purple-900 border border-purple-200`
                                                             : 'bg-gray-200 text-gray-500 border border-gray-300 font-medium'
                                                             }`}
                                                     >

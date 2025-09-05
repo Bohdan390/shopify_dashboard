@@ -108,6 +108,9 @@ class AnalyticsService {
 			const profit = revenue - totalAdSpend - costOfGoods;
 			const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
+			if (date == '2025-09-03') {
+				console.log(revenue, googleAdsSpend, facebookAdsSpend, taboolaAdsSpend, costOfGoods, profit)
+			}
 			// Upsert analytics data
 			const analyticsData = {
 				date,
@@ -512,9 +515,9 @@ class AnalyticsService {
 
 			// Generate all dates in the range
 			const allDates = [];
-			const currentDate = common.createLocalDate(minDateData[0].created_at);
-			const endDate = common.createLocalDate(maxDateData[0].created_at);
-
+			let currentDate = common.createLocalDate(minDateData[0].created_at);
+			let endDate = common.createLocalDate(maxDateData[0].created_at);
+			endDate = endDate.setDate(endDate.getDate() + 1)
 
 			while (currentDate <= endDate) {
 				allDates.push(currentDate.toISOString().split('T')[0]);
@@ -690,7 +693,7 @@ class AnalyticsService {
 				.limit(1);
 
 			if (maxDateError) throw maxDateError;
-			console.log(minDateData, maxDateData)
+			console.log(minDateData, maxDateData, syncDate)
 
 			if (!minDateData || minDateData.length === 0 || !maxDateData || maxDateData.length === 0) {
 				if (socket) {
@@ -707,8 +710,9 @@ class AnalyticsService {
 
 			// Generate all dates in the range
 			const allDates = [];
-			const currentDate = common.createLocalDate(minDateData[0].created_at);
-			const endDate = common.createLocalDate(maxDateData[0].created_at);
+			let currentDate = common.createLocalDate(minDateData[0].created_at);
+			let endDate = common.createLocalDate(maxDateData[0].created_at);
+			endDate = endDate.setDate(endDate.getDate() + 1)
 
 			while (currentDate <= endDate) {
 				allDates.push(currentDate.toISOString().split('T')[0]);

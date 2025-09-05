@@ -333,16 +333,6 @@ router.get('/summary-stats', async (req, res) => {
   try {
     const { startDate, endDate, store_id, page, pageSize, sortBy = 'total_spend', sortOrder = 'desc', search, platform } = req.query;
     
-
-    var {data:productss} = await supabase.from("products").select("*").eq("store_id", store_id);
-
-    var all_products = []
-    productss.forEach((_product) => {
-      if (_product.product_title.toLowerCase().includes("berberine")) {
-        all_products.push({product_id: _product.product_id, product_title: _product.product_title, product_sku:_product.product_sku_id});
-      }
-    })
-    // Get revenue data from orders using the RPC function
     let revenueData = { totalRevenue: 0 };
     if (startDate && endDate && store_id) {
       try {
@@ -403,12 +393,14 @@ router.get('/summary-stats', async (req, res) => {
     });
 
     var paginatedAdSpendData = adSpendData.slice()
+    var totalCount = adSpendData.length
     if (platform && platform != '') {
       paginatedAdSpendData = paginatedAdSpendData.filter(item => item.platform == platform)
+      totalCount = paginatedAdSpendData.length
     }
+
     paginatedAdSpendData = paginatedAdSpendData.slice((page - 1) * pageSize, (page) * pageSize);
 
-    console.log(adSpendData.length, paginatedAdSpendData.length, page, pageSize)
     res.json({ 
       totalSpend: common.roundPrice(totalSpend),
       totalGoogleAmount: common.roundPrice(totalGoogleAmount),
@@ -417,7 +409,7 @@ router.get('/summary-stats', async (req, res) => {
       roiPercentage: common.roundPrice(roiPercentage),
       revenue: common.roundPrice(revenueData.totalRevenue),
       campaigns: paginatedAdSpendData,
-      totalCount: adSpendData.length
+      totalCount: totalCount
     });
 
   } catch (error) {

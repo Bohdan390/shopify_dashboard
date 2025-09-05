@@ -5,7 +5,7 @@ import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
 import {
     Plus, Edit, Trash2, Search, RefreshCw,
-    Package,  FileText, TrendingUp, Save, X, XCircle,
+    Package, FileText, TrendingUp, Save, X, XCircle,
     DollarSign, ShoppingCart, BarChart3, Calendar, Filter
 } from 'lucide-react';
 import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
@@ -21,7 +21,7 @@ let isLoading = false;
 const ProductSkus = () => {
     const { selectedStore } = useStore();
     const navigate = useNavigate();
-    
+
     // Date formatting function - moved before useState calls
     const formatLocalDate = (date) => {
         const year = date.getFullYear();
@@ -29,7 +29,7 @@ const ProductSkus = () => {
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
-    
+
     const [productSkus, setProductSkus] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -313,7 +313,7 @@ const ProductSkus = () => {
                 </svg>
             );
         }
-        
+
         if (sortConfig.direction === 'asc') {
             return (
                 <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -321,7 +321,7 @@ const ProductSkus = () => {
                 </svg>
             );
         }
-        
+
         return (
             <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -644,15 +644,35 @@ const ProductSkus = () => {
         try {
             // Fetch available campaigns
             const campaignsResponse = await api.get('/api/analytics/available-campaigns', { params: { storeId: selectedStore } });
-            setAvailableCampaigns(campaignsResponse.data);
+
+            var campaigns = campaignsResponse.data;
 
             // Fetch existing links for this SKU
-            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
-                params: { storeId: selectedStore, productSku: sku.sku_id } 
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', {
+                params: { storeId: selectedStore, productSku: sku.sku_id }
             });
             fetchProductSkus(pagination.currentPage, searchTerm);
-
             setLinkedCampaigns(linksResponse.data);
+
+            campaigns.forEach((campaign) => {
+                if (linksResponse.data.find(cl => cl.campaign_id === campaign.campaign_id)) {
+                    campaign.isLinked = true;
+                }
+                else {
+                    campaign.isLinked = false;
+                }
+            })
+            campaigns.sort((a, b) => {
+                if (a.isLinked && !b.isLinked) {
+                    return -1;
+                }
+                else if (!a.isLinked && b.isLinked) {
+                    return 1;
+                }
+                return 0;
+            })
+
+            setAvailableCampaigns(campaigns);
         } catch (error) {
             console.error('Error fetching campaigns:', error);
         } finally {
@@ -675,9 +695,29 @@ const ProductSkus = () => {
             });
 
             // Refresh the links
-            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
-                params: { storeId: selectedStore, productSku: selectedSku.sku_id } 
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', {
+                params: { storeId: selectedStore, productSku: selectedSku.sku_id }
             });
+
+            availableCampaigns.forEach((campaign) => {
+                if (linksResponse.data.find(cl => cl.campaign_id === campaign.campaign_id)) {
+                    campaign.isLinked = true;
+                }
+                else {
+                    campaign.isLinked = false;
+                }
+            })
+            availableCampaigns.sort((a, b) => {
+                if (a.isLinked && !b.isLinked) {
+                    return -1;
+                }
+                else if (!a.isLinked && b.isLinked) {
+                    return 1;
+                }
+                return 0;
+            })
+
+            setAvailableCampaigns(availableCampaigns);
             fetchProductSkus(pagination.currentPage, searchTerm);
 
             setLinkedCampaigns(linksResponse.data);
@@ -710,13 +750,34 @@ const ProductSkus = () => {
             });
 
             // Refresh the links
-            const linksResponse = await api.get('/api/analytics/product-campaign-links', { 
-                params: { storeId: selectedStore, productSku: selectedSku.sku_id } 
+            const linksResponse = await api.get('/api/analytics/product-campaign-links', {
+                params: { storeId: selectedStore, productSku: selectedSku.sku_id }
             });
 
             fetchProductSkus(pagination.currentPage, searchTerm);
 
             setLinkedCampaigns(linksResponse.data);
+
+            availableCampaigns.forEach((campaign) => {
+                if (linksResponse.data.find(cl => cl.campaign_id === campaign.campaign_id)) {
+                    campaign.isLinked = true;
+                }
+                else {
+                    campaign.isLinked = false;
+                }
+            })
+            availableCampaigns.sort((a, b) => {
+                if (a.isLinked && !b.isLinked) {
+                    return -1;
+                }
+                else if (!a.isLinked && b.isLinked) {
+                    return 1;
+                }
+                return 0;
+            })
+
+            setAvailableCampaigns(availableCampaigns);
+
 
             // Show success message
             if (window.showPrimeToast) {
@@ -856,29 +917,29 @@ const ProductSkus = () => {
                         <div className="flex flex-col">
                             <label className="text-xs text-gray-600 mb-1">Start Date</label>
                             <LocalizationProvider dateAdapter={AdapterDayjs}>
-								<DemoContainer components={['DatePicker', 'DatePicker']}>
-									<DatePicker
-										value={dayjs(dateRange.startDate)}
-										onChange={(newValue) => {
-											var startDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
-											setDateRange({ ...dateRange, startDate })
-										}} />
-								</DemoContainer>
-							</LocalizationProvider>
+                                <DemoContainer components={['DatePicker', 'DatePicker']}>
+                                    <DatePicker
+                                        value={dayjs(dateRange.startDate)}
+                                        onChange={(newValue) => {
+                                            var startDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+                                            setDateRange({ ...dateRange, startDate })
+                                        }} />
+                                </DemoContainer>
+                            </LocalizationProvider>
                         </div>
-                        <span className="flex items-center text-gray-500" style={{marginTop: 18}}>to</span>
+                        <span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
                         <div className="flex flex-col">
                             <label className="text-xs text-gray-600 mb-1">End Date</label>
                             <LocalizationProvider dateAdapter={AdapterDayjs}>
-								<DemoContainer components={['DatePicker', 'DatePicker']}>
-									<DatePicker
-										value={dayjs(dateRange.endDate)}
-										onChange={(newValue) => {
-											var endDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
-											setDateRange({ ...dateRange, endDate })
-										}} />
-								</DemoContainer>
-							</LocalizationProvider>
+                                <DemoContainer components={['DatePicker', 'DatePicker']}>
+                                    <DatePicker
+                                        value={dayjs(dateRange.endDate)}
+                                        onChange={(newValue) => {
+                                            var endDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+                                            setDateRange({ ...dateRange, endDate })
+                                        }} />
+                                </DemoContainer>
+                            </LocalizationProvider>
                         </div>
 
                         {/* Quick Filters Button */}
@@ -1048,8 +1109,8 @@ const ProductSkus = () => {
                                                             key={product.product_id}
                                                             onClick={() => handleProductSelect(product)}
                                                             className={`p-3 cursor-pointer hover:bg-blue-50 transition-colors ${selectedProducts.find(p => p.product_id === product.product_id)
-                                                                    ? 'bg-blue-50 border-l-4 border-blue-500'
-                                                                    : ''
+                                                                ? 'bg-blue-50 border-l-4 border-blue-500'
+                                                                : ''
                                                                 }`}
                                                         >
                                                             <div className="flex items-center justify-between">
@@ -1201,11 +1262,10 @@ const ProductSkus = () => {
                                             return (
                                                 <div
                                                     key={campaign.campaign_id}
-                                                    className={`p-4 border rounded-lg transition-all duration-200 ${
-                                                        isLinked
+                                                    className={`p-4 border rounded-lg transition-all duration-200 ${isLinked
                                                             ? 'border-green-200 bg-green-50'
                                                             : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex-1">
@@ -1213,11 +1273,10 @@ const ProductSkus = () => {
                                                                 <h5 className="font-medium text-gray-900">
                                                                     {campaign.campaign_name || campaign.campaign_id}
                                                                 </h5>
-                                                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                                                    isLinked
+                                                                <span className={`px-2 py-1 text-xs rounded-full ${isLinked
                                                                         ? 'bg-green-100 text-green-800'
                                                                         : 'bg-gray-100 text-gray-600'
-                                                                }`}>
+                                                                    }`}>
                                                                     {campaign.platform || 'Unknown'}
                                                                 </span>
                                                             </div>
@@ -1297,7 +1356,7 @@ const ProductSkus = () => {
                     <>
                         {/* Top Pagination Controls */}
                         <PaginationControls />
-                        
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
@@ -1389,8 +1448,8 @@ const ProductSkus = () => {
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {productSkus.map((sku) => (
-                                        <tr 
-                                            key={sku.sku_id} 
+                                        <tr
+                                            key={sku.sku_id}
                                             className="hover:bg-blue-50 hover:border-l-4 hover:border-blue-500 cursor-pointer transition-all duration-200 border-l-4 border-transparent"
                                             onClick={() => openLinkModal(sku)}
                                         >
