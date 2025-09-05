@@ -22,7 +22,8 @@ function createLocalDateWithTime(dateString) {
     }
     var date = new Date(dateString)
     var offsetMinutes = new Date().getTimezoneOffset()
-    var time = date.getTime() + offsetMinutes * 60 * 1000
+    var time = date.getTime() - offsetMinutes * 60 * 1000
+    console.log(dateString, new Date(time))
     return new Date(time)
 }
 

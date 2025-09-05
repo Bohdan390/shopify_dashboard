@@ -4,6 +4,7 @@ import BeautifulSelect from './BeautifulSelect';
 import { CheckCircle, AlertCircle, Info, Clock, RefreshCw } from 'lucide-react';
 import api from '../config/axios';
 import { useSocket } from '../contexts/SocketContext';
+import { Button } from '@mui/material';
 
 const GlobalStoreSelector = () => {
 	const { selectedStore, setSelectedStore } = useStore();
@@ -395,7 +396,8 @@ const GlobalStoreSelector = () => {
 					</div>
 					{/* Sync Orders Button */}
 					<div>
-						<button
+						<Button
+						variant='contained'
 							onClick={handleSyncNow}
 							disabled={syncingOrders || syncingAds}
 							className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${(syncingOrders || syncingAds)
@@ -414,7 +416,7 @@ const GlobalStoreSelector = () => {
 									Sync Orders
 								</>
 							)}
-						</button>
+						</Button>
 					</div>
 				</div>
 
@@ -458,7 +460,8 @@ const GlobalStoreSelector = () => {
 					</div>
 					{/* Sync Ads Button */}
 					<div>
-						<button
+						<Button
+							variant='contained'
 							onClick={handleSyncAds}
 							disabled={syncingOrders || syncingAds}
 							className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${(syncingOrders || syncingAds)
@@ -477,7 +480,7 @@ const GlobalStoreSelector = () => {
 									Sync Ads
 								</>
 							)}
-						</button>
+						</Button>
 					</div>
 				</div>
 			</div>

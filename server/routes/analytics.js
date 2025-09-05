@@ -485,12 +485,13 @@ router.get('/dashboard', async (req, res) => {
 // Manual Product-Campaign Links Routes
 router.get('/product-campaign-links', async (req, res) => {
 	try {
-		const { storeId } = req.query;
+		const { storeId, productSku } = req.query;
 		const { data, error } = await supabase
 			.from('product_campaign_links')
 			.select('*')
 			.eq('is_active', true)
 			.eq('store_id', storeId)
+			.eq('product_sku', productSku)
 			.order('created_at', { ascending: false });
 
 		if (error) throw error;

@@ -18,301 +18,14 @@ import ChartsAndTableLoader from './loaders/ChartsAndTableLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material';
+import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs from 'dayjs';
 
 const G = require('../config/global');
-// Custom Calendar Component
-const CustomCalendar = ({ isOpen, onClose, onDateSelect, selectedDate, label }) => {
-	const [currentMonth, setCurrentMonth] = useState(new Date());
-	const [selectedDateState, setSelectedDateState] = useState(selectedDate ? new Date(selectedDate) : null);
-	const [showYearSelector, setShowYearSelector] = useState(false);
-	const [showMonthSelector, setShowMonthSelector] = useState(false);
-
-	useEffect(() => {
-		if (selectedDate) {
-			setSelectedDateState(new Date(selectedDate));
-			setCurrentMonth(new Date(selectedDate));
-		}
-	}, [selectedDate]);
-
-	// Close year selector when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showYearSelector && !event.target.closest('.year-selector')) {
-				setShowYearSelector(false);
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
-	}, [showYearSelector]);
-
-	// Close month selector when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showMonthSelector && !event.target.closest('.month-selector')) {
-				setShowMonthSelector(false);
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
-	}, [showMonthSelector]);
-
-	// Close calendar modal when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (isOpen && !event.target.closest('.calendar-modal') && !event.target.closest('.month-selector-modal') && !event.target.closest('.sync-modal') && !event.target.closest('.recalc-modal')) {
-				onClose();
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
-	}, [isOpen, onClose]);
-
-	const getDaysInMonth = (date) => {
-		const year = date.getFullYear();
-		const month = date.getMonth();
-		const firstDay = new Date(year, month, 1);
-		const lastDay = new Date(year, month + 1, 0);
-		const daysInMonth = lastDay.getDate();
-		const startingDay = firstDay.getDay();
-
-		const days = [];
-		// Add empty cells for days before the first day of the month
-		for (let i = 0; i < startingDay; i++) {
-			days.push(null);
-		}
-		// Add all days of the month
-		for (let i = 1; i <= daysInMonth; i++) {
-			days.push(new Date(year, month, i));
-		}
-		return days;
-	};
-
-	const formatDate = (date) => {
-		// Use local timezone to avoid date shifting
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	};
-
-	const isToday = (date) => {
-		const today = new Date();
-		return date && date.toDateString() === today.toDateString();
-	};
-
-	const isSelected = (date) => {
-		return date && selectedDateState && date.toDateString() === selectedDateState.toDateString();
-	};
-
-	const handleDateClick = (date) => {
-		if (date) {
-			setSelectedDateState(date);
-			onDateSelect(formatDate(date));
-			// Only close the calendar modal, not other modals
-			setTimeout(() => {
-				onClose();
-			}, 100);
-		}
-	};
-
-	const goToPreviousMonth = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-	};
-
-	const goToNextMonth = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-	};
-
-	const goToPreviousYear = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1));
-	};
-
-	const goToNextYear = () => {
-		setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1));
-	};
-
-	const selectYear = (year) => {
-		setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
-		setShowYearSelector(false);
-	};
-
-	const selectMonth = (month) => {
-		const newMonth = new Date(currentMonth.getFullYear(), month, 1);
-		setCurrentMonth(newMonth);
-		setShowMonthSelector(false);
-	};
-
-	const monthNames = [
-		'January', 'February', 'March', 'April', 'May', 'June',
-		'July', 'August', 'September', 'October', 'November', 'December'
-	];
-
-	const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-	if (!isOpen) return null;
-
-	return (
-		<div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center">
-			<div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 calendar-modal">
-				{/* Header */}
-				<div className="flex items-center justify-between mb-4">
-					<h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-					<button
-						onClick={onClose}
-						className="text-gray-400 hover:text-gray-600 transition-colors"
-					>
-						<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-						</svg>
-					</button>
-				</div>
-
-				{/* Enhanced Navigation */}
-				<div className="mb-4">
-					{/* Year Navigation */}
-					<div className="flex items-center justify-between mb-2">
-						<button
-							onClick={goToPreviousYear}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Previous Year"
-						>
-							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-							</svg>
-						</button>
-						<button
-							onClick={() => setShowYearSelector(!showYearSelector)}
-							className="year-selector text-sm font-medium text-gray-700 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-						>
-							{currentMonth.getFullYear()}
-						</button>
-						<button
-							onClick={goToNextYear}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Next Year"
-						>
-							<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7m-8 0l7-7-7 7" />
-							</svg>
-						</button>
-					</div>
-
-					{/* Year Selector Dropdown */}
-					{showYearSelector && (
-						<div className="relative year-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20 max-h-40 overflow-y-auto" style={{ left: "50%", transform: "translateX(-50%)" }}>
-								<div className="grid grid-cols-3 gap-1">
-									{Array.from({ length: 20 }, (_, i) => currentMonth.getFullYear() - 10 + i).map(year => (
-										<button
-											key={year}
-											onClick={() => selectYear(year)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${year === currentMonth.getFullYear() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-												}`}
-										>
-											{year}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
-
-					{/* Month Navigation */}
-					<div className="flex items-center justify-between mb-4">
-						<button
-							onClick={goToPreviousMonth}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Previous Month"
-						>
-							<ChevronLeft className="w-5 h-5 text-gray-500" />
-						</button>
-						<button
-							onClick={() => setShowMonthSelector(!showMonthSelector)}
-							className="text-sm font-medium text-gray-900 hover:bg-gray-100 px-2 py-1 rounded transition-colors month-selector"
-						>
-							{monthNames[currentMonth.getMonth()]}
-						</button>
-						<button
-							onClick={goToNextMonth}
-							className="p-1 hover:bg-gray-100 rounded transition-colors"
-							title="Next Month"
-						>
-							<ChevronRight className="w-5 h-5 text-gray-500" />
-						</button>
-					</div>
-
-					{/* Month Selector Dropdown */}
-					{showMonthSelector && (
-						<div className="relative month-selector">
-							<div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-20" style={{ width: 260, left: "50%", transform: "translateX(-50%)" }}>
-								<div className="grid grid-cols-3 gap-1">
-									{monthNames.map((month, index) => (
-										<button
-											key={index}
-											onClick={() => selectMonth(index)}
-											className={`px-2 py-1 text-xs rounded hover:bg-gray-100 transition-colors ${index === currentMonth.getMonth() ? 'bg-blue-100 text-blue-700 font-medium' : ''
-												}`}
-										>
-											{month}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
-				</div>
-
-				{/* Day Headers */}
-				<div className="grid grid-cols-7 gap-1 mb-2">
-					{dayNames.map(day => (
-						<div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-							{day}
-						</div>
-					))}
-				</div>
-
-				{/* Calendar Grid */}
-				<div className="grid grid-cols-7 gap-1">
-					{getDaysInMonth(currentMonth).map((date, index) => (
-						<button
-							key={index}
-							onClick={() => handleDateClick(date)}
-							disabled={!date}
-							className={`
-                p-2 text-sm font-medium rounded-lg transition-all duration-200
-                ${!date ? 'invisible' : ''}
-                ${isToday(date) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
-                ${isSelected(date) ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}
-                ${date && !isToday(date) && !isSelected(date) ? 'text-gray-700 hover:bg-gray-100' : ''}
-              `}
-						>
-							{date ? date.getDate() : ''}
-						</button>
-					))}
-				</div>
-
-				{/* Today Button */}
-				<div className="mt-4 pt-4 border-t border-gray-200">
-					<button
-						onClick={() => handleDateClick(new Date())}
-						className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-					>
-						Today
-					</button>
-				</div>
-			</div>
-		</div>
-	);
-};
 
 let dailyLoading = false;
 const Dashboard = () => {
@@ -645,44 +358,6 @@ const Dashboard = () => {
 		}
 	}, [dashboardData?.analytics]);
 
-	// Handle Escape key to close modal
-	useEffect(() => {
-		const handleEscape = (e) => {
-			if (e.key === 'Escape' && showSyncModal) {
-				closeSyncModal();
-			}
-		};
-
-		if (showSyncModal) {
-			document.addEventListener('keydown', handleEscape);
-			return () => document.removeEventListener('keydown', handleEscape);
-		}
-	}, [showSyncModal]);
-
-	// Close sync modal when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showSyncModal && !event.target.closest('.sync-modal') && !event.target.closest('.calendar-modal')) {
-				closeSyncModal();
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => document.removeEventListener('mousedown', handleClickOutside);
-	}, [showSyncModal]);
-
-	// Close recalc modal when clicking outside
-	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (showRecalcModal && !event.target.closest('.recalc-modal') && !event.target.closest('.calendar-modal')) {
-				closeRecalcModal();
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => document.removeEventListener('mousedown', handleClickOutside);
-	}, [showRecalcModal]);
-
 	useEffect(() => {
 		const handleClickOutside = (event) => {
 			if (showDatePresets && !event.target.closest('.date-presets-container')) {
@@ -695,6 +370,7 @@ const Dashboard = () => {
 	}, [showDatePresets]);
 
 	const recalculateAnalytics = async () => {
+		setShowRecalcModal(false);
 		if (!recalcDate) {
 			alert('Please select a date for recalculation');
 			return;
@@ -716,6 +392,7 @@ const Dashboard = () => {
 			// The syncStep will be updated by the WebSocket progress handler
 
 		} catch (error) {
+			setShowRecalcModal(true)
 			console.error('Error recalculating analytics:', error);
 			setSyncStep('Recalculation Error');
 			setRecalcProgress(null);
@@ -1171,7 +848,6 @@ const Dashboard = () => {
 		totalGoogleAds += item.google_ads_spend || 0;
 		totalFacebookAds += item.facebook_ads_spend || 0;
 	});
-	console.log(summary);
 	return (
 		<div className="p-8 relative">
 			{/* Sync Loading Overlay */}
@@ -1256,24 +932,30 @@ const Dashboard = () => {
 					<div className="flex gap-2">
 						<div className="flex flex-col">
 							<label className="text-xs text-gray-600 mb-1">Start Date</label>
-							<button
-								onClick={() => setShowStartCalendar(true)}
-								className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-							>
-								<span>{dateRange.startDate || 'Select start date'}</span>
-								<Calendar className="w-4 h-4 text-gray-400 ml-2" />
-							</button>
+							<LocalizationProvider dateAdapter={AdapterDayjs}>
+								<DemoContainer components={['DatePicker', 'DatePicker']}>
+									<DatePicker
+										value={dayjs(dateRange.startDate)}
+										onChange={(newValue) => {
+											var startDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+											setDateRange({ ...dateRange, startDate })
+										}} />
+								</DemoContainer>
+							</LocalizationProvider>
 						</div>
 						<span className="flex items-center text-gray-500" style={{ marginTop: 18 }}>to</span>
 						<div className="flex flex-col">
 							<label className="text-xs text-gray-600 mb-1">End Date</label>
-							<button
-								onClick={() => setShowEndCalendar(true)}
-								className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-							>
-								<span>{dateRange.endDate || 'Select end date'}</span>
-								<Calendar className="w-4 h-4 text-gray-400 ml-2" />
-							</button>
+							<LocalizationProvider dateAdapter={AdapterDayjs}>
+								<DemoContainer components={['DatePicker', 'DatePicker']}>
+									<DatePicker
+										value={dayjs(dateRange.endDate)}
+										onChange={(newValue) => {
+											var endDate = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+											setDateRange({ ...dateRange, endDate })
+										}} />
+								</DemoContainer>
+							</LocalizationProvider>
 						</div>
 
 						{/* Quick Filters Button */}
@@ -1305,7 +987,8 @@ const Dashboard = () => {
 						</div>
 						<div className="flex flex-col">
 							<label className="text-xs text-gray-600 mb-1 opacity-0">Q</label>
-							<button
+							<Button
+								variant='outlined'
 								style={{ height: 40 }}
 								onClick={openRecalcModal}
 								className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 flex items-center gap-2 text-sm"
@@ -1313,15 +996,12 @@ const Dashboard = () => {
 							>
 								<RefreshCw className="w-4 h-4" />
 								Recalculate Analytics
-							</button>
-
-
+							</Button>
 						</div>
-
-
 						<div className="flex flex-col">
 							<label className="text-xs text-gray-600 mb-1 opacity-0">Q</label>
-							<button
+							<Button
+								variant='contained'
 								style={{ height: 40 }}
 								onClick={openSyncModal}
 								className="btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
@@ -1333,7 +1013,7 @@ const Dashboard = () => {
 									<RefreshCw className="w-4 h-4" />
 								)}
 								{syncing ? 'Syncing...' : 'Sync Orders'}
-							</button>
+							</Button>
 						</div>
 
 					</div>
@@ -2428,37 +2108,6 @@ const Dashboard = () => {
 							<p className="text-gray-600">No analytics data available for the selected period</p>
 						</div>
 					)}
-
-					{/* Custom Calendar Components */}
-					<CustomCalendar
-						isOpen={showStartCalendar}
-						onClose={() => setShowStartCalendar(false)}
-						onDateSelect={(date) => {
-							setDateRange(prev => ({ ...prev, startDate: date }));
-						}}
-						selectedDate={dateRange.startDate}
-						label="Select Start Date"
-					/>
-
-					<CustomCalendar
-						isOpen={showEndCalendar}
-						onClose={() => setShowEndCalendar(false)}
-						onDateSelect={(date) => {
-							setDateRange(prev => ({ ...prev, endDate: date }));
-						}}
-						selectedDate={dateRange.endDate}
-						label="Select End Date"
-					/>
-
-					<CustomCalendar
-						isOpen={showSyncCalendar}
-						onClose={() => setShowSyncCalendar(false)}
-						onDateSelect={(date) => {
-							setSyncDate(date);
-						}}
-						selectedDate={syncDate}
-						label="Select Sync Date"
-					/>
 				</div>
 			</div>
 
@@ -2466,109 +2115,87 @@ const Dashboard = () => {
 
 			{/* Sync Orders Modal */}
 			{showSyncModal && (
-				<div
-					className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center"
-					onClick={closeSyncModal}
-				>
-					<div
-						className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl sync-modal"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="flex items-center justify-between mb-4">
-							<h3 className="text-lg font-semibold text-gray-900">Sync Orders</h3>
-							<button
-								onClick={closeSyncModal}
-								className="text-gray-400 hover:text-gray-600 transition-colors"
-								disabled={syncing}
-							>
-								<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-								</svg>
-							</button>
-						</div>
-
-						<div className="mb-6">
-							<div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-								<div className="flex items-start">
-									<svg className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-									</svg>
-									<p className="text-sm text-blue-800">
-										This will replace all data from the selected date onwards. Make sure you have the correct date before proceeding.
-									</p>
+				<Dialog open={showSyncModal} onClose={closeSyncModal}
+					PaperProps={{
+						sx: {
+							width: "450px",
+							maxWidth: "none", // prevents it from shrinking
+						},
+					}}>
+					<DialogTitle>
+						Sync Orders
+					</DialogTitle>
+					<DialogContent>
+						<div>
+							<div className='mb-4'>
+								<div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+									<div className="flex items-start">
+										<svg className="w-5 h-5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+										</svg>
+										<p className="text-sm text-blue-800">
+											This will replace all data from the selected date onwards. Make sure you have the correct date before proceeding.
+										</p>
+									</div>
 								</div>
+
+								<label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+									<svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+									</svg>
+									Sync Date
+								</label>
+								<LocalizationProvider dateAdapter={AdapterDayjs}>
+									<DemoContainer components={['DatePicker', 'DatePicker']}>
+										<DatePicker
+										    className='date-picker'
+											value={dayjs(syncDate)}
+											onChange={(newValue) => {
+												var date = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+												setSyncDate(date)
+											}} />
+									</DemoContainer>
+								</LocalizationProvider>
 							</div>
-
-							<label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-								<svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-								Sync Date
-							</label>
-							<button
-								onClick={() => setShowSyncCalendar(true)}
-								className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-								disabled={syncing}
-							>
-								<span>{syncDate || 'Select sync date'}</span>
-								<svg className="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-							</button>
 						</div>
-
-
-
-						<div className="flex gap-3">
-							<button
-								onClick={closeSyncModal}
-								className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1"
-								disabled={syncing}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={syncOrders}
-								className="btn-primary flex-1 flex items-center justify-center gap-2"
-								disabled={syncing || !syncDate}
-							>
-								{syncing ? (
-									<RefreshCw className="w-4 h-4 animate-spin" />
-								) : (
-									<RefreshCw className="w-4 h-4" />
-								)}
-								{syncing ? 'Syncing...' : 'Start Sync'}
-							</button>
-						</div>
-					</div>
-				</div>
+					</DialogContent>
+					<DialogActions style={{paddingLeft: 24, paddingRight: 24, marginBottom: 15}}>
+						<Button
+							variant='outlined'
+							onClick={closeSyncModal}
+							className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1"
+							disabled={syncing}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant='contained'
+							onClick={syncOrders}
+							className="text-white font-medium py-2 rounded-lg transition-colors duration-200 flex-1 flex items-center justify-center gap-2"
+						>
+							{syncing ? (
+								<RefreshCw className="w-4 h-4 animate-spin" />
+							) : (
+								<RefreshCw className="w-4 h-4" />
+							)}
+							{syncing ? 'Syncing...' : 'Start Sync'}
+						</Button>
+					</DialogActions>
+				</Dialog>
 			)}
 
-			{/* Recalculate Analytics Modal */}
 			{showRecalcModal && (
-				<div
-					className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-					onClick={closeRecalcModal}
-				>
-					<div
-						className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl recalc-modal"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="flex items-center justify-between mb-4">
-							<h3 className="text-lg font-semibold text-gray-900">Recalculate Analytics</h3>
-							<button
-								onClick={closeRecalcModal}
-								className="text-gray-400 hover:text-gray-600 transition-colors"
-								disabled={syncing}
-							>
-								<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-								</svg>
-							</button>
-						</div>
-
-						<div className="mb-6">
-							<div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+				<Dialog open={showRecalcModal} onClose={closeRecalcModal}
+					PaperProps={{
+						sx: {
+						width: "450px",
+						maxWidth: "none", // prevents it from shrinking
+						},
+					}}>
+					<DialogTitle>Recalculate Analytics</DialogTitle>
+					<DialogContent>
+						<div>
+							<div className='mb-4'>
 								<div className="flex items-start">
 									<svg className="w-5 h-5 text-orange-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2585,79 +2212,42 @@ const Dashboard = () => {
 								</svg>
 								Recalculation Date
 							</label>
-							<button
-								onClick={() => setShowRecalcCalendar(true)}
-								className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-200 shadow-sm hover:shadow-md text-left flex items-center justify-between"
-								disabled={syncing}
-							>
-								<span>{recalcDate || 'Select recalculation date'}</span>
-								<svg className="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-								</svg>
-							</button>
+							<LocalizationProvider dateAdapter={AdapterDayjs}>
+								<DemoContainer components={['DatePicker', 'DatePicker']}>
+									<DatePicker
+										value={dayjs(recalcDate)}
+										onChange={(newValue) => {
+											var date = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+											setRecalcDate(date)
+										}} />
+								</DemoContainer>
+							</LocalizationProvider>
 						</div>
-
-						<div className="flex gap-3">
-							<button
-								onClick={closeRecalcModal}
-								className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1"
-								disabled={syncing}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={recalculateAnalytics}
-								className="bg-orange-600 hover:bg-orange-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1 flex items-center justify-center gap-2"
-								disabled={syncing || !recalcDate}
-							>
-								{syncing ? (
-									<RefreshCw className="w-4 h-4 animate-spin" />
-								) : (
-									<RefreshCw className="w-4 h-4" />
-								)}
-								{syncing ? 'Recalculating...' : 'Start Recalculation'}
-							</button>
-						</div>
-					</div>
-				</div>
+					</DialogContent>
+					<DialogActions style={{paddingLeft: 24, paddingRight: 24, marginBottom: 15}}>
+						<Button
+							variant='outlined'
+							onClick={closeRecalcModal}
+							className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition-colors duration-200 flex-1"
+							disabled={syncing}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant='contained'
+							onClick={recalculateAnalytics}
+							className="text-white font-medium py-2 rounded-lg transition-colors duration-200 flex-1 flex items-center justify-center gap-2"
+						>
+							{syncing ? (
+								<RefreshCw className="w-4 h-4 animate-spin" />
+							) : (
+								<RefreshCw className="w-4 h-4" />
+							)}
+							{syncing ? 'Recalculating...' : 'Calculate'}
+						</Button>
+					</DialogActions>
+				</Dialog>
 			)}
-
-			{/* Custom Calendar for Recalculate */}
-			<CustomCalendar
-				isOpen={showRecalcCalendar}
-				onClose={() => setShowRecalcCalendar(false)}
-				onDateSelect={(date) => {
-					setRecalcDate(date);
-				}}
-				selectedDate={recalcDate}
-				label="Select Recalculation Date"
-			/>
-
-			{/* Custom Calendars for Metrics Date Selection */}
-			<CustomCalendar
-				isOpen={showMetricsStartCalendar}
-				onClose={() => setShowMetricsStartCalendar(false)}
-				onDateSelect={(date) => {
-					handleMetricsDateRangeChange(date, metricsDateRange.endDate);
-					setShowMetricsStartCalendar(false);
-				}}
-				selectedDate={metricsDateRange.startDate}
-				label="Select Metrics Start Date"
-			/>
-
-			<CustomCalendar
-				isOpen={showMetricsEndCalendar}
-				onClose={() => setShowMetricsEndCalendar(false)}
-				onDateSelect={(date) => {
-					handleMetricsDateRangeChange(metricsDateRange.startDate, date);
-					setShowMetricsEndCalendar(false);
-				}}
-				selectedDate={metricsDateRange.endDate}
-				label="Select Metrics End Date"
-			/>
-
-			{/* Additional Interactive Charts */}
-
 		</div>
 	);
 };
