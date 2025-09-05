@@ -142,7 +142,8 @@ class WindsorService {
 
   async processWindsorData(data, dataSource, storeId) {
     var { data: adCampaigns } = await this.supabase.from("ad_campaigns").select("campaign_id, currency, currency_symbol").eq("store_id", storeId);
-    return data.map((item) => {
+    var spend = 0;
+    return data.map((item, i) => {
       var campaign = adCampaigns.find(campaign => campaign.campaign_id == item.campaign);
       var currency_symbol = 'USD';
       var currency = 1.0;
@@ -154,8 +155,13 @@ class WindsorService {
         currency_symbol = "SEK";
         currency = common.currencyRates[currency_symbol];
       }
-      
-      console.log(item.source, currency, currency_symbol, item.spend)
+      if (item.source == "facebook") {
+        spend += item.spend
+        console.log(item.spend, currency_symbol, 0)
+      }
+      if (i == data.length - 1) {
+        console.log(spend)
+      }
       return ({
         date: item.date,
         campaign_id: item.campaign || 'unknown',
@@ -281,8 +287,6 @@ class WindsorService {
           chunks.push(campaignArray.slice(i, i + chunkSize));
         }
 
-        console.log(0)
-        console.log(chunks)
         for (let i = 0; i < chunks.length; i++) {
           const chunk = chunks[i];
 
@@ -346,7 +350,6 @@ class WindsorService {
             throw spendError;
           }
         }
-        console.log(2)
       }
 
       return {

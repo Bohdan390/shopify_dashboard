@@ -18,7 +18,7 @@ import {
     RefreshCw,
     AlertCircle,
 } from 'lucide-react';
-import { Button } from '@mui/material';
+import { Button, Dialog, DialogContent, DialogTitle } from '@mui/material';
 
 let isLoading = false;
 const Customers = () => {
@@ -785,22 +785,20 @@ const Customers = () => {
 
                 {/* Customer Details Modal */}
                 {showCustomerModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                            <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                                        {customerDetailsLoading ? 'Loading Customer Details...' : `Customer Details: ${selectedCustomer?.first_name} ${selectedCustomer?.last_name}`}
-                                    </h3>
-                                    <button
-                                        onClick={() => setShowCustomerModal(false)}
-                                        className="text-gray-400 hover:text-gray-600"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="p-4 sm:p-6">
+                    <Dialog open={showCustomerModal} onClose={() => setShowCustomerModal(false)}
+                        PaperProps={{
+                            sx: {
+                                width: "650px",
+                                maxWidth: "none", // prevents it from shrinking
+                            },
+                        }}>
+                        <DialogTitle>
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                                {customerDetailsLoading ? 'Loading Customer Details...' : `Customer Details: ${selectedCustomer?.first_name} ${selectedCustomer?.last_name}`}
+                            </h3>
+                        </DialogTitle>
+                            <DialogContent>
+                            <div className="">
                                 {customerDetailsLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <div className="text-center">
@@ -896,8 +894,8 @@ const Customers = () => {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
+                            </DialogContent>
+                    </Dialog>
                 )}
             </div>
         </div>

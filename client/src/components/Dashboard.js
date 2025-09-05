@@ -435,29 +435,9 @@ const Dashboard = () => {
 		}
 	};
 
-	// Refresh metrics data based on selected period and date range
-	const refreshMetricsData = useCallback(async () => {
-		if (!metricsDateRange.startDate || !metricsDateRange.endDate) {
-			// If no custom date range, use the main dashboard date range
-			setMetricsDateRange({
-				startDate: dateRange.startDate,
-				endDate: dateRange.endDate
-			});
-		}
-
-		// Trigger a refresh of the dashboard data
-		await fetchDashboardData(true);
-	}, [metricsDateRange, dateRange, fetchDashboardData]);
-
 	// Handle metrics period change
 	const handleMetricsPeriodChange = (newPeriod) => {
 		setMetricsPeriod(newPeriod);
-		// The charts will automatically update due to the metricsChartData calculation
-	};
-
-	// Handle metrics date range change
-	const handleMetricsDateRangeChange = (startDate, endDate) => {
-		setMetricsDateRange({ startDate, endDate });
 		// The charts will automatically update due to the metricsChartData calculation
 	};
 
@@ -607,52 +587,6 @@ const Dashboard = () => {
 			return '0.0%';
 		}
 		return `${value.toFixed(1)}%`;
-	};
-
-	// Smart data aggregation for charts
-	const aggregateChartData = (data, maxPoints = 50) => {
-		// Only aggregate if there are too many days for comfortable viewing
-		// For 7 days, 30 days, etc. - show individual days
-		// Only aggregate for very large date ranges (like custom ranges with many months)
-		if (!data || data.length <= maxPoints) return data;
-
-		const daysDiff = Math.ceil(data.length / maxPoints);
-		const aggregated = [];
-
-		for (let i = 0; i < data.length; i += daysDiff) {
-			const chunk = data.slice(i, i + daysDiff);
-			const totalRevenue = chunk.reduce((sum, item) => sum + (item.revenue || 0), 0);
-			const totalProfit = chunk.reduce((sum, item) => sum + (item.profit || 0), 0);
-			const totalOrders = chunk.reduce((sum, item) => sum + (item.orders || 0), 0);
-			const totalCustomers = chunk.reduce((sum, item) => sum + (item.customers || 0), 0);
-
-			// Create date range label
-			const startDate = new Date(chunk[0].date);
-			const endDate = new Date(chunk[chunk.length - 1].date);
-			const dateRangeLabel = startDate.getTime() === endDate.getTime()
-				? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-				: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-
-			const totalAdSpend = chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0) + (item.facebook_ads_spend || 0) + (item.taboola_ads_spend || 0), 0);
-			const aggregatedPoint = {
-				date: chunk[0].date,
-				dateRange: dateRangeLabel,
-				daysCount: chunk.length,
-				revenue: totalRevenue,
-				profit: totalProfit,
-				orders: totalOrders,
-				customers: totalCustomers,
-				google_ads_spend: chunk.reduce((sum, item) => sum + (item.google_ads_spend || 0), 0),
-				facebook_ads_spend: chunk.reduce((sum, item) => sum + (item.facebook_ads_spend || 0), 0),
-				taboola_ads_spend: chunk.reduce((sum, item) => sum + (item.taboola_ads_spend || 0), 0),
-				total_ad_spend: totalAdSpend,
-				cost_of_goods: chunk.reduce((sum, item) => sum + (item.cost_of_goods || 0), 0),
-				profit_margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
-			};
-			aggregated.push(aggregatedPoint);
-		}
-
-		return aggregated;
 	};
 
 	// Smart date formatting for chart labels
@@ -840,6 +774,10 @@ const Dashboard = () => {
 		// Fetch data for the selected preset
 		setChartsLoading(true);
 		setTimeout(() => fetchDashboardData(), 100);
+	};
+
+	const getTotalAdSpend = () => {
+		return (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0) + (selectedStore === "cosara" ? (summary?.totalTaboolaAds || 0) : 0);
 	};
 
 	var totalTaboolaAds = 0, totalGoogleAds = 0, totalFacebookAds = 0;
@@ -1214,7 +1152,7 @@ const Dashboard = () => {
 					</div>
 
 					{/* Summary Cards for Quick Insights */}
-					<div className={`grid grid-cols-1 gap-4 mt-6 ${selectedStore && selectedStore.name === 'cosara' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+					<div className={`grid grid-cols-1 gap-4 mt-6 ${selectedStore && selectedStore === 'cosara' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
 						<div className="card text-center p-4">
 							<div className="text-2xl font-bold text-blue-600">
 								{displayCurrency(
@@ -1237,14 +1175,14 @@ const Dashboard = () => {
 							<div className="text-2xl font-bold text-indigo-600">
 								{displayCurrency(
 									metricsChartData.reduce((sum, item) => 
-										sum + (selectedStore === "cosara" ? item.taboola_ads_spend || 0 : item.facebook_ads_spend || 0), 0),
+										sum + (item.facebook_ads_spend || 0), 0),
 									'USD'
 								)}
 							</div>
-							<div className="text-sm text-gray-600">{selectedStore === "cosara" ? "Taboola" : "Facebook Ads"}</div>
+							<div className="text-sm text-gray-600">Facebook Ads</div>
 						</div>
 						{/* Taboola Summary Card - Only show for cosara store */}
-						{selectedStore && selectedStore.name === 'cosara' && (
+						{selectedStore && selectedStore === 'cosara' && (
 							<div className="card text-center p-4">
 								<div className="text-2xl font-bold text-orange-500">
 									{displayCurrency(
@@ -1337,7 +1275,7 @@ const Dashboard = () => {
 							<div className="flex justify-between items-center mb-4">
 								<h3 className="text-lg font-semibold text-gray-900">Ad Spend Distribution</h3>
 								<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-									💰 Total: {displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
+									💰 Total: {displayCurrency(getTotalAdSpend(), 'USD')}
 								</div>
 							</div>
 							<ResponsiveContainer width="100%" height={300}>
@@ -1751,13 +1689,21 @@ const Dashboard = () => {
 									<span className="font-semibold text-orange-900">{formatCurrency(summary?.totalGoogleAds || 0, 'USD')}</span>
 								</div>
 								<div className="flex justify-between">
-									<span className="text-orange-700">{selectedStore === "cosara" ? "Taboola" : "Facebook Ads"}</span>
-									<span className="font-semibold text-orange-900">{displayCurrency(selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0, 'USD')}</span>
+									<span className="text-orange-700">Facebook Ads</span>
+									<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalFacebookAds || 0, 'USD')}</span>
 								</div>
+								{
+									selectedStore === "cosara" && (
+										<div className="flex justify-between">
+											<span className="text-orange-700">Taboola</span>
+											<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalTaboolaAds || 0, 'USD')}</span>
+										</div>
+									)
+								}
 								<div className="flex justify-between border-t border-orange-200 pt-2">
 									<span className="text-orange-700 font-medium">Total Ad Spend</span>
 									<span className="font-semibold text-orange-900">
-										{displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
+										{displayCurrency(getTotalAdSpend(), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -1774,13 +1720,13 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-purple-700">Ad Spend</span>
 									<span className="font-semibold text-purple-900">
-										{displayCurrency((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
+										{displayCurrency(getTotalAdSpend(), 'USD')}
 									</span>
 								</div>
 								<div className="flex justify-between border-t border-purple-200 pt-2">
 									<span className="text-purple-700 font-medium">Total Costs</span>
 									<span className="font-semibold text-purple-900">
-										{formatCurrency((summary?.totalCostOfGoods || 0) + (summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0), 'USD')}
+										{formatCurrency((summary?.totalCostOfGoods || 0) + getTotalAdSpend(), 'USD')}
 									</span>
 								</div>
 							</div>
@@ -1793,7 +1739,7 @@ const Dashboard = () => {
 								<div className="flex justify-between">
 									<span className="text-green-700">ROAS</span>
 									<span className="font-semibold text-green-900">
-										{((summary?.totalRevenue || 0) / ((summary?.totalGoogleAds || 0) + (selectedStore === "cosara" ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0)) || 0).toFixed(2)}x
+										{((summary?.totalRevenue || 0) / getTotalAdSpend() || 0).toFixed(2)}x
 									</span>
 								</div>
 								<div className="flex justify-between">
@@ -1950,10 +1896,19 @@ const Dashboard = () => {
 										onClick={() => handleSort(selectedStore === "cosara" ? 'taboola_ads_spend' : 'facebook_ads_spend')}
 									>
 										<div className="flex items-center gap-2">
-											{selectedStore === "cosara" ? "Taboola" : "Facebook"} Ads
-											{getSortIcon(selectedStore === "cosara" ? 'taboola_ads_spend' : 'facebook_ads_spend')}
+											Facebook Ads
+											{getSortIcon('facebook_ads_spend')}
 										</div>
 									</th>
+									{selectedStore == 'cosara' && <th
+										className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
+										onClick={() => handleSort('taboola_ads_spend')}
+									>
+										<div className="flex items-center gap-2">
+											Taboola Ads
+											{getSortIcon('taboola_ads_spend')}
+										</div>
+									</th>}
 									<th
 										className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
 										onClick={() => handleSort('cost_of_goods')}
@@ -1991,7 +1946,8 @@ const Dashboard = () => {
 										</td>
 										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue, 'USD')}</td>
 										<td className="py-3 px-4">{displayCurrency(day.google_ads_spend, 'USD')}</td>
-										<td className="py-3 px-4">{displayCurrency(selectedStore === "cosara" ? day.taboola_ads_spend : day.facebook_ads_spend, 'USD')}</td>
+										<td className="py-3 px-4">{displayCurrency(day.facebook_ads_spend, 'USD')}</td>
+										{selectedStore === "cosara" && <td className="py-3 px-4">{displayCurrency(day.taboola_ads_spend, 'USD')}</td>}
 										<td className="py-3 px-4">{formatCurrency(day.cost_of_goods, 'USD')}</td>
 										<td className={`py-3 px-4 font-medium ${day.profit >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
 											{formatCurrency(day.profit, 'USD')}

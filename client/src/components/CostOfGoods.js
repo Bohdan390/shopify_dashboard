@@ -1234,13 +1234,16 @@ const CostOfGoods = () => {
 
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-								<input
-									type="date"
-									value={formData.date}
-									onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									required
-								/>
+								<LocalizationProvider dateAdapter={AdapterDayjs}>
+									<DemoContainer components={['DatePicker', 'DatePicker']}>
+										<DatePicker
+											value={dayjs(formData.date)}
+											onChange={(newValue) => {
+												var date = G.createLocalDateWithTime(newValue['$d']).toISOString().split('T')[0]
+												setFormData({ ...formData, date: date })
+											}} />
+									</DemoContainer>
+								</LocalizationProvider>
 							</div>
 
 							{/* Country Costs Section */}
@@ -1410,28 +1413,32 @@ const CostOfGoods = () => {
 									{/* Add More Countries Button */}
 									<div className="mt-4 pt-4 border-t border-gray-200">
 										<div className="w-full" style={{textAlign: 'center'}}>
-											<Button
-												variant='contained'
-												type="button"
-												onClick={() => {
-													setShowCountryCostsSection(true);
-													setEditCountryCostIndex(-1);
-													setNewCountryCost({
-														country: '',
-														cost_of_goods: 0,
-														shipping_cost: 0,
-														vat_rate: 0,
-														tariff_rate: 0,
-														discounts_and_refunds: 0,
-														payment_processing_fee: 0,
-														currency: 'USD'
-													});
-												}}
-												className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-											>
-												<Plus className="w-4 h-4" />
-												Add Country Cost
-											</Button>
+											{
+												countryCosts.length > 0 && (
+													<Button
+														variant='contained'
+														type="button"
+														onClick={() => {
+															setShowCountryCostsSection(true);
+															setEditCountryCostIndex(-1);
+															setNewCountryCost({
+																country: '',
+																cost_of_goods: 0,
+																shipping_cost: 0,
+																vat_rate: 0,
+																tariff_rate: 0,
+																discounts_and_refunds: 0,
+																payment_processing_fee: 0,
+																currency: 'USD'
+															});
+														}}
+														className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+													>
+														<Plus className="w-4 h-4" />
+														Add Country Cost
+													</Button>
+												)
+											}
 										</div>
 									</div>
 								</div>

@@ -10,9 +10,7 @@ function createLocalDate(dateString) {
     var year = date.getFullYear()
     var month = date.getMonth()
     var day = date.getDate()
-    const offsetMinutes = new Date().getTimezoneOffset(); // in minutes
-    const offsetHours = -offsetMinutes / 60;
-    return new Date(year, month, day, offsetHours); // month is 0-indexed
+    return new Date(year, month, day); // month is 0-indexed
 }
 
 function createLocalDateWithTime(dateString) {
@@ -23,7 +21,6 @@ function createLocalDateWithTime(dateString) {
     var date = new Date(dateString)
     var offsetMinutes = new Date().getTimezoneOffset()
     var time = date.getTime() - offsetMinutes * 60 * 1000
-    console.log(dateString, new Date(time))
     return new Date(time)
 }
 
