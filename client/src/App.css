@@ -60,7 +60,7 @@ input {
   height: 38px !important;
 }
 
-/* .css-10d30g3-MuiPaper-root-MuiDialog-paper {
+.css-10d30g3-MuiPaper-root-MuiDialog-paper {
   border-radius: 5px !important;
 }
 
@@ -98,4 +98,12 @@ input {
 
 .date-picker .css-qohrln-MuiPickersInputBase-root-MuiPickersOutlinedInput-root.Mui-error .MuiPickersOutlinedInput-notchedOutline {
   border-color: rgb(209 213 219) !important;
-} */
+}
+
+.css-u6ihd7 {
+  padding: 0px !important;
+}
+
+.css-1u0cu8x {
+  height: 38px !important;
+}
