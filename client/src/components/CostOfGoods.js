@@ -1414,7 +1414,7 @@ const CostOfGoods = () => {
 									<div className="mt-4 pt-4 border-t border-gray-200">
 										<div className="w-full" style={{textAlign: 'center'}}>
 											{
-												countryCosts.length > 0 && (
+												countryCosts.length == 0 && (
 													<Button
 														variant='contained'
 														type="button"
@@ -1497,12 +1497,11 @@ const CostOfGoods = () => {
 						<DialogContent style={{ width: "25vw" }}>
 							<div className="w-full mt-2">
 								<label className="block text-sm font-medium text-gray-700 mb-1">Country Name</label>
-								<input
-									type="text"
+								<BeautifulSelect
+									options={G.availableCountries.map(country => ({ value: country.country_name, label: country.country_name }))}
 									value={newCountryCost.country}
-									onChange={(e) => setNewCountryCost({ ...newCountryCost, country: e.target.value })}
-									placeholder="Please input the country name"
-									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+									selectClass='w-full'
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, country: e })}
 								/>
 							</div>
 
