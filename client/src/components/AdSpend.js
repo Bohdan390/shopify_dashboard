@@ -83,12 +83,9 @@ const AdSpend = () => {
 
 	// Calendar state variables
 	const [showDatePresets, setShowDatePresets] = useState(false);
-	const [showStartCalendar, setShowStartCalendar] = useState(false);
-	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
 	const [currencyChange, setCurrencyChange] = useState(null);
 	// Country management state
-	const [availableCountries, setAvailableCountries] = useState([]);
 	const [countryChange, setCountryChange] = useState(null);
 	// Get socket from context
 	const { socket, addEventListener } = useSocket();
@@ -252,17 +249,6 @@ const AdSpend = () => {
 
 	const fetchAdSpendData = async (page = adSpendPagination.currentPage) => {
 		return fetchAdSpendDataWithSort(page);
-	};
-
-	// Fetch available countries for campaign country selection
-	const fetchCountries = async () => {
-		try {
-			const response = await api.get(`/api/analytics/countries?storeId=${selectedStore}`);
-			setAvailableCountries(response.data || []);
-		} catch (error) {
-			console.error('Error fetching countries:', error);
-			setAvailableCountries([]);
-		}
 	};
 
 	// Handle campaign country change
@@ -1109,13 +1095,6 @@ const AdSpend = () => {
 		);
 	};
 
-	// Fetch countries when component mounts or store changes
-	useEffect(() => {
-		if (selectedStore) {
-			fetchCountries();
-		}
-	}, [selectedStore]);
-
 	return (
 		<div className="p-6 bg-gray-50 min-h-screen">
 			{loading && adSpendData.length === 0 ? (
@@ -1652,7 +1631,7 @@ const AdSpend = () => {
 															onChange={(countryCode) => handleCampaignCountryChange(campaign.campaign_id, countryCode)}
 															options={[
 																{ value: 'all', label: 'All Countries' },
-																...availableCountries.map(country => ({
+																...G.availableCountries.map(country => ({
 																	value: country.country_code,
 																	label: country.country_name
 																}))

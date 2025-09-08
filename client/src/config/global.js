@@ -4,6 +4,7 @@ module.exports = {
     SEK: 0.1,
     EUR: 1.16
   },
+  availableCountries: [],
   createLocalDateWithTime: function (dateString) {
     var date = new Date(dateString)
     var offsetMinutes = new Date().getTimezoneOffset()

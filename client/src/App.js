@@ -51,6 +51,16 @@ function AppRoutes() {
     .catch((err) => {
       console.log(err);
     });
+
+    try {
+			api.get(`/api/analytics/countries`)
+      .then((response) => {
+        G.availableCountries = response.data || [];
+      });
+		} catch (error) {
+			console.error('Error fetching countries:', error);
+      G.availableCountries = [];
+		}
   }, []);
 
   return (

@@ -94,20 +94,6 @@ const Dashboard = () => {
 
 	// Country filtering state
 	const [selectedCountry, setSelectedCountry] = useState('all');
-	const [availableCountries, setAvailableCountries] = useState([]);
-
-	// Campaign data state
-
-	// Fetch available countries for filtering
-	const fetchAvailableCountries = useCallback(async () => {
-		try {
-			const response = await api.get(`/api/analytics/countries?storeId=${selectedStore}`);
-			setAvailableCountries(response.data || []);
-		} catch (error) {
-			console.error('Error fetching countries:', error);
-			setAvailableCountries([]);
-		}
-	}, [selectedStore]);
 
 	const handleDateRangeChange = async () => {
 		if (dateRange.startDate && dateRange.endDate) {
@@ -312,13 +298,6 @@ const Dashboard = () => {
 	useEffect(() => {
 		fetchDashboardData();
 	}, [fetchDashboardData]);
-
-	// Fetch available countries
-	useEffect(() => {
-		if (selectedStore) {
-			fetchAvailableCountries();
-		}
-	}, [selectedStore, fetchAvailableCountries]);
 
 	// Watch for date range changes and fetch data automatically
 	useEffect(() => {
@@ -961,7 +940,7 @@ const Dashboard = () => {
 						Selected: {dateRange.startDate} to {dateRange.endDate}
 						{selectedCountry !== 'all' && (
 							<span className="ml-4 text-blue-600 font-medium">
-								📍 Country: {availableCountries.find(c => c.country_code === selectedCountry)?.country_name || selectedCountry}
+								📍 Country: {G.availableCountries.find(c => c.country_code === selectedCountry)?.country_name || selectedCountry}
 							</span>
 						)}
 					</div>
@@ -974,7 +953,7 @@ const Dashboard = () => {
 							value={selectedCountry}
 							onChange={(e) => setSelectedCountry(e)}
 							selectClass='normal-select'
-							options={availableCountries.map(country => ({
+							options={G.availableCountries.map(country => ({
 								label: country.country_name,
 								value: country.country_code
 							}))}
