@@ -749,6 +749,18 @@ const Dashboard = () => {
 		return (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0) + (selectedStore === "cosara" ? (summary?.totalTaboolaAds || 0) : 0);
 	};
 
+	const syncProducts = async () => {
+		api.post('/api/shopify/sync-products', {
+			storeId: selectedStore || 'buycosari'
+		})
+		.then((response) => {
+			console.log(response.data)
+		})
+		.catch((error) => {
+			console.error('Error syncing products:', error);
+		})
+	}
+
 	var totalTaboolaAds = 0, totalGoogleAds = 0, totalFacebookAds = 0;
 	metricsChartData.forEach(item => {
 		totalTaboolaAds += item.taboola_ads_spend || 0;
@@ -922,7 +934,23 @@ const Dashboard = () => {
 								{syncing ? 'Syncing...' : 'Sync Orders'}
 							</Button>
 						</div>
-
+						{/* <div className="flex flex-col">
+							<label className="text-xs text-gray-600 mb-1 opacity-0">Q</label>
+							<Button
+								variant='contained'
+								style={{ height: 40 }}
+								onClick={syncProducts}
+								className="btn-primary flex items-center gap-2 px-3 py-1.5 text-sm"
+								disabled={syncing}
+							>
+								{syncing ? (
+									<RefreshCw className="w-4 h-4 animate-spin" />
+								) : (
+									<RefreshCw className="w-4 h-4" />
+								)}
+								{syncing ? 'Syncing...' : 'Sync Products'}
+							</Button>
+						</div> */}
 					</div>
 
 					{/* Date Range Display */}

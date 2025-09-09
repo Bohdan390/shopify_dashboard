@@ -5,7 +5,6 @@ import CostOfGoodsLoader from './loaders/CostOfGoodsLoader';
 import LoadingSpinner from './LoadingSpinner';
 import { useStore } from '../contexts/StoreContext';
 import BeautifulSelect from './BeautifulSelect';
-import SearchableSelect from './SearchableSelect';
 import CostOfGoodsTableLoader from './loaders/CostOfGoodsTableLoader';
 import CountryCostsManager from './CountryCostsManager';
 import { Button, Dialog, DialogContent, DialogTitle, styled, TextField } from '@mui/material';
@@ -16,6 +15,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { useCurrency } from '../contexts/CurrencyContext';
 import Autocomplete from '@mui/material/Autocomplete';
+import * as XLSX from 'xlsx';
 
 // Product Autocomplete Component
 
@@ -29,136 +29,6 @@ const BootstrapDialog = styled(Dialog)(({ theme }) => ({
 		padding: theme.spacing(1),
 	},
 }));
-
-const ProductAutocomplete = ({
-	value,
-	onChange,
-	placeholder,
-	onProductSelect,
-	className = "",
-	disabled = false,
-	required = false
-}) => {
-	const [searchTerm, setSearchTerm] = useState('');
-	const [products, setProducts] = useState([]);
-	const [filteredProducts, setFilteredProducts] = useState([]);
-	const [showDropdown, setShowDropdown] = useState(false);
-	const [loading, setLoading] = useState(false);
-
-
-	const { selectedStore } = useStore();
-	// Fetch products on component mount
-	useEffect(() => {
-		fetchProducts();
-	}, []);
-
-	// Filter products based on search term
-	useEffect(() => {
-		if (!searchTerm.trim()) {
-			setFilteredProducts([]);
-			return;
-		}
-
-		const filtered = products.filter(product =>
-			product.product_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			product.product_title?.toLowerCase().includes(searchTerm.toLowerCase())
-		);
-		setFilteredProducts(filtered);
-	}, [searchTerm, products]);
-
-	const fetchProducts = async () => {
-		try {
-			setLoading(true);
-			const response = await api.get('/api/ads/products?storeId=' + selectedStore);
-			setProducts(response.data.data || []);
-		} catch (error) {
-			console.error('Error fetching products:', error);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const handleInputChange = (e) => {
-		const newValue = e.target.value;
-		setSearchTerm(newValue);
-		onChange(newValue);
-		setShowDropdown(true);
-	};
-
-	const handleProductSelect = (product) => {
-		setSearchTerm(product.product_title || product.product_id);
-		onChange(product.product_title || product.product_id);
-		onProductSelect(product);
-		setShowDropdown(false);
-
-		// Show success message when product is selected
-	};
-
-	const handleFocus = () => {
-		if (searchTerm.trim()) {
-			setShowDropdown(true);
-		}
-	};
-
-	const handleBlur = () => {
-		// Delay hiding dropdown to allow click events
-		setTimeout(() => setShowDropdown(false), 200);
-	};
-
-	const handleKeyDown = (e) => {
-		if (e.key === 'Escape') {
-			setShowDropdown(false);
-		}
-	};
-
-	return (
-		<div className={`relative ${className}`}>
-			<input
-				type="text"
-				value={value}
-				onChange={handleInputChange}
-				onFocus={handleFocus}
-				onBlur={handleBlur}
-				onKeyDown={handleKeyDown}
-				placeholder={placeholder}
-				disabled={disabled}
-				required={required}
-				className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-			/>
-
-			{showDropdown && filteredProducts.length > 0 && (
-				<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-					{filteredProducts.map((product) => (
-						<button
-							key={product.product_id}
-							type="button"
-							onClick={() => handleProductSelect(product)}
-							className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-						>
-							<div className="flex flex-col">
-								<span className="font-medium text-gray-900 text-sm">
-									{product.product_title || 'No Title'}
-								</span>
-								<span className="text-xs text-gray-500">
-									ID: {product.product_id}
-								</span>
-							</div>
-						</button>
-					))}
-				</div>
-			)}
-
-			{loading && (
-				<div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3">
-					<div className="flex items-center justify-center">
-						<LoadingSpinner size="sm" variant="spinner" />
-						<span className="ml-2 text-sm text-gray-500">Loading products...</span>
-					</div>
-				</div>
-			)}
-		</div>
-	);
-};
 
 const CostOfGoods = () => {
 	const formatLocalDate = (date) => {
@@ -183,6 +53,7 @@ const CostOfGoods = () => {
 	const [selectedProductForCountryCosts, setSelectedProductForCountryCosts] = useState(null);
 	const [showCountryCostsSection, setShowCountryCostsSection] = useState(false);
 	const [countryCosts, setCountryCosts] = useState([]);
+	const [summaryStats, setSummaryStats] = useState({});
 	const [formData, setFormData] = useState({
 		productId: '',
 		productTitle: '',
@@ -216,8 +87,6 @@ const CostOfGoods = () => {
 		};
 	});
 	const [showDatePresets, setShowDatePresets] = useState(false);
-	const [showStartCalendar, setShowStartCalendar] = useState(false);
-	const [showEndCalendar, setShowEndCalendar] = useState(false);
 
 	// Pagination state
 	const [pageSize, setPageSize] = useState(10);
@@ -238,9 +107,28 @@ const CostOfGoods = () => {
 
 	// Fetch products on component mount
 	useEffect(() => {
+		fetchSummaryStats()
 		fetchProducts();
 	}, []);
 
+	const fetchSummaryStats = () => {
+		try {
+			const params = new URLSearchParams({
+				startDate: dateRange.startDate,
+				endDate: dateRange.endDate,
+				store_id: selectedStore || 'buycosari',
+			});
+			api.get('/api/ads/cost-summary?' + params)
+			.then((response) => {
+				setSummaryStats(response.data.data || {});
+			})
+			.catch((error) => {
+				console.error('Error fetching products:', error);
+			});
+		} catch (error) {
+			console.error('Error fetching products:', error);
+		}
+	}
 	// Listen for sync completion from GlobalStoreSelector and refresh data
 	useEffect(() => {
 		if (syncCompleted > 0 || adsSyncCompleted > 0) {
@@ -259,27 +147,6 @@ const CostOfGoods = () => {
 		document.addEventListener('mousedown', handleClickOutside);
 		return () => document.removeEventListener('mousedown', handleClickOutside);
 	}, [showDatePresets]);
-
-	const removeCountryFromForm = (countryCode) => {
-		setFormData(prev => {
-			const newCountryCosts = { ...prev.countryCosts };
-			delete newCountryCosts[countryCode];
-			return { ...prev, countryCosts: newCountryCosts };
-		});
-	};
-
-	const updateCountryCost = (countryCode, field, value) => {
-		setFormData(prev => ({
-			...prev,
-			countryCosts: {
-				...prev.countryCosts,
-				[countryCode]: {
-					...prev.countryCosts[countryCode],
-					[field]: value
-				}
-			}
-		}));
-	};
 
 	// Fetch products for SearchableSelect
 	const fetchProducts = async () => {
@@ -612,10 +479,6 @@ const CostOfGoods = () => {
 		return tariffAmount;
 	}
 
-	const totalCost = costOfGoods.reduce((sum, item) => sum + parseFloat(item.total_cost), 0);
-	const totalQuantity = costOfGoods.reduce((sum, item) => sum + parseInt(item.quantity), 0);
-	const avgCostPerUnit = totalQuantity > 0 ? totalCost / totalQuantity : 0;
-
 	// Reset to page 1 when page size changes
 	useEffect(() => {
 		setPagination(prev => ({ ...prev, currentPage: 1 }));
@@ -794,6 +657,123 @@ const CostOfGoods = () => {
 		return <CostOfGoodsLoader />;
 	}
 
+	const Abc = (e) => {
+		const file = e.target.files[0];
+        const reader = new FileReader();
+
+		console.log(products)
+		reader.onload = async function (event) {
+			const data = new Uint8Array(event.target.result)
+			const workbook = XLSX.read(data, { type: 'array' });
+			if (workbook.SheetNames.length === 1) {
+				const sheetName = workbook.SheetNames[0];
+				const sheet = workbook.Sheets[sheetName];
+				const json = XLSX.utils.sheet_to_json(sheet);
+				for (const row of json) {
+					if (row.Product_Name != 'Turmeric Platinum') {
+						continue;
+					}
+					if (products.find(p => p.product_title == row.Product_Name)) {
+						let totalCost = 0, totalQuantity = 6, costs = [];
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['1_Bottle_COGS']),
+							shipping_cost: Number(row['1_Bottle_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['1_Bottle_COGS']) + Number(row['1_Bottle_Shipping']),
+							currency: 'USD'
+						})
+
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['2_Bottles_COGS']),
+							shipping_cost: Number(row['2_Bottles_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['2_Bottles_COGS']) + Number(row['2_Bottles_Shipping']),
+							currency: 'USD'
+						})
+
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['3_Bottles_COGS']),
+							shipping_cost: Number(row['3_Bottles_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['3_Bottles_COGS']) + Number(row['3_Bottles_Shipping']),
+							currency: 'USD'
+						})
+
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['4_Bottles_COGS']),
+							shipping_cost: Number(row['4_Bottles_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['4_Bottles_COGS']) + Number(row['4_Bottles_Shipping']),
+							currency: 'USD'
+						})
+
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['5_Bottles_COGS']),
+							shipping_cost: Number(row['5_Bottles_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['5_Bottles_COGS']) + Number(row['5_Bottles_Shipping']),
+							currency: 'USD'
+						})
+
+						costs.push({
+							country: 'United States',
+							cost_of_goods: Number(row['6_Bottles_COGS']),
+							shipping_cost: Number(row['6_Bottles_Shipping']),
+							vat_rate: 0,
+							tariff_rate: 0,
+							discounts_and_refunds: 0,
+							payment_processing_fee: 0,
+							quantity: 1,
+							total_cost: Number(row['6_Bottles_COGS']) + Number(row['6_Bottles_Shipping']),
+							currency: 'USD'
+						})
+						
+						totalCost = costs.reduce((sum, country) => sum + country.total_cost, 0);
+						const apiData = {
+							product_id: products.find(p => p.product_title == row.Product_Name).product_id,
+							product_title: row.Product_Name,
+							cost_per_unit: G.roundPrice(totalCost / totalQuantity),
+							quantity: totalQuantity,
+							total_cost: G.roundPrice(totalCost), // Use the calculated total with country costs
+							date: new Date().toISOString().split('T')[0],
+							store_id: selectedStore || 'buycosari',
+							country_costs: costs // Include the country costs data
+						};
+
+						console.log(apiData, totalCost)
+						const costEntryResponse = await api.post('/api/ads/cog', apiData);
+					}
+				}
+			}
+		}
+		reader.readAsArrayBuffer(file);
+
+	}
 	return (
 		<div className="p-8">
 			{/* Header */}
@@ -803,9 +783,21 @@ const CostOfGoods = () => {
 					<p className="text-gray-600 mt-1">Track your product costs and inventory</p>
 				</div>
 				<div className="flex items-center gap-3">
+					{/* <input type="file" onChange={(e) => Abc(e)} /> */}
 					<Button
 						variant='contained'
-						onClick={() => setShowForm(true)}
+						onClick={() => {
+							setFormData({
+								...formData,
+								productTitle: '',
+								productId: '',
+								quantity: '',
+								totalCost: '',
+								date: new Date().toISOString().split('T')[0]
+							})
+							setCountryCosts([])
+							setShowForm(true)
+						}}
 						className="btn-primary flex items-center gap-2"
 					>
 						<Plus className="w-4 h-4" />
@@ -913,7 +905,7 @@ const CostOfGoods = () => {
 								{refreshing ? (
 									<div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
 								) : (
-									formatCurrency(totalCost)
+									formatCurrency(summaryStats.total_cost || 0)
 								)}
 							</p>
 						</div>
@@ -929,7 +921,7 @@ const CostOfGoods = () => {
 								{refreshing ? (
 									<div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
 								) : (
-									totalQuantity.toLocaleString()
+									summaryStats.total_quantity || 0
 								)}
 							</p>
 						</div>
@@ -945,7 +937,7 @@ const CostOfGoods = () => {
 								{refreshing ? (
 									<div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
 								) : (
-									formatCurrency(avgCostPerUnit)
+									formatCurrency(summaryStats.avg_cost_per_unit || 0)
 								)}
 							</p>
 						</div>
@@ -960,7 +952,7 @@ const CostOfGoods = () => {
 							<p className="text-2xl font-bold text-gray-900">
 								{refreshing ? (
 									<div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
-								) : costOfGoods.length}
+								) : summaryStats.total_count || 0}
 							</p>
 							
 						</div>
@@ -1673,14 +1665,6 @@ const CostOfGoods = () => {
 												window.showPrimeToast(`Updated country cost for ${newCountryCost.country}`, 'success');
 											}
 										} else {
-											// Check if country already exists
-											if (countryCosts.some(c => c.country.toLowerCase() === newCountryCost.country.toLowerCase())) {
-												if (window.showPrimeToast) {
-													window.showPrimeToast('Country cost for this country already exists', 'error');
-												}
-												return;
-											}
-
 											// Add the new country cost to the list
 											var value = { ...newCountryCost };
 											for (var key in value) {

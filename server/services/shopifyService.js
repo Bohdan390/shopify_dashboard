@@ -228,6 +228,196 @@ class ShopifyService {
 		}
 	}
 
+	async syncProducts(limit = 50, since_id = null, syncDate = null, socket = null, socketStatus = null) {
+		var products = [];
+		try {
+			let storeProducts = [];
+			let totalFetched = 0;
+			let pageCount = 0;
+			// if (this.storeId == "buycosari") {
+			// 	if (new Date(syncDate) < new Date("2023-09-26")) {
+			// 		syncDate = "2023-09-26";
+			// 	}
+			// }
+			// else if (this.storeId == "meonutrition") {
+			// 	if (new Date(syncDate) < new Date("2024-05-19")) {
+			// 		syncDate = "2024-05-19";
+			// 	}
+			// }
+			// else if (this.storeId == "dermao") {
+			// 	if (new Date(syncDate) < new Date("2024-05-01")) {
+			// 		syncDate = "2024-05-01";
+			// 	}
+			// }
+			// else if (this.storeId == "nomobark") {
+			// 	if (new Date(syncDate) < new Date("2024-05-14")) {
+			// 		syncDate = "2024-05-14";
+			// 	}
+			// }
+			// else if (this.storeId == "gamoseries") {
+			// 	if (new Date(syncDate) < new Date("2025-06-26")) {
+			// 		syncDate = "2025-06-26";
+			// 	}
+			// }
+			// else if (this.storeId == "cosara") {
+			// 	if (new Date(syncDate) < new Date("2024-05-27")) {
+			// 		syncDate = "2024-05-27";
+			// 	}
+			// }
+			var nextPage = false, pageInfo = "";
+			var lastDate;
+			while (true) {
+				pageCount++;
+				let url = `${this.baseURL}/products.json?limit=${limit}`;
+
+				if (nextPage && pageInfo) {
+					// Don't double-encode the page_info - it's already properly encoded
+					url = `${this.baseURL}/products.json?limit=${limit}&page_info=${pageInfo}`;
+				}
+
+				// Emit progress update for each page
+
+				const response = await axios.get(url, { headers: this.headers });
+				products = response.data.products;
+
+				products.forEach((product) => {
+					products.push(product.title);
+				})
+				if (products.length > 0) {
+					var minDate = products.sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))?.[0]?.updated_at;
+					minDate = common.createLocalDateWithTime(minDate);
+					if (lastDate) {
+						if (minDate.getTime() > lastDate.getTime()) {
+							minDate = lastDate;
+						}
+					}
+					lastDate = minDate;
+					if (socket) {
+						let progress = Number((100 * diff / totalDiff).toFixed(1));
+						if (progress > 100) progress = 100;
+						this.sendWebSocketMessage(socket, socketStatus, {
+							stage: 'fetching',
+							message: `📥 Fetching page ${pageCount}... (${totalFetched} products so far)`,
+							progress: progress,
+							total: 'unlimited',
+							current: totalFetched
+						});
+					}
+				}
+				const linkHeader = response.headers['link'];
+
+				if (linkHeader && linkHeader.includes('rel="next"')) {
+					const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+					const nextUrl = match ? match[1] : null;
+
+					// Extract page_info from the nextUrl
+					const urlObj = new URL(nextUrl);
+					pageInfo = urlObj.searchParams.get('page_info');
+					nextPage = true;
+				} else {
+					nextPage = false;
+				}
+
+				products.forEach((product) => {
+					if (!storeProducts.find(p => p.id == product.id)) {
+						storeProducts.push(product)
+					}
+				})
+				totalFetched += products.length;
+				// No max orders limit - fetch all available orders
+
+				// If we got fewer orders than the limit, we've reached the end
+				if (products.length < limit) {
+					break;
+				}
+
+				if (!nextPage) {
+					break;
+				}
+				// Add a small delay to avoid rate limiting
+			}
+
+			if (socket) {
+				this.sendWebSocketMessage(socket, socketStatus, {
+					stage: 'fetching',
+					message: `📥 Fetching page ${pageCount}... (${totalFetched} products so far)`,
+					progress: 100,
+					total: 'unlimited',
+					current: totalFetched
+				});
+			}
+
+			const {count: productCount} = await supabase
+				.from('products')
+				.select('*', { count: 'exact', head: true })
+				.eq('store_id', this.storeId)
+			
+			let allProducts = [];
+			let chunkSize = 1000;
+			for (var i = 0; i < productCount; i += chunkSize) {
+				const { data: products, error: productsError } = await supabase.from('products')
+				.select('product_id, sale_price, sale_quantity, product_sku_id').eq('store_id', this.storeId).range(i, i + chunkSize - 1);
+				if (productsError) throw productsError;
+				allProducts.push(...products)
+			}
+			storeProducts = storeProducts.filter(p => p.id)
+
+			var products = []
+			storeProducts.forEach((product) => {
+				var originalProduct = allProducts.find(p => p.product_id == product.id)
+				products.push({
+					product_id: product.id,
+					product_title: product.title,
+					vendor: product.vendor,
+					status: product.status,
+					store_id: this.storeId,
+					sale_price: originalProduct ? originalProduct.sale_price : 0,
+					sale_quantity: originalProduct ? originalProduct.sale_quantity : 0
+				})
+			})
+
+			if (products.length > 0) {
+
+				if (products.length > chunkSize) {
+					for (let i = 0; i < products.length; i += chunkSize) {
+						const chunk = products.slice(i, i + chunkSize);
+
+						const { error: productsError } = await supabase
+							.from('products')
+							.upsert(chunk, { 
+								onConflict: 'product_id',
+								ignoreDuplicates: false 
+							});
+
+						if (productsError) {
+							console.error(`❌ Error in products upsert chunk ${i}:`, productsError);
+							throw productsError;
+						}
+
+					}
+				} else {
+					const { error: productsError } = await supabase
+						.from('products')
+						.upsert(products, { 
+							onConflict: 'product_id',
+							ignoreDuplicates: false 
+						});
+				}
+
+			}
+
+			console.log(products)
+		} catch (error) {
+			console.error('❌ Error fetching products:', error.message);
+			if (error.response) {
+				console.error('Response status:', error.response.status);
+				console.error('Response data:', error.response.data);
+				console.error('Request URL:', error.config?.url);
+			}
+			throw error;
+		}
+	}
+
 	async saveOrdersToDatabase(orders, socket = null, socketStatus = null) {
 		try {
 
