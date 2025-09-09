@@ -74,25 +74,26 @@ input {
   overflow: hidden !important;
 }
 
-.css-qohrln-MuiPickersInputBase-root-MuiPickersOutlinedInput-root {
+.css-qohrln-MuiPickersInputBase-root-MuiPickersOutlinedInput-root, .css-1u0cu8x {
   height: 38px !important;
   border-radius: 6px !important;
 }
 
-.css-10o2lyd-MuiStack-root>.MuiTextField-root, .css-10o2lyd-MuiStack-root>.MuiPickersTextField-root {
+.css-10o2lyd-MuiStack-root>.MuiTextField-root, .css-10o2lyd-MuiStack-root>.MuiPickersTextField-root, 
+.css-sx5hge > .MuiTextField-root, .css-sx5hge > .MuiPickersTextField-root{
   min-width: 140px !important;
 }
 
-.css-1fhcaus-MuiPickersSectionList-root-MuiPickersInputBase-sectionsContainer-MuiPickersOutlinedInput-sectionsContainer {
+.css-1fhcaus-MuiPickersSectionList-root-MuiPickersInputBase-sectionsContainer-MuiPickersOutlinedInput-sectionsContainer, .css-u6ihd7{
   width: 100px !important;
   font-size: 14px !important;
 }
 
-.css-1umw9bq-MuiSvgIcon-root {
+.css-1umw9bq-MuiSvgIcon-root, .css-yxqbup {
   font-size: 20px !important;
 }
 
-.css-10o2lyd-MuiStack-root {
+.css-10o2lyd-MuiStack-root, .css-1u0cu8x {
   flex-direction: column !important;
 }
 
