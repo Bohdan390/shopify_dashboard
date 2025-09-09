@@ -85,6 +85,18 @@ router.post('/sync-orders', async (req, res) => {
   }
 });
 
+router.post('/sync-products', async (req, res) => {
+  try {
+    const { storeId } = req.body;
+    const storeService = new ShopifyService(storeId);
+    await storeService.syncProducts();
+    res.json({ message: 'Products synced successfully' });
+  }
+  catch (error) {
+    console.error('Error syncing products:', error);
+    res.status(500).json({ error: 'Failed to sync products' });
+  }
+});
 // Get revenue data for a date range
 router.get('/revenue', async (req, res) => {
   try {

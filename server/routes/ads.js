@@ -748,6 +748,33 @@ router.get('/cog', async (req, res) => {
   }
 });
 
+router.get('/cost-summary', async (req, res) => {
+  try {
+    const { store_id, start_date, end_date } = req.query;
+    const { data, error } = await supabase.rpc('get_cost_of_goods_totals', {
+      p_store_id: store_id,
+      p_start_date: start_date,
+      p_end_date: end_date
+    })
+
+    if (error) {
+      console.error('❌ Error getting cost of goods summary:', error);
+      throw error;
+    }
+
+    let summaryStats = {
+      total_cost: data[0].total_cost,
+      total_quantity: data[0].total_quantity,
+      total_count: data[0].total_count,
+      avg_cost_per_unit: data[0].total_cost / data[0].total_quantity
+    }
+
+    res.json({ data: summaryStats });
+  } catch (error) {
+    console.error('❌ Error getting cost of goods summary:', error);
+  } 
+});
+
 // Add new cost of goods entry
 router.post('/cog', async (req, res) => {
   try {
@@ -755,7 +782,6 @@ router.post('/cog', async (req, res) => {
       product_id, 
       product_title, 
       cost_per_unit, 
-      total_cost, 
       date,
       store_id = 'buycosari', // Default store ID
       country_costs = []
