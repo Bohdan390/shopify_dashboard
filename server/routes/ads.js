@@ -751,11 +751,10 @@ router.get('/cog', async (req, res) => {
 // Add new cost of goods entry
 router.post('/cog', async (req, res) => {
   try {
-    const { 
+    let { 
       product_id, 
       product_title, 
       cost_per_unit, 
-      quantity, 
       total_cost, 
       date,
       store_id = 'buycosari', // Default store ID
@@ -763,17 +762,21 @@ router.post('/cog', async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!product_id || !product_title || !cost_per_unit || !quantity || !date) {
+    if (!product_title || !cost_per_unit || !date) {
       return res.status(400).json({ 
-        error: 'Missing required fields: product_id, product_title, cost_per_unit, quantity, total_cost, date' 
+        error: 'Missing required fields: product_title, cost_per_unit, total_cost, date' 
       });
     }
 
+    if (!product_id) {
+      product_id = new Date().getTime();
+    }
     // Calculate total cost if not provided
     let calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
+    let quantity = country_costs.reduce((sum, country) => sum + country.quantity, 0)
 
     const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
-    var productSkuId = "";
+    var productSkuId = null;
     if (existingProduct.length > 0) {
       productSkuId = existingProduct[0].product_sku_id;
     }
@@ -873,7 +876,6 @@ router.put('/cog/:id', async (req, res) => {
       product_id, 
       product_title, 
       cost_per_unit, 
-      quantity, 
       total_cost, 
       date,
       store_id,
@@ -881,14 +883,14 @@ router.put('/cog/:id', async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!product_id || !product_title || !cost_per_unit || !quantity || !total_cost || !date) {
+    if (!product_title || !cost_per_unit || !total_cost || !date) {
       return res.status(400).json({ 
-        error: 'Missing required fields: product_id, product_title, cost_per_unit, quantity, total_cost, date' 
+        error: 'Missing required fields: product_title, cost_per_unit, total_cost, date' 
       });
     }
 
     // Calculate total cost if not provided
-    let calculatedTotalCost = Number(cost_per_unit) * Number(quantity);
+    let calculatedTotalCost = 0;
     if (country_costs.length > 0) {
       calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
     }
@@ -913,7 +915,7 @@ router.put('/cog/:id', async (req, res) => {
         product_id,
         product_title,
         cost_per_unit: parseFloat(cost_per_unit),
-        quantity: parseInt(quantity),
+        quantity: parseInt(country_costs.reduce((sum, country) => sum + Number(country.quantity || 0), 0)),
         total_cost: parseFloat(calculatedTotalCost),
         date,
         store_id,
