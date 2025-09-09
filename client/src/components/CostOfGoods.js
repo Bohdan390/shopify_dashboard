@@ -8,13 +8,14 @@ import BeautifulSelect from './BeautifulSelect';
 import SearchableSelect from './SearchableSelect';
 import CostOfGoodsTableLoader from './loaders/CostOfGoodsTableLoader';
 import CountryCostsManager from './CountryCostsManager';
-import { Button, Dialog, DialogContent, DialogTitle, styled } from '@mui/material';
+import { Button, Dialog, DialogContent, DialogTitle, styled, TextField } from '@mui/material';
 import { DemoContainer } from '@mui/x-date-pickers/internals/demo';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import { useCurrency } from '../contexts/CurrencyContext';
+import Autocomplete from '@mui/material/Autocomplete';
 
 // Product Autocomplete Component
 
@@ -198,6 +199,7 @@ const CostOfGoods = () => {
 		tariff_rate: 0,
 		discounts_and_refunds: 0,
 		payment_processing_fee: 0,
+		quantity: 0,
 		currency: 'USD'
 	});
 	const [editCountryCostIndex, setEditCountryCostIndex] = useState(-1);
@@ -384,20 +386,13 @@ const CostOfGoods = () => {
 		setShowDatePresets(false);
 	};
 
-	const handleStartDateSelect = (date) => {
-		setDateRange(prev => ({ ...prev, startDate: date }));
-	};
-
-	const handleEndDateSelect = (date) => {
-		setDateRange(prev => ({ ...prev, endDate: date }));
-	};
-
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		try {
 			setAddingEntry(true);
 
 			let totalCostWithCountryCosts = Number(formData.totalCost || 0);
+			let totalCost = 0, totalQuantity = 0;
 
 			if (countryCosts.length > 0) {
 				countryCosts.forEach(country => {
@@ -409,16 +404,18 @@ const CostOfGoods = () => {
 					country.discounts_and_refunds = G.roundPrice(Number(country.discounts_and_refunds || 0));
 					country.payment_processing_fee = G.roundPrice(Number(country.payment_processing_fee || 0));
 
-					country.total_cost = calculateTotalPerUnit(country) * Number(formData.quantity || 0);
+					country.total_cost = calculateTotalPerUnit(country) * Number(country.quantity || 0);
 					country.total_cost = G.roundPrice(country.total_cost);
+					totalCost += country.total_cost
+					totalQuantity += country.quantity
 				});
 			}
 
 			const apiData = {
 				product_id: formData.productId,
 				product_title: formData.productTitle,
-				cost_per_unit: calculateTotalPerUnit(countryCosts[0]),
-				quantity: formData.quantity,
+				cost_per_unit: totalCost / totalQuantity,
+				quantity: countryCosts.reduce((sum, country) => sum + Number(country.quantity || 0), 0),
 				total_cost: totalCostWithCountryCosts, // Use the calculated total with country costs
 				date: formData.date,
 				country_cost_id: formData.country_cost_id,
@@ -442,7 +439,6 @@ const CostOfGoods = () => {
 				productId: '',
 				productTitle: '',
 				costPerUnit: '',
-				quantity: '',
 				totalCost: '',
 				date: formatLocalDate(new Date()),
 				country_cost_id: ''
@@ -1003,7 +999,7 @@ const CostOfGoods = () => {
 							<thead className="bg-gray-50">
 								<tr>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost/Unit</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AVG Cost/Unit</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
@@ -1101,8 +1097,10 @@ const CostOfGoods = () => {
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shipping</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Discounts</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment Processing</th>
+																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">VAT Rate</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tariff Rate</th>
+																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Cost</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
 																					</tr>
 																				</thead>
@@ -1125,10 +1123,16 @@ const CostOfGoods = () => {
 																								{displayCurrency(Number(countryCost.payment_processing_fee || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
+																								{countryCost.quantity.toLocaleString()}
+																							</td>
+																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{Number(countryCost.vat_rate || 0).toFixed(1)}%
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{Number(countryCost.tariff_rate || 0).toFixed(1)}%
+																							</td>
+																							<td className="px-4 py-2 text-sm text-gray-900">
+																								{displayCurrency(Number(countryCost.total_cost || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{countryCost.currency || 'USD'}
@@ -1177,7 +1181,47 @@ const CostOfGoods = () => {
 
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Product Title *</label>
-								<SearchableSelect
+								<Autocomplete
+									id="free-solo-demo"
+									freeSolo
+									options={products.map((option) => ({label: option.product_title, id: option.product_id}))}
+									getOptionLabel={(option) => option.label}
+									renderOption={(props, option) => (
+										<li {...props} key={option.id}>
+										  <span>{option.label}</span>
+										</li>
+									  )}
+									renderInput={(params) => <TextField 
+										onChange={(e) => {
+											var product = products.find(_p => _p && _p.product_title.includes(e.target.value))
+											if (product) {
+												setFormData({
+													...formData,
+													productTitle: product.product_title,
+													productId: product.product_id
+												})
+											}
+											else {
+												setFormData({
+													...formData,
+													productTitle: e.target.value,
+													productId: null
+												})
+											}
+										}}
+										{...params} placeholder="Choose a product..." 
+										sx={{ "& .MuiInputBase-root": { height: 38 } }}
+									/>}
+									onChange={(event, value) => {
+										if (!value) return
+										setFormData({
+											...formData,
+											productTitle: value.label,
+											productId: value.id
+										});
+									}}
+								/>
+								{/* <SearchableSelect
 									value={formData.productTitle}
 									onChange={(value) => {
 										const selectedProduct = products.find(p => p.product_id === value);
@@ -1205,7 +1249,7 @@ const CostOfGoods = () => {
 									disabled={refreshing}
 									className="w-full"
 									size="md"
-								/>
+								/> */}
 							</div>
 
 							{/* Selected Product Info */}
@@ -1223,18 +1267,6 @@ const CostOfGoods = () => {
 									</div>
 								</div>
 							)}
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-								<input
-									type="number"
-									step="1"
-									min="1"
-									value={formData.quantity}
-									onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									required
-								/>
-							</div>
 
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -1326,13 +1358,13 @@ const CostOfGoods = () => {
 																		<div>
 																			<span className="font-medium">Processing:</span> {displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}
 																		</div>
+																		<div>
+																			<span className="font-medium">Quantity:</span> {country.quantity}
+																		</div>
+																		<div>
+																			<span className="font-medium">Currency:</span> {country.currency}
+																		</div>
 																	</div>
-																	<div className="mt-1">
-																		<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-																			{country.currency}
-																		</span>
-																	</div>
-
 																	{/* Individual Country Cost Total */}
 																	<div className="mt-3 pt-2 border-t border-gray-200">
 																		{/* Per Unit Breakdown */}
@@ -1387,11 +1419,11 @@ const CostOfGoods = () => {
 																					${calculateTotalPerUnit(country).toFixed(2)}
 																				</span>
 																			</div>
-																			{formData.quantity && (
+																			{country.quantity && (
 																				<div className="flex items-center justify-between">
-																					<span className="text-xs font-medium text-gray-600">Total for {formData.quantity} units:</span>
+																					<span className="text-xs font-medium text-gray-600">Total for {country.quantity} units:</span>
 																					<span className="text-sm font-bold text-green-600">
-																						${(calculateTotalPerUnit(country) * formData.quantity).toFixed(2)}
+																						${(calculateTotalPerUnit(country) * country.quantity).toFixed(2)}
 																					</span>
 																				</div>
 																			)}
@@ -1418,7 +1450,7 @@ const CostOfGoods = () => {
 									<div className="mt-4 pt-4 border-t border-gray-200">
 										<div className="w-full" style={{textAlign: 'center'}}>
 											{
-												countryCosts.length == 0 && (
+												(
 													<Button
 														variant='contained'
 														type="button"
@@ -1433,6 +1465,7 @@ const CostOfGoods = () => {
 																tariff_rate: 0,
 																discounts_and_refunds: 0,
 																payment_processing_fee: 0,
+																quantity: 0,
 																currency: 'USD'
 															});
 														}}
@@ -1492,6 +1525,7 @@ const CostOfGoods = () => {
 							tariff_rate: 0,
 							discounts_and_refunds: 0,
 							payment_processing_fee: 0,
+							quantity: 0,
 							currency: 'USD'
 						});
 					}} aria-labelledby="customized-dialog-title">
@@ -1585,6 +1619,18 @@ const CostOfGoods = () => {
 							</div>
 
 							<div className="w-full mt-2">
+								<label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+								<input
+									type="number"
+									step="1"
+									value={newCountryCost.quantity || ''}
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, quantity: parseInt(e.target.value) || '' })}
+									placeholder="1"
+									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+								/>
+							</div>
+
+							<div className="w-full mt-2">
 								<label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
 								<BeautifulSelect
 									options={[
@@ -1660,6 +1706,7 @@ const CostOfGoods = () => {
 											tariff_rate: 0,
 											discounts_and_refunds: 0,
 											payment_processing_fee: 0,
+											quantity: 0,
 											currency: 'USD'
 										});
 										setEditCountryCostIndex(-1);

@@ -12,7 +12,6 @@ const SearchableSelect = ({
   style = {},
   size = "md" // sm, md, lg
 }) => {
-  console.log(options, 'options')
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [searchTerm, setSearchTerm] = useState('');
