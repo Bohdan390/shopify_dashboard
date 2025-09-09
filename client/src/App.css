@@ -92,6 +92,10 @@ input {
   font-size: 20px !important;
 }
 
+.css-q7mezt {
+  font-size: 20px !important;
+}
+
 .css-10o2lyd-MuiStack-root {
   flex-direction: column !important;
 }
@@ -102,6 +106,12 @@ input {
 
 .css-u6ihd7 {
   padding: 0px !important;
+  width: 100px !important;
+  font-size: 14px !important;
+}
+
+.css-sx5hge > .MuiTextField-root, .css-sx5hge > .MuiPickersTextField-root {
+  min-width: 140px !important;
 }
 
 .css-1u0cu8x {
