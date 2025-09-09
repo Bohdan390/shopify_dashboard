@@ -44,6 +44,8 @@ const ProductAutocomplete = ({
 	const [showDropdown, setShowDropdown] = useState(false);
 	const [loading, setLoading] = useState(false);
 
+
+	const { selectedStore } = useStore();
 	// Fetch products on component mount
 	useEffect(() => {
 		fetchProducts();
@@ -66,7 +68,7 @@ const ProductAutocomplete = ({
 	const fetchProducts = async () => {
 		try {
 			setLoading(true);
-			const response = await api.get('/api/ads/products');
+			const response = await api.get('/api/ads/products?storeId=' + selectedStore);
 			setProducts(response.data.data || []);
 		} catch (error) {
 			console.error('Error fetching products:', error);
@@ -280,7 +282,7 @@ const CostOfGoods = () => {
 	// Fetch products for SearchableSelect
 	const fetchProducts = async () => {
 		try {
-			const response = await api.get('/api/ads/products');
+			const response = await api.get('/api/ads/products?storeId=' + selectedStore);
 			const productsData = response.data.data || [];
 			setProducts(productsData);
 		} catch (error) {
@@ -1178,12 +1180,12 @@ const CostOfGoods = () => {
 								<SearchableSelect
 									value={formData.productTitle}
 									onChange={(value) => {
-										const selectedProduct = products.find(p => p.product_title === value || p.product_id === value);
+										const selectedProduct = products.find(p => p.product_id === value);
 										if (selectedProduct) {
 											setFormData({
 												...formData,
 												productId: selectedProduct.product_id,
-												productTitle: selectedProduct.product_title || selectedProduct.product_id
+												productTitle: selectedProduct.product_title
 											});
 										} else {
 											setFormData({ ...formData, productTitle: value });
@@ -1191,10 +1193,14 @@ const CostOfGoods = () => {
 									}}
 									options={[
 										{ value: '', label: 'Choose a product...' },
-										...products.map(product => ({
-											value: product.product_title || product.product_id,
-											label: `${product.product_title || product.product_id} (${product.product_id})`
-										}))
+										...products.map(product => {
+											if (product.product_title.includes(formData.productTitle)) {
+												return ({
+													value: product.product_id,
+													label: `${product.product_title} (${product.product_id})`
+												})
+											}
+										})
 									]}
 									placeholder="Search and select a product"
 									searchPlaceholder="Search products..."

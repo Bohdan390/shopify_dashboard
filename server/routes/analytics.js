@@ -57,24 +57,6 @@ router.get('/summary', async (req, res) => {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
-		const start = '2024-04-01T00:00:00'; // Feb 1 midnight in GMT+3
-		const end   = '2024-04-30T23:59:59'; // Feb 28 end in GMT+3
-
-		const { count: customerCount } = await supabase
-			.from('customers')
-			.select('*', { count: 'exact', head: true })
-			.eq('store_id', "meonutrition")
-			.gte('first_order_date', start)
-			.lte('first_order_date', end);
-
-		const {data: customers} = await supabase
-			.from("customers")
-			.select("first_order_date")
-			.eq('store_id', "meonutrition")
-			.gte('first_order_date', start)
-			.lte('first_order_date', end);
-		
-		console.log(customerCount)
 		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId, country);
 		res.json(summary);
 	} catch (error) {
