@@ -1194,12 +1194,10 @@ const CostOfGoods = () => {
 									options={[
 										{ value: '', label: 'Choose a product...' },
 										...products.map(product => {
-											if (product.product_title.includes(formData.productTitle)) {
-												return ({
-													value: product.product_id,
-													label: `${product.product_title} (${product.product_id})`
-												})
-											}
+											return ({
+												value: product.product_id,
+												label: `${product.product_title} (${product.product_id})`
+											})
 										})
 									]}
 									placeholder="Search and select a product"

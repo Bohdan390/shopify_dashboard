@@ -12,6 +12,7 @@ const SearchableSelect = ({
   style = {},
   size = "md" // sm, md, lg
 }) => {
+  console.log(options, 'options')
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -106,13 +107,7 @@ const SearchableSelect = ({
     }
   };
 
-  const clearSelection = (e) => {
-    e.stopPropagation();
-    onChange('');
-    setSearchTerm('');
-  };
-
-  const selectedOption = options.find(option => option.value === value);
+  const selectedOption = options.find(option => option && option.value === value);
 
   const sizeClasses = {
     sm: "px-3 py-1.5 text-sm",
@@ -120,9 +115,8 @@ const SearchableSelect = ({
     lg: "px-4 py-3 text-base"
   };
 
-  console.log(filteredOptions)
   return (
-    <div className={`relative ${className}`} ref={selectRef} onClick={handleToggle}>
+    <div className={`relative ${className}`} ref={selectRef}>
       {/* Main Select Container */}
       <div
         className={`
@@ -139,6 +133,7 @@ const SearchableSelect = ({
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
         style={style}
+        onClick={handleToggle}
       >
         <button
           type="button"
@@ -169,6 +164,7 @@ const SearchableSelect = ({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
+                id='searchable-input'
                 ref={searchInputRef}
                 type="text"
                 value={searchTerm}
