@@ -120,6 +120,7 @@ const SearchableSelect = ({
     lg: "px-4 py-3 text-base"
   };
 
+  console.log(filteredOptions)
   return (
     <div className={`relative ${className}`} ref={selectRef} onClick={handleToggle}>
       {/* Main Select Container */}
@@ -183,7 +184,7 @@ const SearchableSelect = ({
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option, index) => (
                 <button
-                  key={option.value}
+                  key={index}
                   type="button"
                   onClick={() => handleSelect(option)}
                   onMouseEnter={() => setHighlightedIndex(index)}

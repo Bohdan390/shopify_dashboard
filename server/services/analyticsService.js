@@ -222,7 +222,7 @@ class AnalyticsService {
 		try {
 			// Get country-specific campaigns
 			const {count: campaignCount, error: campaignCountError} = await supabase.from("ad_campaigns")
-				.select("*", {count: "exact"}).eq("store_id", storeId).eq("country_code", countryCode).eq("status", "active");
+				.select("*", {count: "exact"}).eq("store_id", storeId).or(`country_code.eq.${countryCode},country_code.is.null`).eq("status", "active");
 			if (campaignCountError) {
 				console.error('❌ Error fetching country campaigns:', campaignCountError);
 				return analyticsData; // Return original data if error
@@ -236,7 +236,7 @@ class AnalyticsService {
 				.from('ad_campaigns')
 				.select('campaign_id')
 				.eq('store_id', storeId)
-				.eq('country_code', countryCode)
+				.or(`country_code.eq.${countryCode},country_code.is.null`)
 				.eq('status', 'active')
 				.range(i, i + chunk - 1);
 

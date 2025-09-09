@@ -68,15 +68,10 @@ const Dashboard = () => {
 		pageSize: 10,
 		totalPages: 1
 	});
-	// Custom calendar states
-	const [showStartCalendar, setShowStartCalendar] = useState(false);
-	const [showEndCalendar, setShowEndCalendar] = useState(false);
-	const [showSyncCalendar, setShowSyncCalendar] = useState(false);
 
 	// Recalculate modal states
 	const [showRecalcModal, setShowRecalcModal] = useState(false);
 	const [recalcDate, setRecalcDate] = useState('');
-	const [showRecalcCalendar, setShowRecalcCalendar] = useState(false);
 
 	// WebSocket states
 	const { socket, addEventListener } = useSocket();
@@ -89,9 +84,6 @@ const Dashboard = () => {
 		startDate: '',
 		endDate: ''
 	});
-	const [showMetricsStartCalendar, setShowMetricsStartCalendar] = useState(false);
-	const [showMetricsEndCalendar, setShowMetricsEndCalendar] = useState(false);
-
 	// Country filtering state
 	const [selectedCountry, setSelectedCountry] = useState('all');
 
@@ -103,10 +95,8 @@ const Dashboard = () => {
 				// Fetch both analytics and summary data with country filtering
 				const countryParam = selectedCountry !== 'all' ? `&country=${selectedCountry}` : '';
 				const summaryUrl = `/api/analytics/summary?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&storeId=${selectedStore}${countryParam}`;
-
-				const [summaryResponse] = await Promise.all([
-					api.get(summaryUrl)
-				]);
+				console.log(selectedCountry, summaryUrl)
+				const summaryResponse = await api.get(summaryUrl)
 				// Ensure we have valid data
 				const summaryData = summaryResponse.data || {};
 
@@ -308,7 +298,7 @@ const Dashboard = () => {
 
 	// Watch for country filter changes and refetch data
 	useEffect(() => {
-		if (dateRange.startDate && dateRange.endDate) {
+		if (dateRange.startDate && dateRange.endDate && selectedCountry != 'all') {
 			handleDateRangeChange();
 		}
 	}, [selectedCountry]);
