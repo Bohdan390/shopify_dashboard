@@ -242,6 +242,7 @@ router.get('/:storeId', async (req, res) => {
 
     // Fetch linked campaigns count for each SKU
     // Apply pagination
+    console.log(allProductSkus);
     res.json({
       success: true,
       data: allProductSkus,
@@ -342,6 +343,8 @@ router.post('/', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    await common.initialSiteData(common, store_id, sku_id);
 
     res.status(201).json({
       success: true,
