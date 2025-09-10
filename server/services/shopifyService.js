@@ -371,6 +371,7 @@ class ShopifyService {
 					vendor: product.vendor,
 					status: product.status,
 					store_id: this.storeId,
+					product_sku_id: product.variants.length > 0 ? product.variants[0].sku : null,
 					sale_price: originalProduct ? originalProduct.sale_price : 0,
 					sale_quantity: originalProduct ? originalProduct.sale_quantity : 0
 				})
@@ -406,7 +407,6 @@ class ShopifyService {
 
 			}
 
-			console.log(products)
 		} catch (error) {
 			console.error('❌ Error fetching products:', error.message);
 			if (error.response) {

@@ -550,6 +550,37 @@ router.post('/stores', async (req, res) => {
 });
 
 // Get products
+router.get('/product-skus', async (req, res) => {
+  try {
+    const { storeId } = req.query;
+    let query = supabase
+      .from('product_skus')
+      .select('*');
+      
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    }
+
+    let { data, error } = await query;
+    
+    if (error) {
+      console.error('❌ Error fetching products:', error);
+      throw error;
+    }
+
+    data = data.map(item => ({
+      ...item,
+      product_title: item.sku_title,
+      product_id: item.sku_id
+    }));
+
+    res.json({ data: data || [] });
+
+  } catch (error) {
+    console.error('❌ Error getting product skus:', error);
+    res.status(500).json({ error: 'Failed to get product skus' });
+  }
+})
 router.get('/products', async (req, res) => {
   try {
     const { storeId } = req.query;
@@ -560,9 +591,8 @@ router.get('/products', async (req, res) => {
     if (storeId) {
       query = query.eq('store_id', storeId);
     }
-    query = query.order('product_title', { ascending: true });
 
-    const { data, error } = await query;
+    let { data, error } = await query;
 
     if (error) {
       console.error('❌ Error fetching products:', error);
@@ -801,10 +831,16 @@ router.post('/cog', async (req, res) => {
     let calculatedTotalCost = country_costs.reduce((sum, country) => sum + country.total_cost, 0);
     let quantity = country_costs.reduce((sum, country) => sum + country.quantity, 0)
 
-    const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
     var productSkuId = null;
-    if (existingProduct.length > 0) {
-      productSkuId = existingProduct[0].product_sku_id;
+
+    if (store_id == "meonutrition") {
+      productSkuId = product_id
+    }
+    else {
+      const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
+      if (existingProduct.length > 0) {
+        productSkuId = existingProduct[0].product_sku_id;
+      }
     }
 
     var country_cost_id = new Date().getTime();
@@ -915,6 +951,18 @@ router.put('/cog/:id', async (req, res) => {
       });
     }
 
+    var productSkuId = null;
+
+    if (store_id == "meonutrition") {
+      productSkuId = product_id
+    }
+    else {
+      const {data: existingProduct} = await supabase.from("products").select("product_sku_id").eq('product_id', product_id).limit(1);
+      if (existingProduct.length > 0) {
+        productSkuId = existingProduct[0].product_sku_id;
+      }
+    }
+
     // Calculate total cost if not provided
     let calculatedTotalCost = 0;
     if (country_costs.length > 0) {
@@ -922,6 +970,7 @@ router.put('/cog/:id', async (req, res) => {
     }
     country_costs.forEach(country => {
       country.date = date;
+      country.product_sku_id = productSkuId;
     });
 
     const {data: updated} = await supabase
@@ -945,6 +994,7 @@ router.put('/cog/:id', async (req, res) => {
         total_cost: parseFloat(calculatedTotalCost),
         date,
         store_id,
+        product_sku_id: productSkuId,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

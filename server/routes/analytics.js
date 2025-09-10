@@ -57,6 +57,32 @@ router.get('/summary', async (req, res) => {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
+		var {data: products} = await supabase.from("products").select("product_sku_id, product_id, product_title").eq("store_id", storeId);
+		var productSkus = new Map()
+		products.forEach(product => {
+			if (product.product_sku_id && product.product_sku_id.includes("-")) {
+				var sku_id = product.product_sku_id.split("-")[0] + "-" + product.product_sku_id.split("-")[1];
+				if (!productSkus.has(sku_id)) {
+					productSkus.set(sku_id, {
+						sku_id,
+						sku_title: common.extractProductSku(product.product_title),
+						product_ids: product.product_id,
+						store_id: storeId,
+					});
+				}
+				else {
+					if (common.hasNumberX(product.product_title)) {
+						productSkus.get(sku_id).sku_title = common.extractProductSku(product.product_title);
+					}
+					productSkus.get(sku_id).product_ids += "," + product.product_id;
+				}
+			}
+		});
+
+
+		// await supabase.from("product_skus").upsert(Array.from(productSkus.values()), {onConflict: "sku_id"});
+		// console.log(Array.from(productSkus.values()))
+
 		const summary = await analyticsService.getSummaryStats(startDate, endDate, storeId, country);
 		res.json(summary);
 	} catch (error) {
@@ -1200,7 +1226,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 					}
 				})
 				allCostOfGoods.forEach(cost => {
-					if (productIds.includes(cost.product_id) && cost.date.includes(date)) {
+					if (cost.product_sku_id.includes(sku) && cost.date.includes(date)) {
 						totalProfit -= cost.total_cost;
 					}
 				})

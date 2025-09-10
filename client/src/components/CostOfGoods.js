@@ -151,9 +151,16 @@ const CostOfGoods = () => {
 	// Fetch products for SearchableSelect
 	const fetchProducts = async () => {
 		try {
-			const response = await api.get('/api/ads/products?storeId=' + selectedStore);
-			const productsData = response.data.data || [];
-			setProducts(productsData);
+			if (selectedStore == "meonutrition") {
+				const response = await api.get('/api/ads/product-skus?storeId=' + selectedStore);
+				const productsData = response.data.data || [];
+				setProducts(productsData);
+			}
+			else {
+				const response = await api.get('/api/ads/products?storeId=' + selectedStore);
+				const productsData = response.data.data || [];
+				setProducts(productsData);
+			}
 		} catch (error) {
 			console.error('Error fetching products:', error);
 		}
@@ -661,113 +668,185 @@ const CostOfGoods = () => {
 		const file = e.target.files[0];
         const reader = new FileReader();
 
-		console.log(products)
 		reader.onload = async function (event) {
 			const data = new Uint8Array(event.target.result)
 			const workbook = XLSX.read(data, { type: 'array' });
+			var costsOfGoods = new Map()
 			if (workbook.SheetNames.length === 1) {
 				const sheetName = workbook.SheetNames[0];
 				const sheet = workbook.Sheets[sheetName];
 				const json = XLSX.utils.sheet_to_json(sheet);
 				for (const row of json) {
-					if (row.Product_Name != 'Turmeric Platinum') {
-						continue;
+					var flag = true
+					if (!row['Variant SKU']) continue;
+					var sku = row['Variant SKU']
+					if (sku.includes("-")) {
+						sku = sku.split("-")[0] + "-" + sku.split("-")[1]
 					}
-					if (products.find(p => p.product_title == row.Product_Name)) {
-						let totalCost = 0, totalQuantity = 6, costs = [];
-						costs.push({
+					var pp = products.filter(p => p.sku_id == sku)
+					if (pp.length == 0) flag = false
+					var arr = row['Handle'].split("-")
+					for (var i = 0; i < pp.length; i++) {
+						var p = pp[i]
+						flag = true
+						arr.forEach((a) => {
+							if (!p.product_title.toLowerCase().includes(a.toLowerCase())) {
+								flag = false
+							}
+						})
+						if (flag) break;
+					}
+					if (pp.length == 1) flag = true
+					if (!flag) {
+						console.log(flag, row['Variant SKU'], pp, arr)
+					}
+					
+					if (costsOfGoods.has(sku)) {
+						costsOfGoods.get(sku).costs.push({
 							country: 'United States',
-							cost_of_goods: Number(row['1_Bottle_COGS']),
-							shipping_cost: Number(row['1_Bottle_Shipping']),
+							cost_of_goods: Number(row['Product Cost']),
+							shipping_cost: Number(row['Shipping Cost']),
 							vat_rate: 0,
 							tariff_rate: 0,
 							discounts_and_refunds: 0,
 							payment_processing_fee: 0,
 							quantity: 1,
-							total_cost: Number(row['1_Bottle_COGS']) + Number(row['1_Bottle_Shipping']),
+							total_cost: Number(row['Product Cost']) + Number(row['Shipping Cost']),
 							currency: 'USD'
 						})
+					}
+					else {
+						costsOfGoods.set(sku, {
+							sku_id: sku,
+							sku_title: pp[0].product_title,
+							costs: [{
+								country: 'United States',
+								cost_of_goods: Number(row['Product Cost']),
+								shipping_cost: Number(row['Shipping Cost']),
+								vat_rate: 0,
+								tariff_rate: 0,
+								discounts_and_refunds: 0,
+								payment_processing_fee: 0,
+								quantity: 1,
+								total_cost: Number(row['Product Cost']) + Number(row['Shipping Cost']),
+								currency: 'USD'
+							}],
+						})
+					}
 
-						costs.push({
-							country: 'United States',
-							cost_of_goods: Number(row['2_Bottles_COGS']),
-							shipping_cost: Number(row['2_Bottles_Shipping']),
-							vat_rate: 0,
-							tariff_rate: 0,
-							discounts_and_refunds: 0,
-							payment_processing_fee: 0,
-							quantity: 1,
-							total_cost: Number(row['2_Bottles_COGS']) + Number(row['2_Bottles_Shipping']),
-							currency: 'USD'
-						})
+					// if (products.find(p => p.product_title == row.Product_Name)) {
+					// 	let totalCost = 0, totalQuantity = 6, costs = [];
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['1_Bottle_COGS']),
+					// 		shipping_cost: Number(row['1_Bottle_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['1_Bottle_COGS']) + Number(row['1_Bottle_Shipping']),
+					// 		currency: 'USD'
+					// 	})
 
-						costs.push({
-							country: 'United States',
-							cost_of_goods: Number(row['3_Bottles_COGS']),
-							shipping_cost: Number(row['3_Bottles_Shipping']),
-							vat_rate: 0,
-							tariff_rate: 0,
-							discounts_and_refunds: 0,
-							payment_processing_fee: 0,
-							quantity: 1,
-							total_cost: Number(row['3_Bottles_COGS']) + Number(row['3_Bottles_Shipping']),
-							currency: 'USD'
-						})
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['2_Bottles_COGS']),
+					// 		shipping_cost: Number(row['2_Bottles_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['2_Bottles_COGS']) + Number(row['2_Bottles_Shipping']),
+					// 		currency: 'USD'
+					// 	})
 
-						costs.push({
-							country: 'United States',
-							cost_of_goods: Number(row['4_Bottles_COGS']),
-							shipping_cost: Number(row['4_Bottles_Shipping']),
-							vat_rate: 0,
-							tariff_rate: 0,
-							discounts_and_refunds: 0,
-							payment_processing_fee: 0,
-							quantity: 1,
-							total_cost: Number(row['4_Bottles_COGS']) + Number(row['4_Bottles_Shipping']),
-							currency: 'USD'
-						})
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['3_Bottles_COGS']),
+					// 		shipping_cost: Number(row['3_Bottles_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['3_Bottles_COGS']) + Number(row['3_Bottles_Shipping']),
+					// 		currency: 'USD'
+					// 	})
 
-						costs.push({
-							country: 'United States',
-							cost_of_goods: Number(row['5_Bottles_COGS']),
-							shipping_cost: Number(row['5_Bottles_Shipping']),
-							vat_rate: 0,
-							tariff_rate: 0,
-							discounts_and_refunds: 0,
-							payment_processing_fee: 0,
-							quantity: 1,
-							total_cost: Number(row['5_Bottles_COGS']) + Number(row['5_Bottles_Shipping']),
-							currency: 'USD'
-						})
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['4_Bottles_COGS']),
+					// 		shipping_cost: Number(row['4_Bottles_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['4_Bottles_COGS']) + Number(row['4_Bottles_Shipping']),
+					// 		currency: 'USD'
+					// 	})
 
-						costs.push({
-							country: 'United States',
-							cost_of_goods: Number(row['6_Bottles_COGS']),
-							shipping_cost: Number(row['6_Bottles_Shipping']),
-							vat_rate: 0,
-							tariff_rate: 0,
-							discounts_and_refunds: 0,
-							payment_processing_fee: 0,
-							quantity: 1,
-							total_cost: Number(row['6_Bottles_COGS']) + Number(row['6_Bottles_Shipping']),
-							currency: 'USD'
-						})
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['5_Bottles_COGS']),
+					// 		shipping_cost: Number(row['5_Bottles_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['5_Bottles_COGS']) + Number(row['5_Bottles_Shipping']),
+					// 		currency: 'USD'
+					// 	})
+
+					// 	costs.push({
+					// 		country: 'United States',
+					// 		cost_of_goods: Number(row['6_Bottles_COGS']),
+					// 		shipping_cost: Number(row['6_Bottles_Shipping']),
+					// 		vat_rate: 0,
+					// 		tariff_rate: 0,
+					// 		discounts_and_refunds: 0,
+					// 		payment_processing_fee: 0,
+					// 		quantity: 1,
+					// 		total_cost: Number(row['6_Bottles_COGS']) + Number(row['6_Bottles_Shipping']),
+					// 		currency: 'USD'
+					// 	})
 						
-						totalCost = costs.reduce((sum, country) => sum + country.total_cost, 0);
-						const apiData = {
-							product_id: products.find(p => p.product_title == row.Product_Name).product_id,
-							product_title: row.Product_Name,
-							cost_per_unit: G.roundPrice(totalCost / totalQuantity),
-							quantity: totalQuantity,
-							total_cost: G.roundPrice(totalCost), // Use the calculated total with country costs
-							date: new Date().toISOString().split('T')[0],
-							store_id: selectedStore || 'buycosari',
-							country_costs: costs // Include the country costs data
-						};
+					// 	totalCost = costs.reduce((sum, country) => sum + country.total_cost, 0);
+					// 	const apiData = {
+					// 		product_id: products.find(p => p.product_title == row.Product_Name).product_id,
+					// 		product_title: row.Product_Name,
+					// 		cost_per_unit: G.roundPrice(totalCost / totalQuantity),
+					// 		quantity: totalQuantity,
+					// 		total_cost: G.roundPrice(totalCost), // Use the calculated total with country costs
+					// 		date: new Date().toISOString().split('T')[0],
+					// 		store_id: selectedStore || 'buycosari',
+					// 		country_costs: costs // Include the country costs data
+					// 	};
 
-						console.log(apiData, totalCost)
-						const costEntryResponse = await api.post('/api/ads/cog', apiData);
-					}
+					// 	console.log(apiData, totalCost)
+					// 	const costEntryResponse = await api.post('/api/ads/cog', apiData);
+					// }
+				}
+
+				for (var i = 0; i < Array.from(costsOfGoods.values()).length; i++) {
+					var cost = Array.from(costsOfGoods.values())[i]
+					let totalCost = cost.costs.reduce((sum, country) => sum + country.total_cost, 0);
+					let totalQuantity = cost.costs.reduce((sum, country) => sum + country.quantity, 0);
+					const apiData = {
+						product_id: cost.sku_id,
+						product_title: cost.sku_title,
+						cost_per_unit: G.roundPrice(totalCost / totalQuantity),
+						quantity: totalQuantity,
+						total_cost: G.roundPrice(totalCost), // Use the calculated total with country costs
+						date: new Date().toISOString().split('T')[0],
+						store_id: selectedStore || 'buycosari',
+						country_costs: cost.costs // Include the country costs data
+					};
+						
+					// const costEntryResponse = await api.post('/api/ads/cog', apiData);
 				}
 			}
 		}
@@ -990,7 +1069,7 @@ const CostOfGoods = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{selectedStore == "meonutrition" ? "Product SKU" : "Product Name"}</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AVG Cost/Unit</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
@@ -1250,7 +1329,7 @@ const CostOfGoods = () => {
 									<div className="flex items-center gap-2">
 										<Package className="w-4 h-4 text-blue-600" />
 										<div className="text-sm">
-											<span className="font-medium text-blue-900">Selected Product:</span>
+											<span className="font-medium text-blue-900">{'' + (selectedStore == "meonutrition" ? "Selected Product SKU:" : "Selected Product:")}</span>
 											<div className="text-blue-700">
 												<div><strong>Title:</strong> {formData.productTitle}</div>
 												<div><strong>ID:</strong> {formData.productId}</div>
