@@ -242,7 +242,6 @@ router.get('/:storeId', async (req, res) => {
 
     // Fetch linked campaigns count for each SKU
     // Apply pagination
-    console.log(allProductSkus);
     res.json({
       success: true,
       data: allProductSkus,
@@ -394,6 +393,7 @@ router.put('/:id', async (req, res) => {
       
     if (productUpdateError) throw productUpdateError;
 
+    console.log(1)
     const {error: lineItemsUpdateError} = await supabase
       .from("order_line_items")
       .update({
@@ -402,6 +402,8 @@ router.put('/:id', async (req, res) => {
       .in('product_id', productIdsToUpdate);
 
     if (lineItemsUpdateError) throw lineItemsUpdateError;
+
+    console.log(2)
 
     const {error: costOfGoodsUpdateError} = await supabase
       .from("cost_of_goods")
