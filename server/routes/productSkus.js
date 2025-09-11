@@ -304,15 +304,17 @@ router.post('/', async (req, res) => {
     if (lineItemsUpdateError) throw lineItemsUpdateError;
     console.log(2)
 
-    const {error:costOfGoodsUpdateError} = await supabase
+    if (store_id != "meonutrition") {
+      const {error:costOfGoodsUpdateError} = await supabase
       .from("cost_of_goods")
       .update({
         product_sku_id: sku_id
       })
       .in('product_id', productIds)
 
-    if (costOfGoodsUpdateError) throw costOfGoodsUpdateError;
-
+      if (costOfGoodsUpdateError) throw costOfGoodsUpdateError;
+    }
+  
     // Check if SKU already exists for this store
     const { data: existing } = await supabase
       .from('product_skus')

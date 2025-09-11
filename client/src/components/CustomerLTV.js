@@ -28,6 +28,7 @@ const CustomerLTV = () => {
     const [ltvEndMonth, setLtvEndMonth] = useState(new Date().getMonth() + 1);
     const [ltvViewMode, setLtvViewMode] = useState('table');
     const [socketConnected, setSocketConnected] = useState(false);
+    const [productLtvWithRange, setProductLtvWithRange] = useState([]);
 
     // Product SKU State
     const [productSkus, setProductSkus] = useState([]);
@@ -154,7 +155,10 @@ const CustomerLTV = () => {
     // Fetch customer LTV analytics
     const fetchCustomerLtvAnalytics = useCallback(async () => {
         if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || !selectedProductSku) return;
-        fetchIndividualLtv();
+        getProductLtvWithRange(ltvProductData, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth);
+        if (!ltvMetric.includes("product") || ltvProductData.length == 0) {
+            fetchIndividualLtv();
+        }
     }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku, socketConnected]);
 
     // Format number for display
@@ -372,6 +376,7 @@ const CustomerLTV = () => {
                 setSyncProductLtv(false);
                 setLtvLoading(false);
                 setLtvProductData(JSON.parse(data.data) || []);
+                getProductLtvWithRange(JSON.parse(data.data) || [], ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth)
             }
         });
 
@@ -379,6 +384,26 @@ const CustomerLTV = () => {
         return removeProductLtvListener;
     }, [socket, selectedStore, selectStore, addEventListener]);
 
+    const getProductLtvWithRange = (data = ltvProductData, startYear, startMonth, endYear, endMonth) => {
+        var str = metric == 'product-ltv-revenue' ? '_revenue' : '_profit';
+        var productLtvWithRange = [];
+        data.forEach(product => {
+            var d = {sku_id: product.sku_id, sku_title: product.sku_title};
+            var value = 0;
+            for (var k in product) {
+                if (k.includes(str) && product[k] != null) {
+                    if (k >= startYear + "-" + (startMonth < 10 ? '0' + startMonth : startMonth) + str 
+                        && k <= endYear + "-" + (endMonth < 10 ? '0' + endMonth : endMonth) + str) {
+                        value += product[k];
+                        d[k] = value;
+                    }
+                }
+            }
+            productLtvWithRange.push(d);
+        })
+        setProductLtvWithRange(productLtvWithRange);
+        console.log(productLtvWithRange, str, metric, startYear, startMonth, endYear, endMonth)
+    }
     // Fetch product SKUs
     const fetchProductSkus = async () => {
         try {
@@ -576,7 +601,7 @@ const CustomerLTV = () => {
                 </div>
 
                 {/* Table Content */}
-                {ltvProductData.length > 0 && <div className="overflow-x-auto">
+                {productLtvWithRange.length > 0 && <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -606,7 +631,7 @@ const CustomerLTV = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {ltvProductData.map((cohort, index) => (
+                            {productLtvWithRange.map((cohort, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
                                     <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900 max-w-[140px] truncate" title={cohort.cohortMonth}>
                                         {cohort.sku_title}
@@ -658,7 +683,7 @@ const CustomerLTV = () => {
                 {/* Results Summary */}
                 <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
                     <div className="text-sm text-gray-600">
-                        Showing {ltvProductData.length} Product cohorts
+                        Showing {productLtvWithRange.length} Product cohorts
                     </div>
                 </div>
             </div>
