@@ -91,7 +91,7 @@ const CustomerLTV = () => {
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            if (ltvMetric.includes("customer")) {
+            if (metric.includes("customer")) {
                 if (syncCustomerLtv) return;
                 setSyncCustomerLtv(true);
                 await api.post('/api/analytics/sync-customer-ltv-cohorts', {
@@ -102,7 +102,7 @@ const CustomerLTV = () => {
                     sku: sku
                 });
             }
-            else if (ltvMetric.includes("product")) {
+            else if (metric.includes("product")) {
                 if (syncProductLtv) return;
                 setSyncProductLtv(true);
                 await api.post('/api/analytics/recalculate-product-trends', {
@@ -153,7 +153,7 @@ const CustomerLTV = () => {
     const fetchCustomerLtvAnalytics = useCallback(async () => {
         if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || selectedProductSku == "" || !selectedStore) return;
         fetchIndividualLtv(selectedProductSku);
-    }, [selectedStore, ltvMetric, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth]);
+    }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth]);
 
     // Format number for display
 
@@ -189,6 +189,9 @@ const CustomerLTV = () => {
     // Handle LTV metric change
     const handleLtvMetricChange = (newMetric) => {
         metric = newMetric;
+        if (!metric.includes("product") || ltvProductData.length == 0) {
+            fetchIndividualLtv(selectedProductSku);
+        }
         setLtvMetric(newMetric);
     };
 
