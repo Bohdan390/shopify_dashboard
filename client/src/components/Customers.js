@@ -877,7 +877,7 @@ const Customers = () => {
                                                 <tbody className="bg-white divide-y divide-gray-200">
                                                     {selectedCustomer.order_history.map((order) => (
                                                         <tr key={order.order_id}>
-                                                            <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900">{order.order_number}</td>
+                                                            <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900">{order.order_id}</td>
                                                             <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900">{formatDate(order.created_at)}</td>
                                                             <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900">{formatCurrency(order.total_price)}</td>
                                                             <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-gray-900">
