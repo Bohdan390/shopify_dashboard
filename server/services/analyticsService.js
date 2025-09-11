@@ -688,8 +688,8 @@ class AnalyticsService {
 				.select('created_at')
 				.eq('financial_status', 'paid')
 				.eq('store_id', storeId)
-				.gte('updated_at', `${syncDate}T00:00:00`)
-				.order('updated_at', { ascending: false })
+				.gte('created_at', `${syncDate}T00:00:00`)
+				.order('created_at', { ascending: false })
 				.limit(1);
 
 			if (maxDateError) throw maxDateError;
