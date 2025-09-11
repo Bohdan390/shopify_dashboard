@@ -48,20 +48,20 @@ class AnalyticsService {
 				start_date: date + 'T00:00:00',
 				end_date: date + 'T23:59:59.999'
 			});
-			
+
 			if (customerError) throw customerError;
-			
+
 			var chunk = 1000;
 
 			let revenueData = [];
 			for (var i = 0; i < ordersCount; i += chunk) {
 				const { data: ordersData, error: revenueError } = await supabase
-				.from('orders')
-				.select('total_price, financial_status')
-				.eq('store_id', storeId)
-				.gte('created_at', `${date}T00:00:00`)
-				.lt('created_at', `${date}T23:59:59.999`)
-				.range(i, i + chunk - 1);
+					.from('orders')
+					.select('total_price, financial_status')
+					.eq('store_id', storeId)
+					.gte('created_at', `${date}T00:00:00`)
+					.lt('created_at', `${date}T23:59:59.999`)
+					.range(i, i + chunk - 1);
 
 				if (revenueError) throw revenueError;
 				ordersData.forEach(order => {
@@ -72,16 +72,16 @@ class AnalyticsService {
 					}
 				});
 			}
-			
+
 			const revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
 
 			// Get Google Ads spend
 			const { count: adSpendCount, error: adSpendError } = await supabase.from("ad_spend_detailed")
-				.select("*", {count: "exact"}).eq("store_id", storeId).eq("date", date);
+				.select("*", { count: "exact" }).eq("store_id", storeId).eq("date", date);
 			if (adSpendError) throw adSpendError;
 			var chunk = 1000, googleAdsSpend = 0, facebookAdsSpend = 0, taboolaAdsSpend = 0;
 			for (var i = 0; i < adSpendCount; i += chunk) {
-				const {data: adSpendChunk, error: adSpendError} = await supabase.from("ad_spend_detailed")
+				const { data: adSpendChunk, error: adSpendError } = await supabase.from("ad_spend_detailed")
 					.select("*").eq("store_id", storeId).eq("date", date).range(i, i + chunk - 1);
 				adSpendChunk.forEach(ad => {
 					if (ad.platform === "google") {
@@ -221,8 +221,8 @@ class AnalyticsService {
 	async filterAnalyticsByCountry(analyticsData, startDate, endDate, storeId, countryName, countryCode) {
 		try {
 			// Get country-specific campaigns
-			const {count: campaignCount, error: campaignCountError} = await supabase.from("ad_campaigns")
-				.select("*", {count: "exact"}).eq("store_id", storeId).or(`country_code.eq.${countryCode},country_code.is.null`).eq("status", "active");
+			const { count: campaignCount, error: campaignCountError } = await supabase.from("ad_campaigns")
+				.select("*", { count: "exact" }).eq("store_id", storeId).or(`country_code.eq.${countryCode},country_code.is.null`).eq("status", "active");
 			if (campaignCountError) {
 				console.error('❌ Error fetching country campaigns:', campaignCountError);
 				return analyticsData; // Return original data if error
@@ -233,12 +233,12 @@ class AnalyticsService {
 			var d = new Date()
 			for (var i = 0; i < campaignCount; i += chunk) {
 				const { data: campaignsChunk, error: campaignsError } = await supabase
-				.from('ad_campaigns')
-				.select('campaign_id')
-				.eq('store_id', storeId)
-				.or(`country_code.eq.${countryCode},country_code.is.null`)
-				.eq('status', 'active')
-				.range(i, i + chunk - 1);
+					.from('ad_campaigns')
+					.select('campaign_id')
+					.eq('store_id', storeId)
+					.or(`country_code.eq.${countryCode},country_code.is.null`)
+					.eq('status', 'active')
+					.range(i, i + chunk - 1);
 
 				if (campaignsError) {
 					console.error('❌ Error fetching country campaigns:', campaignsError);
@@ -248,8 +248,8 @@ class AnalyticsService {
 			}
 
 			// Get country-specific ad spend data
-			const {count: adSpendCount, error: adSpendCountError} = await supabase.from("ad_spend_detailed")
-				.select("*", {count: "exact"}).in('campaign_id', campaignIds)
+			const { count: adSpendCount, error: adSpendCountError } = await supabase.from("ad_spend_detailed")
+				.select("*", { count: "exact" }).in('campaign_id', campaignIds)
 				.eq('store_id', storeId).gte('date', startDate).lte('date', endDate);
 			if (adSpendCountError) {
 				console.error('❌ Error fetching country ad spend count:', adSpendCountError);
@@ -259,7 +259,7 @@ class AnalyticsService {
 
 			var adSpendData = [];
 			for (var i = 0; i < adSpendCount; i += chunk) {
-				const {data: adSpendDataChunk, error: adSpendDataError} = await supabase.from("ad_spend_detailed")
+				const { data: adSpendDataChunk, error: adSpendDataError } = await supabase.from("ad_spend_detailed")
 					.select("date, platform, spend_amount, currency").in('campaign_id', campaignIds).eq('store_id', storeId)
 					.gte('date', startDate).lte('date', endDate).range(i, i + chunk - 1);
 				if (adSpendDataError) {
@@ -268,8 +268,8 @@ class AnalyticsService {
 				}
 				adSpendData.push(...adSpendDataChunk);
 			}
-			
-			var {data: ordersByDateCountry, error: ordersByDateCountryError} = await supabase.rpc("get_orders_total_price_by_date_country", {
+
+			var { data: ordersByDateCountry, error: ordersByDateCountryError } = await supabase.rpc("get_orders_total_price_by_date_country", {
 				p_store_id: storeId,
 				start_date: startDate,
 				end_date: endDate,
@@ -289,7 +289,7 @@ class AnalyticsService {
 				return analyticsData; // Return original data if error
 			}
 
-			const {count: customerCount, error: customerCountError} = await supabase.from("customers").select("*", {count: "exact"}).eq("store_id", storeId).eq("order_country", countryName);
+			const { count: customerCount, error: customerCountError } = await supabase.from("customers").select("*", { count: "exact" }).eq("store_id", storeId).eq("order_country", countryName);
 			if (customerCountError) {
 				console.error('❌ Error fetching country customers:', customerCountError);
 				return analyticsData; // Return original data if error
@@ -317,7 +317,7 @@ class AnalyticsService {
 				countryRevenueByDate[date] = (countryRevenueByDate[date] || 0) + parseFloat(order.paid_orders_price);
 			});
 
-			var {data: costOfGoods} = await supabase.from("country_costs")
+			var { data: costOfGoods } = await supabase.from("country_costs")
 				.select("*").eq("store_id", storeId).gte("date", startDate).lte("date", endDate)
 				.eq("country", countryName);
 			var costOfGoodsByDate = {};
@@ -328,7 +328,7 @@ class AnalyticsService {
 
 
 			// Update analytics data with country-specific values
-			var analytics =analyticsData.map(day => {
+			var analytics = analyticsData.map(day => {
 				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
 				const countryCostOfGoods = costOfGoodsByDate[day.date] || 0;
@@ -345,13 +345,15 @@ class AnalyticsService {
 				};
 			});
 
-			return {analytics, summaryData: {
-				totalOrders: totalOrdersCount,
-				paidOrders: paidOrdersCount,
-				totalRevenue: paidOrdersPrice,
-				paidRevenue: paidOrdersPrice,
-				avgOrderValue: paidOrdersPrice / totalOrdersCount,
-			}}
+			return {
+				analytics, summaryData: {
+					totalOrders: totalOrdersCount,
+					paidOrders: paidOrdersCount,
+					totalRevenue: paidOrdersPrice,
+					paidRevenue: paidOrdersPrice,
+					avgOrderValue: paidOrdersPrice / totalOrdersCount,
+				}
+			}
 
 		} catch (error) {
 			console.error('❌ Error filtering analytics by country:', error);
@@ -393,11 +395,11 @@ class AnalyticsService {
 				var data = {}
 				var countryName = ""
 				if (country && country !== 'all') {
-					const {data:countryCodes} = await supabase.from("countries").select("country_code, country_name").eq("country_code", country).limit(1);
+					const { data: countryCodes } = await supabase.from("countries").select("country_code, country_name").eq("country_code", country).limit(1);
 					if (countryCodes.length > 0) {
 						countryName = countryCodes[0].country_name;
 					}
-					var {analytics, summaryData} = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, countryName, country);
+					var { analytics, summaryData } = await this.filterAnalyticsByCountry(allAnalyticsData, startDate, endDate, storeId, countryName, country);
 					allAnalyticsData = analytics;
 					data = summaryData;
 				}
@@ -448,7 +450,7 @@ class AnalyticsService {
 					? (summary.totalProfit / summary.totalRevenue) * 100
 					: 0;
 
-				return {summary, analytics: completeData};
+				return { summary, analytics: completeData };
 			});
 		} catch (error) {
 			console.error('❌ Error getting summary stats:', error);
@@ -588,7 +590,7 @@ class AnalyticsService {
 		// Use the retryOperation helper for database resilience
 		return retryOperation(async () => {
 			try {
-				const {data: productTrends, error: productTrendsError} = await supabase
+				const { data: productTrends, error: productTrendsError } = await supabase
 					.from('product_trends')
 					.select('*')
 					.eq('store_id', storeId)
@@ -615,7 +617,7 @@ class AnalyticsService {
 					if (!groupedBySku[sku]) {
 						groupedBySku[sku] = [];
 					}
-					
+
 					// Transform the data to match frontend expectations
 					groupedBySku[sku].push({
 						month_year: trend.month_year,
@@ -633,7 +635,7 @@ class AnalyticsService {
 				const sortedSkus = Object.keys(groupedBySku).sort((a, b) => {
 					const aTotal = groupedBySku[a].reduce((sum, item) => sum + (item[sortBy] || 0), 0);
 					const bTotal = groupedBySku[b].reduce((sum, item) => sum + (item[sortBy] || 0), 0);
-					
+
 					return sortOrder === 'desc' ? bTotal - aTotal : aTotal - bTotal;
 				});
 
@@ -648,7 +650,7 @@ class AnalyticsService {
 					data: sortedData,
 					message: `Successfully retrieved product trends for ${Object.keys(sortedData).length} SKUs`
 				};
-				
+
 			} catch (error) {
 				console.error('❌ Error in monthly product SKU analytics:', error);
 				throw error;
@@ -704,7 +706,7 @@ class AnalyticsService {
 						total: 0
 					});
 				}
-			console.log(2.2)
+				console.log(2.2)
 				return;
 			}
 
@@ -725,11 +727,11 @@ class AnalyticsService {
 				try {
 					// Calculate revenue for this date ONLY
 					const { count: ordersCount, error: ordersCountError } = await supabase
-					.from('orders')
-					.select('*', { count: 'exact' })
-					.eq('store_id', storeId)
-					.gte('created_at', `${date}T00:00:00`)
-					.lt('created_at', `${date}T23:59:59.999`);
+						.from('orders')
+						.select('*', { count: 'exact' })
+						.eq('store_id', storeId)
+						.gte('created_at', `${date}T00:00:00`)
+						.lt('created_at', `${date}T23:59:59.999`);
 
 					if (ordersCountError) throw ordersCountError;
 
@@ -738,18 +740,18 @@ class AnalyticsService {
 						start_date: date + 'T00:00:00',
 						end_date: date + 'T23:59:59.999'
 					});
-					
+
 					var chunk = 1000;
 
 					let revenueData = [];
 					for (var i = 0; i < ordersCount; i += chunk) {
 						const { data: ordersData, error: revenueError } = await supabase
-						.from('orders')
-						.select('total_price, financial_status')
-						.eq('store_id', storeId)
-						.gte('created_at', `${date}T00:00:00`)
-						.lt('created_at', `${date}T23:59:59.999`)
-						.range(i, i + chunk - 1);
+							.from('orders')
+							.select('total_price, financial_status')
+							.eq('store_id', storeId)
+							.gte('created_at', `${date}T00:00:00`)
+							.lt('created_at', `${date}T23:59:59.999`)
+							.range(i, i + chunk - 1);
 
 						if (revenueError) throw revenueError;
 						ordersData.forEach(order => {
@@ -804,9 +806,9 @@ class AnalyticsService {
 
 					const { error: upsertError } = await supabase
 						.from('analytics')
-						.upsert(analyticsData, { 
+						.upsert(analyticsData, {
 							onConflict: 'date,store_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 
 					if (upsertError) throw upsertError;
@@ -855,7 +857,7 @@ class AnalyticsService {
 
 		} catch (error) {
 			console.error('❌ Error in orders-only recalculation:', error);
-			
+
 			if (socket) {
 				this.sendWebSocketMessage(socket, socketStatus, {
 					stage: 'error',
@@ -882,11 +884,11 @@ class AnalyticsService {
 		} = options;
 
 		const { data: productRevenue, error: productRevenueError } = await supabase
-		.rpc('aggregate_product_revenue', {
-			p_store_id: storeId,
-			p_start_date: startDate,
-			p_end_date: endDate
-		});
+			.rpc('aggregate_product_revenue', {
+				p_store_id: storeId,
+				p_start_date: startDate,
+				p_end_date: endDate
+			});
 
 		if (productRevenueError) throw productRevenueError;
 
@@ -901,10 +903,10 @@ class AnalyticsService {
 				productSkus.push(productSku);
 			}
 		});
-		
+
 		// Process and enrich product data
 		// Get manual product-campaign links
-		const {count: campaignCount} = await supabase
+		const { count: campaignCount } = await supabase
 			.from('product_campaign_links')
 			.select('*', { count: 'exact', head: true })
 			.eq('store_id', storeId)
@@ -927,11 +929,11 @@ class AnalyticsService {
 		var campaignNames = allProductCampaignLinks.map(link => link.campaign_id);
 
 		const { data: adSpend, error: adSpendError } = await supabase
-		.rpc('aggregate_ad_spend_by_campaign', {
-			start_date: startDate + 'T00:00:00',
-			end_date: endDate + 'T23:59:59.999',
-			p_campaign_names: campaignNames
-		});
+			.rpc('aggregate_ad_spend_by_campaign', {
+				start_date: startDate + 'T00:00:00',
+				end_date: endDate + 'T23:59:59.999',
+				p_campaign_names: campaignNames
+			});
 
 		let productData = [];
 		if (storeId == "meonutrition") {
@@ -981,7 +983,7 @@ class AnalyticsService {
 			}
 			// Find manual links for this product
 			const productLinks = allProductCampaignLinks.filter(link => link.product_sku === product.product_sku);
-			
+
 			// Calculate total ad spend from linked campaigns
 			productLinks.forEach(link => {
 				const campaignSpend = adSpend.find(ad => ad.campaign_id === link.campaign_id);
@@ -1003,7 +1005,7 @@ class AnalyticsService {
 		// Apply search filter
 		if (search) {
 			const searchLower = search.toLowerCase();
-			processedProducts = processedProducts.filter(product => 
+			processedProducts = processedProducts.filter(product =>
 				product.sku_title.toLowerCase().includes(searchLower)
 			);
 		}
@@ -1011,17 +1013,17 @@ class AnalyticsService {
 		processedProducts.sort((a, b) => {
 			let aValue = a[sortBy];
 			let bValue = b[sortBy];
-			
+
 			// Handle null/undefined values
 			if (aValue === null || aValue === undefined) aValue = 0;
 			if (bValue === null || bValue === undefined) bValue = 0;
-			
+
 			// Handle string comparison
 			if (typeof aValue === 'string') {
 				aValue = aValue.toLowerCase();
 				bValue = bValue.toLowerCase();
 			}
-			
+
 			if (sortOrder === 'asc') {
 				return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
 			} else {
@@ -1042,7 +1044,7 @@ class AnalyticsService {
 				}
 			}
 		});
-		
+
 
 		return {
 			products: paginatedProducts,
@@ -1139,9 +1141,9 @@ class AnalyticsService {
 			try {
 				const { error: upsertError } = await supabase
 					.from('analytics')
-					.upsert(analyticsData, { 
+					.upsert(analyticsData, {
 						onConflict: 'date,store_id',
-						ignoreDuplicates: false 
+						ignoreDuplicates: false
 					});
 
 				if (upsertError) {
@@ -1210,7 +1212,7 @@ class AnalyticsService {
 
 			for (let i = 0; i < totalChunks; i++) {
 				const offset = i * chunkSize;
-				
+
 				let query = supabase
 					.from('ad_spend_detailed')
 					.select('date')
@@ -1301,13 +1303,13 @@ class AnalyticsService {
 
 	async calculateAndStoreProductTrends(startDate, endDate, storeId = 'buycosari') {
 		try {
-			
+
 			// Get all unique dates in the range
 			const start = new Date(startDate);
 			const end = new Date(endDate);
 			const allDates = [];
 			const currentDate = new Date(start);
-			
+
 			while (currentDate <= end) {
 				allDates.push(currentDate.toISOString().split('T')[0]);
 				currentDate.setDate(currentDate.getDate() + 1);
@@ -1328,8 +1330,8 @@ class AnalyticsService {
 				const [year, month] = monthYear.split('-').map(Number);
 				// Calculate monthly product analytics
 				const monthlyData = await this.calculateMonthlyProductSkuAnalytics(
-					dates[0], 
-					dates[dates.length - 1], 
+					dates[0],
+					dates[dates.length - 1],
 					storeId
 				);
 
@@ -1364,9 +1366,9 @@ class AnalyticsService {
 			// Upsert to product_trends table
 			const { error: upsertError } = await supabase
 				.from('product_trends')
-				.upsert(trendsData, { 
+				.upsert(trendsData, {
 					onConflict: 'store_id,product_sku,month_year',
-					ignoreDuplicates: false 
+					ignoreDuplicates: false
 				});
 
 			if (upsertError) {
@@ -1380,295 +1382,386 @@ class AnalyticsService {
 		}
 	}
 
+	async calculateMonthlyProductTrends(productTrends, startDate, endDate, storeId = 'buycosari') {
+		try {
+
+
+			var startYear = parseInt(startDate.split('-')[0]);
+			var startMonth = parseInt(startDate.split('-')[1]);
+			var endYear = parseInt(endDate.split('-')[0]);
+			var endMonth = parseInt(endDate.split('-')[1]);
+			var uniqueDates = [];
+
+			for (var year = startYear; year <= endYear; year++) {
+				var sm = 1, em = 12;
+				if (year == startYear) {
+					sm = parseInt(startMonth);
+				}
+				if (year == endYear) {
+					em = parseInt(endMonth);
+				}
+				for (var month = sm; month <= em; month++) {
+					uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
+				}
+			}
+
+			productTrends.forEach(productTrend => {
+				for (var key in productTrend) {
+					var productIds = productTrend.product_ids.split(",");
+					var customersCount = 0;
+					if (key.includes("revenue") || key.includes("profit")) {
+						for (var index = 0; index < allCustomers.length; index++) {
+							var customer = allCustomers[index];
+							if (!customer.first_order_product_ids || !customer.first_order_date || customer.first_order_date.substring(0, 7) != key.substring(0, 7)) {
+								continue;
+							}
+							var ids = customer.first_order_product_ids.split(",")
+							var f = 0;
+							for (var i = 0; i < ids.length; i++) {
+								if (productIds.find(id => id == ids[i])) {
+									f += 1;
+								}
+							}
+							if (f > 0) {
+								customersCount += 1;
+							}
+						}
+						if (customersCount == 0) productTrend[key] = 0;
+						else productTrend[key] = common.roundPrice(productTrend[key] / customersCount) || 0;
+					}
+				}
+			})
+
+			return productTrends;
+
+		} catch (error) {
+			console.error(`❌ Error calculating monthly product trends for ${startDate} to ${endDate}:`, error);
+			throw error;
+		}
+	}
+
 	async recalculateAllProductTrends(sockets, startDate = null, endDate = null, storeId = 'buycosari') {
 		try {
-			var productLtvCohorts = common.productLtvCohorts.get(storeId);
-			if (productLtvCohorts == undefined || productLtvCohorts.length == 0) {
-				var chunkSize = 1000;
 
-				// Emit initial progress
-				if (sockets.length > 0) {
-					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProductProgress', {
-							stage: 'calculating',
-							message: 'Starting Customer LTV calculation...',
-							progress: 0,
-							total: 'unlimited'
-						});
-					})
+			var chunkSize = 1000;
+
+			// Emit initial progress
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: 'Starting Customer LTV calculation...',
+						progress: 0,
+						total: 'unlimited'
+					});
+				})
+			}
+
+			// var {data: adsMonth, error: adsMonthError} = await supabase.rpc("get_monthly_ad_spend", {
+			// 	store_id_param: storeId
+			// });
+
+			console.log(-1)
+			var dd = new Date();
+			const { data: skuData, error: skuError } = await supabase.from("product_skus").select("sku_id, sku_title, product_ids").eq("store_id", storeId);
+			if (skuError) throw skuError;
+
+			var allProductSkus = new Map();
+			skuData.forEach(sku => {
+				if (allProductSkus.has(sku.sku_id)) {
+					allProductSkus.get(sku.sku_id).push(sku);
 				}
-
-				// var {data: adsMonth, error: adsMonthError} = await supabase.rpc("get_monthly_ad_spend", {
-				// 	store_id_param: storeId
-				// });
-
-				console.log(-1)
-				var dd = new Date();
-				const {data: skuData, error: skuError} = await supabase.from("product_skus").select("sku_id, sku_title").eq("store_id", storeId);
-				if (skuError) throw skuError;
-
-				var allProductSkus = new Map();
-				skuData.forEach(sku => {
-					if (allProductSkus.has(sku.sku_id)) {
-						allProductSkus.get(sku.sku_id).push(sku);
-					}
-					else {
-						allProductSkus.set(sku.sku_id, {...sku});
-					}
-				});
-
-				startDate = "2023-01";
-				const {data: minData} = await supabase
-					.from('order_line_items')
-					.select('created_at')
-					.eq('store_id', storeId)
-					.order('created_at', { ascending: true })
-					.limit(1);
-				if (minData.length > 0) {
-					startDate = minData[0].created_at.substring(0, 7);
+				else {
+					allProductSkus.set(sku.sku_id, { ...sku });
 				}
-				endDate = common.getLastDayOfMonthISO(endDate.split('-')[0], endDate.split('-')[1]);
-				const {count: rangeOrderCount, error: rangeOrderCountError} = await supabase
-					.from('order_line_items')
-					.select('*', { count: 'exact', head: true })
-					.eq('store_id', storeId)
-					.eq('financial_status', 'paid')
-					.gte('created_at', `${startDate}-01T00:00:00Z`)
-					.lte('created_at', `${endDate}T23:59:59Z`);
-				
-				if (rangeOrderCountError) throw rangeOrderCountError;
+			});
 
-				if (sockets.length > 0) {
-					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProductProgress', {
-							stage: 'calculating',
-							message: '',
-							progress: 5,
-							total: 'unlimited'
-						});
-					})
-				}
-
-				var rangeOrders = [];
-				console.log(0, rangeOrderCount)
-				for (var i = 0; i < rangeOrderCount; i += chunkSize) {
-					const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
-						.select('customer_id, total_price, created_at, sku')
-						.eq('financial_status', 'paid')
+			var startEndDate = common.getLastDayOfMonthISO(startDate.split('-')[0], startDate.split('-')[1]);
+			const { count: customerCount } = await supabase.from('customers')
+				.select('*', { count: 'exact', head: true })
+				.eq('store_id', storeId)
+				.gte('first_order_date', `${startDate}-01T00:00:00Z`)
+				.lte('first_order_date', `${startEndDate}T23:59:59Z`);
+			var allCustomers = [];
+			if (customerCount > 0) {
+				for (var i = 0; i < customerCount; i += chunkSize) {
+					const { data: customers, error: customersError } = await supabase.from('customers')
+						.select('first_order_date, first_order_product_ids, customer_id')
 						.eq('store_id', storeId)
-						.gte('created_at', `${startDate}-01T00:00:00Z`)
-						.lte('created_at', `${endDate}T23:59:59Z`)
+						.gte('first_order_date', `${startDate}-01T00:00:00Z`)
+						.lte('first_order_date', `${startEndDate}T23:59:59Z`)
+						.order('first_order_date', { ascending: true })
 						.range(i, i + chunkSize - 1);
-					if (rangeOrdersError) throw rangeOrdersError;
-					rangeOrders.push(...orders);
-					if (sockets.length > 0) {
-						sockets.forEach(socket => {
-							sendWebSocketMessage(socket, 'syncProductProgress', {
-								stage: 'calculating',
-								message: '📥 Fetching customers data...',
-								progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(0)),
-								total: 'unlimited'
-							});
-						})
-					}
+					if (customersError) throw customersError;
+					allCustomers.push(...customers);
 				}
-				console.log(1)
+			}
 
+			endDate = common.getLastDayOfMonthISO(endDate.split('-')[0], endDate.split('-')[1]);
+			const { count: rangeOrderCount, error: rangeOrderCountError } = await supabase
+				.from('order_line_items')
+				.select('*', { count: 'exact', head: true })
+				.eq('store_id', storeId)
+				.eq('financial_status', 'paid')
+				.gte('created_at', `${startDate}-01T00:00:00Z`)
+				.lte('created_at', `${endDate}T23:59:59Z`);
+
+			if (rangeOrderCountError) throw rangeOrderCountError;
+
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '',
+						progress: 5,
+						total: 'unlimited'
+					});
+				})
+			}
+
+			var rangeOrders = [];
+			console.log(startDate, 'startDate', endDate)
+			for (var i = 0; i < rangeOrderCount; i += chunkSize) {
+				const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
+					.select('customer_id, total_price, created_at, sku')
+					.eq('financial_status', 'paid')
+					.eq('store_id', storeId)
+					.gte('created_at', `${startDate}-01T00:00:00Z`)
+					.lte('created_at', `${endDate}T23:59:59Z`)
+					.order('created_at', { ascending: true })
+					.range(i, i + chunkSize - 1);
+				if (rangeOrdersError) throw rangeOrdersError;
+				rangeOrders.push(...orders);
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
 						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
-							message: '📥 Fetching product campaign links data...',
-							progress: 50,
+							message: '📥 Fetching customers data...',
+							progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(0)),
 							total: 'unlimited'
 						});
 					})
 				}
+			}
+			console.log(1, rangeOrders.length)
 
-				const {count: adsProductCampaignCount} = await supabase
-					.from('product_campaign_links')
-					.select('*', { count: 'exact', head: true })
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '📥 Fetching product campaign links data...',
+						progress: 50,
+						total: 'unlimited'
+					});
+				})
+			}
+
+			console.log(customerCount)
+			const { count: adsProductCampaignCount } = await supabase
+				.from('product_campaign_links')
+				.select('*', { count: 'exact', head: true })
+				.eq('store_id', storeId)
+				.eq('is_active', true)
+
+			var allProductCampaignLinks = [];
+			for (var i = 0; i < adsProductCampaignCount; i += chunkSize) {
+				const { data: productCampaignLinks, error: productCampaignLinksError } = await supabase.from('product_campaign_links')
+					.select('*')
 					.eq('store_id', storeId)
 					.eq('is_active', true)
-
-				var allProductCampaignLinks = [];
-				for (var i = 0; i < adsProductCampaignCount; i += chunkSize) {
-					const { data: productCampaignLinks, error: productCampaignLinksError } = await supabase.from('product_campaign_links')
-						.select('*')
-						.eq('store_id', storeId)
-						.eq('is_active', true)
-						.range(i, i + chunkSize - 1);
-					if (productCampaignLinksError) throw productCampaignLinksError;
-					allProductCampaignLinks.push(...productCampaignLinks);
-					if (sockets.length > 0) {
-						sockets.forEach(socket => {
-							sendWebSocketMessage(socket, 'syncProductProgress', {
-								stage: 'calculating',
-								message: '📥 Fetching products data...',
-								progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(0)),
-								total: 'unlimited'
-							});
-						})
-					}
-				}
-				console.log(2)
-
+					.range(i, i + chunkSize - 1);
+				if (productCampaignLinksError) throw productCampaignLinksError;
+				allProductCampaignLinks.push(...productCampaignLinks);
 				if (sockets.length > 0) {
 					sockets.forEach(socket => {
 						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '📥 Fetching products data...',
-							progress: 60,
+							progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(0)),
 							total: 'unlimited'
 						});
 					})
 				}
+			}
+			console.log(2)
 
-				const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId);
-				var allCostOfGoods = [];
-				for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
-					const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).range(i, i + chunkSize - 1);
-					if (costOfGoodsError) throw costOfGoodsError;
-					allCostOfGoods.push(...costOfGoods);
-				}
-
-				if (sockets.length > 0) {
-					sockets.forEach(socket => {
-						sendWebSocketMessage(socket, 'syncProductProgress', {
-							stage: 'calculating',
-							message: '� Calculating LTV cohorts...',
-							progress: 70,
-							total: 'unlimited'
-						});
-					})
-				}
-				console.log(3)
-
-				var adsIds = allProductCampaignLinks.map(productCampaignLink => productCampaignLink.campaign_id);
-
-				var allAdsSpend = [];
-				if (adsIds.length > 0) {
-					const {count: adsSpendCount} = await supabase.from('ad_spend_detailed').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('campaign_id', adsIds);
-					if (adsSpendCount > 0) {
-						for (var i = 0; i < adsSpendCount; i += chunkSize) {
-							const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
-								.select('campaign_id, spend_amount, date, currency')
-								.eq('store_id', storeId)
-								.in('campaign_id', adsIds)
-								.range(i, i + chunkSize - 1);
-							if (adsSpendError) throw adsSpendError;
-							allAdsSpend.push(...adsSpend);
-							if (sockets.length > 0) {
-								sockets.forEach((socket) => {
-									sendWebSocketMessage(socket, 'syncProductProgress', {
-										stage: 'calculating',
-										message: '� Calculating LTV cohorts...',
-										progress: Number((70 + (i / adsSpendCount) * 30).toFixed(0)),
-										total: 'unlimited'
-									});
-								})
-							}
-						}
-					}	
-				}
-				
-				allProductCampaignLinks.forEach(productCampaignLink => {
-					allAdsSpend.forEach(ad => {
-						if (ad.campaign_id === productCampaignLink.campaign_id) {
-							var product = allProductSkus.get(productCampaignLink.product_sku);
-							if (product) {
-								if (product[ad.date.substring(0, 7) + '_adSpend']) {
-									product[ad.date.substring(0, 7) + '_adSpend'] += ad.spend_amount;
-								}
-								else {
-									product[ad.date.substring(0, 7) + '_adSpend'] = ad.spend_amount;
-								}
-							}
-						}
-					})
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '📥 Fetching products data...',
+						progress: 60,
+						total: 'unlimited'
+					});
 				})
+			}
 
-				allCostOfGoods.forEach(cogs => {
-					var ss = cogs.product_sku_id;
-					if (ss.includes("-")) {
-						ss = ss.split("-")[0] + "-" + ss.split("-")[1];
-					}
-					var product = allProductSkus.get(ss);
-					if (product) {
-						if (product[cogs.date.substring(0, 7) + '_cogs']) {
-							product[cogs.date.substring(0, 7) + '_cogs'] += cogs.total_cost;
+			const { count: costOfGoodsCount } = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId);
+			var allCostOfGoods = [];
+			for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
+				const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).range(i, i + chunkSize - 1);
+				if (costOfGoodsError) throw costOfGoodsError;
+				allCostOfGoods.push(...costOfGoods);
+			}
+
+			if (sockets.length > 0) {
+				sockets.forEach(socket => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '� Calculating LTV cohorts...',
+						progress: 70,
+						total: 'unlimited'
+					});
+				})
+			}
+			console.log(3)
+
+			var adsIds = allProductCampaignLinks.map(productCampaignLink => productCampaignLink.campaign_id);
+
+			var allAdsSpend = [];
+			if (adsIds.length > 0) {
+				const { count: adsSpendCount } = await supabase.from('ad_spend_detailed').select('*', { count: 'exact', head: true }).eq('store_id', storeId).in('campaign_id', adsIds);
+				if (adsSpendCount > 0) {
+					for (var i = 0; i < adsSpendCount; i += chunkSize) {
+						const { data: adsSpend, error: adsSpendError } = await supabase.from('ad_spend_detailed')
+							.select('campaign_id, spend_amount, date, currency')
+							.eq('store_id', storeId)
+							.in('campaign_id', adsIds)
+							.range(i, i + chunkSize - 1);
+						if (adsSpendError) throw adsSpendError;
+						allAdsSpend.push(...adsSpend);
+						if (sockets.length > 0) {
+							sockets.forEach((socket) => {
+								sendWebSocketMessage(socket, 'syncProductProgress', {
+									stage: 'calculating',
+									message: '� Calculating LTV cohorts...',
+									progress: Number((70 + (i / adsSpendCount) * 20).toFixed(0)),
+									total: 'unlimited'
+								});
+							})
 						}
-						else {
-							product[cogs.date.substring(0, 7) + "_cogs"] = cogs.total_cost;
+					}
+				}
+			}
+
+			allProductCampaignLinks.forEach(productCampaignLink => {
+				allAdsSpend.forEach(ad => {
+					if (ad.campaign_id === productCampaignLink.campaign_id) {
+						var product = allProductSkus.get(productCampaignLink.product_sku);
+						if (product) {
+							if (product[ad.date.substring(0, 7) + '_adSpend']) {
+								product[ad.date.substring(0, 7) + '_adSpend'] += ad.spend_amount;
+							}
+							else {
+								product[ad.date.substring(0, 7) + '_adSpend'] = ad.spend_amount;
+							}
 						}
 					}
 				})
-				console.log(4)
-				
-				var startYear = parseInt(startDate.split('-')[0]);
-				var startMonth = parseInt(startDate.split('-')[1]);
-				var endYear = parseInt(endDate.split('-')[0]);
-				var endMonth = parseInt(endDate.split('-')[1]);
-				var uniqueDates = [];
+			})
 
-				for (var year = startYear; year <= endYear; year++) {
-					var sm = 1, em = 12;
-					if (year == startYear) {
-						sm = parseInt(startMonth);
+			allCostOfGoods.forEach(cogs => {
+				var ss = cogs.product_sku_id;
+				if (ss.includes("-")) {
+					ss = ss.split("-")[0] + "-" + ss.split("-")[1];
+				}
+				var product = allProductSkus.get(ss);
+				if (product) {
+					if (product[cogs.date.substring(0, 7) + '_cogs']) {
+						product[cogs.date.substring(0, 7) + '_cogs'] += cogs.total_cost;
 					}
-					if (year == endYear) {
-						em = parseInt(endMonth);
+					else {
+						product[cogs.date.substring(0, 7) + "_cogs"] = cogs.total_cost;
 					}
-					for (var month = sm; month <= em; month++) {
-						uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
-					}
+				}
+			})
+			console.log(4)
+
+			var startYear = parseInt(startDate.split('-')[0]);
+			var startMonth = parseInt(startDate.split('-')[1]);
+			var endYear = parseInt(endDate.split('-')[0]);
+			var endMonth = parseInt(endDate.split('-')[1]);
+			var uniqueDates = [];
+
+			for (var year = startYear; year <= endYear; year++) {
+				var sm = 1, em = 12;
+				if (year == startYear) {
+					sm = parseInt(startMonth);
+				}
+				if (year == endYear) {
+					em = parseInt(endMonth);
+				}
+				for (var month = sm; month <= em; month++) {
+					uniqueDates.push(`${year}-${month < 10 ? '0' + month : month}`);
+				}
+			}
+			if (sockets.length > 0) {
+				sockets.forEach((socket) => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '� Calculating LTV cohorts...',
+						progress: 90,
+						total: 'unlimited'
+					});
+				})
+			}
+			var date = new Date()
+			// rangeOrders = rangeOrders.filter(order => customerIds.find(id => id == order.customer_id) != undefined)
+			console.log(22, rangeOrders.length)
+			Array.from(allProductSkus.values()).forEach(product => {
+				var totalPrice = 0, profitPrice = 0;
+				product['total_price'] = 0
+				for (var i = 0; i < uniqueDates.length; i++) {
+					var date = uniqueDates[i];
+					var customers = allCustomers.filter(customer => product.product_ids.split(",").some(id => customer.first_order_product_ids != null && customer.first_order_product_ids.includes(id)));
+					var customerIds = customers.map(customer => customer.customer_id)
+					var orderLineItems = rangeOrders.filter(orderLineItem => orderLineItem.created_at.includes(date) && customerIds.includes(orderLineItem.customer_id) && orderLineItem.sku != null && orderLineItem.sku.includes(product.sku_id));
+					orderLineItems.forEach(orderLineItem => {
+						totalPrice += parseFloat(orderLineItem.total_price);
+					})
+					profitPrice = totalPrice - (product[date + '_cogs'] || 0) - (product[date + '_adSpend'] || 0);
+					product[date + '_revenue'] = common.roundPrice(totalPrice) / customers.length;
+					product[date + '_profit'] = common.roundPrice(profitPrice) / customers.length;
+					product['total_price'] += totalPrice;
 				}
 				if (sockets.length > 0) {
 					sockets.forEach((socket) => {
 						sendWebSocketMessage(socket, 'syncProductProgress', {
 							stage: 'calculating',
 							message: '� Calculating LTV cohorts...',
-							progress: 100,
+							progress: Number((90 + (i / Array.from(allProductSkus.values()).length) * 10).toFixed(0)),
 							total: 'unlimited'
 						});
 					})
 				}
-				Array.from(allProductSkus.values()).forEach(product => {
-					for (var i = 0; i < uniqueDates.length; i++) {
-						var date = uniqueDates[i];
-						var orderCount = 0, totalPrice = 0, createdAt = null, profitPrice = 0;
-						rangeOrders.forEach(order => {
-							if (order.created_at.includes(date) && order.sku != null && order.sku.includes(product.sku_id)) {
-								if (createdAt != order.created_at.split(" ")[0]) {
-									orderCount ++;
-									createdAt = order.created_at.split(" ")[0]
-								} 
-								totalPrice += parseFloat(order.total_price);
-							}
-						})
-						
-						profitPrice = totalPrice - (product[date + '_cogs'] || 0) - (product[date + '_adSpend'] || 0);
-						product[date + '_revenue'] = common.roundPrice(totalPrice) / (orderCount == 0 ? 1 : orderCount);
-						product[date + '_profit'] = common.roundPrice(profitPrice) / (orderCount == 0 ? 1 : orderCount);
+			})
+			Array.from(allProductSkus.values()).forEach(product => {
+				for (var key in product) {
+					if (key.includes("_cogs") || key.includes("_adSpend")) {
+						delete product[key];
 					}
+				}
+			})
+			if (sockets.length > 0) {
+				sockets.forEach((socket) => {
+					sendWebSocketMessage(socket, 'syncProductProgress', {
+						stage: 'calculating',
+						message: '� Calculating LTV cohorts...',
+						progress: 100,
+						total: 'unlimited'
+					});
 				})
-				Array.from(allProductSkus.values()).forEach(product => {
-					for (var key in product) {
-						if (key.includes("_cogs") || key.includes("_adSpend")) {
-							delete product[key];
-						}
-					}
-				})
-				common.productLtvCohorts.set(storeId, Array.from(allProductSkus.values()));
 			}
+			var productTrends = Array.from(allProductSkus.values())
+			productTrends.sort((a, b) => b['total_price'] - a['total_price'])
+			console.log(new Date().getTime() - date.getTime())
 			// Step 2: Update with ads and COGS data
 			if (sockets.length > 0) {
-				console.log(common.productLtvCohorts.get(storeId).length)
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, "syncProductProgress", {
 						stage: 'get_product_ltv_cohorts',
 						message: `✅ Product trends recalculation completed for ${storeId}!`,
-						data: JSON.stringify(common.productLtvCohorts.get(storeId))
+						data: JSON.stringify(productTrends)
 					});
 				})
 			}
@@ -1677,7 +1770,7 @@ class AnalyticsService {
 
 		} catch (error) {
 			console.error('❌ Error in full product trends recalculation:', error);
-			
+
 			if (sockets.length > 0) {
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, "syncProductProgress", {
@@ -1731,7 +1824,7 @@ class AnalyticsService {
 				productFirstDates.forEach(trend => {
 					const sku = trend.product_sku;
 					const monthYear = trend.month_year;
-					
+
 					if (!productFirstAppearance[sku] || monthYear < productFirstAppearance[sku]) {
 						productFirstAppearance[sku] = monthYear;
 					}
@@ -1742,16 +1835,16 @@ class AnalyticsService {
 
 				// Calculate individual product performance month-over-month
 				const individualProductData = [];
-				
+
 				uniqueProducts.forEach(sku => {
 					const firstAppearance = productFirstAppearance[sku];
 					const firstAppearanceDate = new Date(firstAppearance + '-01');
-					
+
 					// Calculate the number of months in the selected date range
 					const start = new Date(startDate + '-01');
 					const end = new Date(endDate + '-01');
 					const monthDifference = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-					
+
 					// Initialize product data structure with dynamic months
 					const productData = {
 						productSku: sku,
@@ -1762,7 +1855,7 @@ class AnalyticsService {
 						cac: 0, // Customer Acquisition Cost
 						retentionRate: 0 // Retention Rate (%)
 					};
-					
+
 					// Dynamically add month properties based on selected range
 					for (let i = 0; i < monthDifference; i++) {
 						productData[`month${i}`] = 0;
@@ -1771,11 +1864,11 @@ class AnalyticsService {
 					productFirstDates.forEach(trend => {
 						if (trend.product_sku === sku) {
 							const trendDate = new Date(trend.month_year + '-01');
-							
+
 							// Calculate months since the start of selected range
-							const monthsFromStart = (trendDate.getFullYear() - start.getFullYear()) * 12 + 
+							const monthsFromStart = (trendDate.getFullYear() - start.getFullYear()) * 12 +
 								(trendDate.getMonth() - start.getMonth());
-							
+
 							// Get the metric value
 							let metricValue = 0;
 							switch (metric) {
@@ -1804,7 +1897,7 @@ class AnalyticsService {
 					for (let i = 0; i < monthDifference; i++) {
 						productData.totalValue += productData[`month${i}`] || 0;
 					}
-					
+
 					// Calculate growth rate if we have data
 					if (productData.month0 > 0) {
 						const lastMonthIndex = monthDifference - 1;
@@ -1818,20 +1911,20 @@ class AnalyticsService {
 
 					let retentionMonths = 0;
 					let totalMonths = 0;
-					
+
 					// Iterate through available months (excluding month0 which is the first month)
 					for (let i = 1; i < monthDifference && i <= 12; i++) {
 						const monthKey = `month${i}`;
 						if (productData[monthKey] > 0) {
 							totalMonths++;
 							// If performance is maintained or improved compared to previous month
-							const prevMonthKey = `month${i-1}`;
+							const prevMonthKey = `month${i - 1}`;
 							if (productData[monthKey] >= productData[prevMonthKey] * 0.8) { // 80% threshold
 								retentionMonths++;
 							}
 						}
 					}
-					
+
 					productData.retentionRate = totalMonths > 0 ? (retentionMonths / totalMonths) * 100 : 0;
 
 					individualProductData.push(productData);
@@ -1858,7 +1951,7 @@ class AnalyticsService {
 					timeframe: timeframe,
 					message: `Successfully retrieved individual product analytics for ${individualProductData.length} products`
 				};
-				
+
 			} catch (error) {
 				console.error('❌ Error in individual product cohort analytics:', error);
 				throw error;

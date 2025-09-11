@@ -90,12 +90,10 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     console.log(`🔌 WebSocket ${ws.id} disconnected`);
-    common.removeSocket(ws.id);
   });
 
   ws.on('error', (error) => {
     console.error(`❌ WebSocket ${ws.id} error:`, error);
-    common.removeSocket(ws.id);
   });
 
   // Send welcome message

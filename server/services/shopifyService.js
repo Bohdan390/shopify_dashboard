@@ -693,7 +693,8 @@ class ShopifyService {
 					customer_email: order.customer?.email || null,
 					customer_id: order.customer?.id?.toString() || null,
 					refund_price: totalRefunds,
-					country: order.shipping_address?.country || null
+					country: order.shipping_address?.country || null,
+					saved_at: common.createLocalDateWithTime(new Date())
 				})
 			})
 			

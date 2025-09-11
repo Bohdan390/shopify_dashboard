@@ -68,8 +68,8 @@ router.get('/products-sku', async (req, res) => {
 			.eq('store_id', storeId)
 		
 	  if (error) {
-		console.error('❌ Error fetching products:', error);
-		throw error;
+      console.error('❌ Error fetching products:', error);
+      throw error;
 	  }
   
 	  res.json({ data: productSkus || [] });

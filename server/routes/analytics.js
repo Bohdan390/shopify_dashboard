@@ -736,6 +736,21 @@ function formatMonthDisplay(monthStr) {
 	return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 }
 
+router.post('/get-product-trends', async (req, res) => {
+	try {
+		const { storeId = 'buycosari', startDate, endDate, productTrends } = req.body;
+		const result = await analyticsService.calculateMonthlyProductTrends(productTrends, startDate, endDate, storeId);
+		res.json({success: true, data: result});
+	} catch (error) {
+		console.error('❌ Error getting product trends:', error);
+		res.status(500).json({
+			success: false,
+			message: 'Failed to get product trends',
+			error: error.message
+		});
+	}
+});
+
 // Sync customer LTV cohorts
 router.post('/sync-customer-ltv-cohorts', async (req, res) => {
 	try {
@@ -902,6 +917,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		if (minData.length > 0) {
 			startDate = minData[0].created_at.substring(0, 7);
 		}
+		startDate = '2025-01'
 		endDate = new Date().toISOString().substring(0, 7);
 		endDate = common.getLastDayOfMonthISO(endDate.split('-')[0], endDate.split('-')[1])
 		const {count: rangeOrderCount} = await supabase
@@ -924,6 +940,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			})
 		}
 
+		console.log(rangeOrderCount,  'rangeOrderCount')
 		var rangeOrders = [];
 		for (var i = 0; i < rangeOrderCount; i += chunkSize) {
 			const { data: orders, error: rangeOrdersError } = await supabase.from("order_line_items")
@@ -966,6 +983,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.eq('store_id', storeId)
 			.gte('first_order_date', `${startDate}-01T00:00:00Z`)
 			.lte('first_order_date', `${endDate}T23:59:59Z`)
+		console.log(customerCount,  'customerCount')
 		var allCustomers = [];
 		for (var i = 0; i < customerCount; i += chunkSize) {
 			const { data: customers, error: customersError } = await supabase.from("customers")
@@ -1188,6 +1206,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 		}
 
 		var ltvData = [];
+		console.log(filterCustomers.length, 'filterCustomers')
 		for (var uniqueDate of uniqueDates) {
 			var customers = filterCustomers.filter(customer => customer.first_order_date && customer.first_order_date.substring(0, 7) === uniqueDate);
 			var customerIds = customers.map(customer => customer.customer_id);
@@ -1206,6 +1225,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			var totalRevenue = 0, totalProfit = 0;
 			dates.forEach((date, i) => {
 				var orderLineItems = rangeOrders.filter(orderLineItem => orderLineItem.created_at.includes(date) && customerIds.includes(orderLineItem.customer_id));
+				console.log(orderLineItems.length, customers.length, date)
 				orderLineItems.forEach(orderLineItem => {
 					totalRevenue += parseFloat(orderLineItem.total_price);
 					totalProfit += parseFloat(orderLineItem.total_price);
