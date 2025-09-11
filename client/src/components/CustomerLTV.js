@@ -11,8 +11,8 @@ import {
     TrendingUp,
     Grid,
 } from 'lucide-react';
-let isLtvLoading = false, timeOut = null
-let metric = 'customer-ltv-revenue'
+let isLtvLoading = false, timeOut = null, isSkusLoading = false, connected = false
+let metric = 'customer-ltv-revenue', firstProductSku = ''
 
 const CustomerLTV = () => {
     const { selectedStore, syncCompleted, adsSyncCompleted, syncCustomerLtv, syncProductLtv, setSyncCustomerLtv, setSyncProductLtv } = useStore();
@@ -27,7 +27,6 @@ const CustomerLTV = () => {
     const [ltvStartMonth, setLtvStartMonth] = useState(1);
     const [ltvEndMonth, setLtvEndMonth] = useState(new Date().getMonth() + 1);
     const [ltvViewMode, setLtvViewMode] = useState('table');
-    const [socketConnected, setSocketConnected] = useState(false);
     const [productLtvWithRange, setProductLtvWithRange] = useState([]);
 
     // Product SKU State
@@ -76,7 +75,7 @@ const CustomerLTV = () => {
     const yearOptions = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
     // Fetch individual product LTV data
-    const fetchIndividualLtv = async () => {
+    const fetchIndividualLtv = async (sku = selectedProductSku) => {
         if (isLtvLoading) return;
         isLtvLoading = true;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -86,14 +85,13 @@ const CustomerLTV = () => {
         try {
             setLtvLoading(true);
             const params = new URLSearchParams({
-                sku: selectedProductSku,
+                sku: sku,
                 storeId: selectedStore,
             });
 
             var startDate = ltvStartYear + "-" + (ltvStartMonth > 9 ? ltvStartMonth : "0" + ltvStartMonth);
             var endDate = ltvEndYear + "-" + (ltvEndMonth > 9 ? ltvEndMonth : "0" + ltvEndMonth);
 
-            console.log("isfinsiehd-----------", ltvMetric, syncCustomerLtv)
             if (ltvMetric.includes("customer")) {
                 if (syncCustomerLtv) return;
                 setSyncCustomerLtv(true);
@@ -102,7 +100,7 @@ const CustomerLTV = () => {
                     endDate,
                     storeId: selectedStore || 'buycosari',
                     socketId: socket?.id, // Use the WebSocket ID
-                    sku: selectedProductSku
+                    sku: sku
                 });
             }
             else if (ltvMetric.includes("product")) {
@@ -154,22 +152,17 @@ const CustomerLTV = () => {
 
     // Fetch customer LTV analytics
     const fetchCustomerLtvAnalytics = useCallback(async () => {
-        if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || !selectedProductSku) return;
-        getProductLtvWithRange(ltvProductData, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth);
+        if (!ltvStartYear || !ltvStartMonth || !ltvEndYear || !ltvEndMonth || selectedProductSku == "" || !selectedStore) return;
+        console.log(12345)
         if (!ltvMetric.includes("product") || ltvProductData.length == 0) {
-            fetchIndividualLtv();
+            fetchIndividualLtv(selectedProductSku);
         }
-    }, [selectedStore, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth, selectedProductSku, socketConnected]);
+        else {
+            getProductLtvWithRange(ltvProductData, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth);
+        }
+    }, [selectedStore, ltvMetric, ltvStartYear, ltvStartMonth, ltvEndYear, ltvEndMonth]);
 
     // Format number for display
-
-    useEffect(() => {
-        if (ltvMetric.includes("product") && productLtvSyncProgress.stage != "") return
-        if (ltvMetric.includes("customer") && customerLtvSyncProgress.stage != "") return
-        if (ltvMetric.includes("product") && ltvProductData.length == 0) {
-            fetchIndividualLtv();
-        }
-    }, [ltvMetric]);
 
     const formatNumber = (value) => {
         if (value === null || value === undefined) return '0';
@@ -209,6 +202,7 @@ const CustomerLTV = () => {
     // Handle product selection for individual LTV analysis
     const handleProductSelection = (productSku) => {
         setSelectedProductSku(productSku);
+        fetchIndividualLtv(productSku)
     };
 
     // Handle LTV month range changes
@@ -319,9 +313,15 @@ const CustomerLTV = () => {
         // Add event listener for syncProgress
         addEventListener('refresh_product_skus', (data) => {
             console.log('🔌 Refreshing product skus');
-            fetchIndividualLtv();
+            if (connected) {
+                fetchIndividualLtv(firstProductSku)
+            }
+            else {
+                connected = true;
+            }
         });
         addEventListener('syncCustomerProgress', (data) => {
+            console.log(data)
             if (data.stage && data.stage === 'calculating') {
                 if (!ltvLoading) setLtvLoading(true)
                 setCustomerLtvSyncProgress({
@@ -346,6 +346,7 @@ const CustomerLTV = () => {
             else if (data.stage == "get_customer_ltv_cohorts") {
                 setSyncCustomerLtv(false);
                 setLtvLoading(false);
+                console.log(JSON.parse(data.data))
                 setLtvData(JSON.parse(data.data) || []);
             }
         });
@@ -406,6 +407,8 @@ const CustomerLTV = () => {
     }
     // Fetch product SKUs
     const fetchProductSkus = async () => {
+        if (isSkusLoading) return
+        isSkusLoading = true
         try {
             const response = await api.get('/api/customers/products-sku', {
                 params: {
@@ -417,6 +420,13 @@ const CustomerLTV = () => {
                 setProductSkus(response.data.data);
                 if (response.data.data.length > 0) {
                     setSelectedProductSku(response.data.data[0].sku_id);
+                    if (connected) {
+                        fetchIndividualLtv(response.data.data[0].sku_id)
+                    }
+                    else {
+                        connected = true;
+                        firstProductSku = response.data.data[0].sku_id;
+                    }
                 }
             } else {
                 setProductSkus([]);
@@ -425,6 +435,7 @@ const CustomerLTV = () => {
             console.error('❌ Error fetching product SKUs:', error);
             setProductSkus([]);
         } finally {
+            isSkusLoading = false
             setLoading(false);
         }
     };
@@ -453,6 +464,9 @@ const CustomerLTV = () => {
 
     const renderLtvData = () => {
         if (ltvMetric === 'customer-ltv-revenue' || ltvMetric === 'customer-ltv-profit') {
+            if (syncCustomerLtv) {
+                return <></>
+            }
             return <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {/* Table Header */}
                 <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
@@ -582,6 +596,9 @@ const CustomerLTV = () => {
             </div>
         }
         else if (ltvMetric === 'product-ltv-revenue' || ltvMetric === 'product-ltv-profit') {
+            if (syncProductLtv) {
+                return <></>
+            }
             return <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {/* Table Header */}
                 <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
@@ -739,7 +756,7 @@ const CustomerLTV = () => {
                                 searchPlaceholder="Search products..."
                                 size="md"
                                 className="w-full max-w-md"
-                                disabled={ltvMetric.includes("product")}
+                                disabled={ltvMetric.includes("product") || syncCustomerLtv}
                             />
                         </div>
                         {/* LTV Controls */}

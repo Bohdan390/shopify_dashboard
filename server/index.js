@@ -57,19 +57,19 @@ wss.on('connection', (ws, req) => {
   ws.id = `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   ws.clientIp = req.socket.remoteAddress;
   console.log('🔌 New WebSocket connection:', ws.clientIp);
-  
+
   // Use the new socket management function
   common.addSocket(ws.id, ws);
-  
+
   // Handle incoming messages
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       console.log(`📨 WebSocket message received from ${ws.id}:`, data);
-      
+
       // Update last activity
       ws.lastActivity = Date.now();
-      
+
       if (data.type === 'getSocketId') {
         ws.send(JSON.stringify({ type: 'getSocketId', data: ws.id }));
       } else if (data.type === 'selectStore') {
@@ -87,46 +87,47 @@ wss.on('connection', (ws, req) => {
       console.error('❌ Error parsing WebSocket message:', error);
     }
   });
-  
+
   ws.on('close', () => {
     console.log(`🔌 WebSocket ${ws.id} disconnected`);
     common.removeSocket(ws.id);
   });
-  
+
   ws.on('error', (error) => {
     console.error(`❌ WebSocket ${ws.id} error:`, error);
     common.removeSocket(ws.id);
   });
-  
+
   // Send welcome message
-  ws.send(JSON.stringify({ 
-    type: 'welcome', 
-    data: { 
-      message: 'Connected to server', 
+  ws.send(JSON.stringify({
+    type: 'welcome',
+    data: {
+      message: 'Connected to server',
       socketId: ws.id,
       timestamp: Date.now()
-    } 
+    }
   }));
 });
 
 // Make WebSocket server available to routes
 app.set('wss', wss);
 
-(async () => {
-  try {
-    for (var c in common.currencyRates) {
-      if (c != "USD") {
-        const res = await fetch(`https://api.frankfurter.app/latest?from=${c}&to=USD`);
-        const data = await res.json();
+function fetchCurrencyRates(c) {
+  if (c != "USD") {
+    fetch(`https://api.frankfurter.app/latest?from=${c}&to=USD`)
+      .then(res => res.json())
+      .then(data => {
         common.currencyRates[c] = data.rates.USD;
-      }
-    }
+      })
+      .catch(error => {
+        console.error('❌ Error fetching currency rate:', error);
+      });
   }
-  catch (error) {
-    throw(error)
-  }
-  
-})();
+}
+
+fetchCurrencyRates("SEK")
+fetchCurrencyRates("EUR")
+fetchCurrencyRates("GBP")
 
 // Debug endpoint for socket monitoring
 app.get('/api/debug/sockets', (req, res) => {
@@ -153,7 +154,7 @@ app.use('/api/product-groups', require('./routes/productGroups'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/product-skus', require('./routes/productSkus'));
 app.post('/api/get-currency', (req, res) => {
-  res.json({success: true, currencyRates: common.currencyRates})
+  res.json({ success: true, currencyRates: common.currencyRates })
 });
 
 // Serve static files from React build
@@ -164,11 +165,11 @@ app.use(express.static(buildPath));
 // Catch-all handler: send back React's index.html file for any non-API routes
 app.get('*', (req, res) => {
   const indexPath = path.join(buildPath, 'index.html');
-  
+
   if (require('fs').existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(404).json({ 
+    res.status(404).json({
       error: 'React build files not found',
       buildPath,
       indexPath,
@@ -187,16 +188,16 @@ app.get('/api/sync/status/:storeId', (req, res) => {
   const { storeId } = req.params;
   try {
     const status = cronJobManager.getSyncStatus(storeId);
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       storeId,
       status,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

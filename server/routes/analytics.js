@@ -909,7 +909,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			.select('*', { count: 'exact', head: true })
 			.eq("financial_status", "paid")
 			.eq('store_id', storeId)
-			.eq('sku', sku)
+			.like('sku', `%${sku}%`)
 			.gte('created_at', `${startDate}-01T00:00:00Z`)
 			.lte('created_at', `${endDate}T23:59:59Z`);
 
@@ -930,7 +930,7 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 				.select('customer_id, total_price, created_at, sku, financial_status')
 				.eq("financial_status", "paid")
 				.eq('store_id', storeId)
-				.eq('sku', sku)
+				.like('sku', `%${sku}%`)
 				.gte('created_at', `${startDate}-01T00:00:00Z`)
 				.lte('created_at', `${endDate}T23:59:59Z`)
 				.range(i, i + chunkSize - 1);
@@ -1005,7 +1005,6 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			}
 		}
 
-		console.log(productIds, allCustomers.length, customerCount, filterCustomers.length, productIds.length, startDate, endDate)
 		aa = [...allCustomers]
 		if (sockets.length > 0) {
 			sockets.forEach(socket => {
@@ -1084,10 +1083,10 @@ async function calculateCustomerLtvCohorts(storeId, startDate, endDate, sku, soc
 			})
 		}
 
-		const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId).in("product_id", productIds);
+		const {count: costOfGoodsCount} = await supabase.from("cost_of_goods").select("*", { count: 'exact', head: true }).eq("store_id", storeId).in("product_sku_id", sku);
 		var allCostOfGoods = [];
 		for (var i = 0; i < costOfGoodsCount; i += chunkSize) {
-			const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).in("product_id", productIds).range(i, i + chunkSize - 1);
+			const { data: costOfGoods, error: costOfGoodsError } = await supabase.from("cost_of_goods").select("*").eq("store_id", storeId).in("product_sku_id", sku).range(i, i + chunkSize - 1);
 			if (costOfGoodsError) throw costOfGoodsError;
 			allCostOfGoods.push(...costOfGoods);
 		}
