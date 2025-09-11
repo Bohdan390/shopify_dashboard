@@ -3,6 +3,7 @@ import { useStore } from '../contexts/StoreContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
 import BeautifulSelect from './BeautifulSelect';
+import ProductSkuLinksTableLoader from './loaders/ProductSkuLinksTableLoader';
 import {
     Plus, Edit, Trash2, Search, RefreshCw,
     Package, FileText, TrendingUp, Save, X, XCircle,
@@ -93,6 +94,7 @@ const ProductSkus = () => {
     const [loadingCampaigns, setLoadingCampaigns] = useState(false);
     const [linkingCampaigns, setLinkingCampaigns] = useState(new Set()); // Track which campaigns are being linked/unlinked
     const [campaignSearchTerm, setCampaignSearchTerm] = useState(''); // Search term for campaigns in modal
+    const [deletingSkus, setDeletingSkus] = useState(new Set()); // Track which SKUs are being deleted
 
 
     // Date range handlers
@@ -410,7 +412,7 @@ const ProductSkus = () => {
                                 { value: 50, label: '50' },
                                 { value: 100, label: '100' }
                             ]}
-                            selectClass="pagesize-select"
+                            selectClass="nopa-pagesize-select"
                             placeholder="Select"
                             disabled={loading}
                             className="w-28"
@@ -528,8 +530,25 @@ const ProductSkus = () => {
         // Parse existing product IDs and set selected products
         if (sku.product_ids) {
             const productIds = sku.product_ids.split(',').filter(id => id.trim());
-            const products = availableProducts.filter(p => productIds.includes(p.product_id.toString()));
-            setSelectedProducts(products);
+            availableProducts.forEach(p => {
+                if (productIds.includes(p.product_id.toString())) {
+                    p.isSelected = true;
+                }
+                else {
+                    p.isSelected = false;
+                }
+            })
+            availableProducts.sort((a, b) => {
+                if (a.isSelected && !b.isSelected) {
+                    return -1;
+                }
+                else if (!a.isSelected && b.isSelected) {
+                    return 1;
+                }
+                return 0;
+            })
+            setAvailableProducts(availableProducts);
+            setSelectedProducts(availableProducts.filter(p => p.isSelected));
         } else {
             setSelectedProducts([]);
         }
@@ -617,6 +636,9 @@ const ProductSkus = () => {
             return;
         }
 
+        // Add SKU to deleting set
+        setDeletingSkus(prev => new Set(prev).add(id));
+
         try {
             await api.delete(`/api/product-skus/${id}`, { params: { storeId: selectedStore } });
             fetchProductSkus(pagination.currentPage, searchTerm);
@@ -632,6 +654,13 @@ const ProductSkus = () => {
             } else {
                 alert('Error deleting product SKU');
             }
+        } finally {
+            // Remove SKU from deleting set
+            setDeletingSkus(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(id);
+                return newSet;
+            });
         }
     };
 
@@ -1342,10 +1371,7 @@ const ProductSkus = () => {
                 </div>
 
                 {loading ? (
-                    <div className="p-8 text-center">
-                        <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-                        <p className="text-gray-500">Loading product SKUs...</p>
-                    </div>
+                    <ProductSkuLinksTableLoader />
                 ) : productSkus.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
                         <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
@@ -1530,10 +1556,19 @@ const ProductSkus = () => {
                                                             e.stopPropagation();
                                                             handleDelete(sku.sku_id);
                                                         }}
-                                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                                        title="Delete"
+                                                        disabled={deletingSkus.has(sku.sku_id)}
+                                                        className={`p-1 rounded transition-colors ${
+                                                            deletingSkus.has(sku.sku_id)
+                                                                ? 'text-gray-400 cursor-not-allowed'
+                                                                : 'text-red-600 hover:text-red-900 hover:bg-red-50'
+                                                        }`}
+                                                        title={deletingSkus.has(sku.sku_id) ? "Deleting..." : "Delete"}
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        {deletingSkus.has(sku.sku_id) ? (
+                                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="w-4 h-4" />
+                                                        )}
                                                     </button>
                                                 </div>
                                             </td>

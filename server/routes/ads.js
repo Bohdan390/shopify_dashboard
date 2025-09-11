@@ -707,7 +707,8 @@ router.get('/cog', async (req, res) => {
       page = 1, 
       pageSize = 25, 
       sortBy = 'date', 
-      sortOrder = 'desc' 
+      sortOrder = 'desc',
+      search = ''
     } = req.query;
     
     // buycosari 2023-10-30
@@ -747,6 +748,10 @@ router.get('/cog', async (req, res) => {
       query = query.eq('product_id', product_id);
     }
 
+    if (search) {
+      query = query.ilike('product_title', `%${search}%`);
+    }
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -780,11 +785,12 @@ router.get('/cog', async (req, res) => {
 
 router.get('/cost-summary', async (req, res) => {
   try {
-    const { store_id, start_date, end_date } = req.query;
+    const { store_id, start_date, end_date, search } = req.query;
     const { data, error } = await supabase.rpc('get_cost_of_goods_totals', {
       p_store_id: store_id,
       p_start_date: start_date,
-      p_end_date: end_date
+      p_end_date: end_date,
+      p_search: search || null
     })
 
     if (error) {
