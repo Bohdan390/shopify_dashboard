@@ -819,7 +819,7 @@ class AnalyticsService {
 						this.sendWebSocketMessage(socket, socketStatus, {
 							stage: 'processing',
 							message: `📊 Processing revenue for ${date}... (${processedCount}/${allDates.length})`,
-							progress: Number(progress.toFixed(1)) > 100 ? 100 : Number(progress.toFixed(1)),
+							progress: Number(progress.toFixed(0)) > 100 ? 100 : Number(progress.toFixed(0)),
 							total: allDates.length,
 							current: processedCount
 						});
@@ -1466,7 +1466,7 @@ class AnalyticsService {
 							sendWebSocketMessage(socket, 'syncProductProgress', {
 								stage: 'calculating',
 								message: '📥 Fetching customers data...',
-								progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(1)),
+								progress: Number((5 + (i / rangeOrderCount) * 45).toFixed(0)),
 								total: 'unlimited'
 							});
 						})
@@ -1505,7 +1505,7 @@ class AnalyticsService {
 							sendWebSocketMessage(socket, 'syncProductProgress', {
 								stage: 'calculating',
 								message: '📥 Fetching products data...',
-								progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(1)),
+								progress: Number((50 + (i / adsProductCampaignCount) * 10).toFixed(0)),
 								total: 'unlimited'
 							});
 						})
@@ -1563,7 +1563,7 @@ class AnalyticsService {
 									sendWebSocketMessage(socket, 'syncProductProgress', {
 										stage: 'calculating',
 										message: '� Calculating LTV cohorts...',
-										progress: Number((70 + (i / adsSpendCount) * 30).toFixed(1)),
+										progress: Number((70 + (i / adsSpendCount) * 30).toFixed(0)),
 										total: 'unlimited'
 									});
 								})
@@ -1638,7 +1638,7 @@ class AnalyticsService {
 						var date = uniqueDates[i];
 						var orderCount = 0, totalPrice = 0, createdAt = null, profitPrice = 0;
 						rangeOrders.forEach(order => {
-							if (order.created_at.includes(date) && order.sku.includes(product.sku_id)) {
+							if (order.created_at.includes(date) && order.sku != null && order.sku.includes(product.sku_id)) {
 								if (createdAt != order.created_at.split(" ")[0]) {
 									orderCount ++;
 									createdAt = order.created_at.split(" ")[0]
@@ -1663,6 +1663,7 @@ class AnalyticsService {
 			}
 			// Step 2: Update with ads and COGS data
 			if (sockets.length > 0) {
+				console.log(common.productLtvCohorts.get(storeId).length)
 				sockets.forEach(socket => {
 					sendWebSocketMessage(socket, "syncProductProgress", {
 						stage: 'get_product_ltv_cohorts',
