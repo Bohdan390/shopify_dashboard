@@ -883,18 +883,6 @@ const Orders = () => {
 									className="input-field pl-10 pr-20"
 									disabled={searchLoading || tableLoading}
 								/>
-								<button
-									onClick={handleSearch}
-									disabled={searchLoading || tableLoading}
-									className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-primary-600 text-white px-3 py-1 rounded-md text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-								>
-									{searchLoading ? (
-										<LoadingSpinner size="xs" variant="spinner" />
-									) : (
-										<Search className="w-3 h-3" />
-									)}
-									{searchLoading ? 'Searching...' : 'Search'}
-								</button>
 							</div>
 						</div>
 						<div className="flex gap-4">

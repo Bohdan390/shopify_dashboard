@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Edit, Trash2, Calendar, Filter, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, Globe, ChevronDown } from 'lucide-react';
+import { Package, Plus, Edit, Trash2, Calendar, Filter, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, Globe, ChevronDown, X } from 'lucide-react';
 import api from "../config/axios"
 import CostOfGoodsLoader from './loaders/CostOfGoodsLoader';
 import LoadingSpinner from './LoadingSpinner';
@@ -21,6 +21,8 @@ import * as XLSX from 'xlsx';
 
 const G = require("../config/global");
 
+let isFetchingSummaryStats = false, isFetchingCostOfGoods = false;
+
 const BootstrapDialog = styled(Dialog)(({ theme }) => ({
 	'& .MuiDialogContent-root': {
 		padding: theme.spacing(2),
@@ -36,6 +38,46 @@ const CostOfGoods = () => {
 		const month = String(date.getMonth() + 1).padStart(2, '0');
 		const day = String(date.getDate()).padStart(2, '0');
 		return `${year}-${month}-${day}`;
+	};
+
+	// Sort functions
+	const handleSort = (key) => {
+		const newDirection = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc';
+		const newSortConfig = { key, direction: newDirection };
+		setSortConfig(newSortConfig);
+		// Reset to first page when sorting changes
+		fetchCostOfGoods(1, true, true, newSortConfig);
+	};
+
+	const getSortIcon = (key) => {
+		if (sortConfig.key !== key) {
+			return <ChevronDown className="w-4 h-4 text-gray-400" />;
+		}
+		return sortConfig.direction === 'asc' 
+			? <ChevronDown className="w-4 h-4 text-gray-600 rotate-180" />
+			: <ChevronDown className="w-4 h-4 text-gray-600" />;
+	};
+
+	// Search functions
+	const handleSearchChange = (e) => {
+		const value = e.target.value;
+		setSearchTerm(value);
+		if (value == '') {
+			clearSearch()
+		}
+	};
+
+	const handleSearchKeyPress = (e) => {
+		if (e.key === 'Enter') {
+			fetchSummaryStats();
+			fetchCostOfGoods(1, true, true);
+		}
+	};
+
+	const clearSearch = () => {
+		setSearchTerm('');
+		fetchCostOfGoods(1, true, true, sortConfig, '');
+		fetchSummaryStats('');
 	};
 
 	const { selectedStore, syncCompleted, adsSyncCompleted } = useStore();
@@ -88,6 +130,15 @@ const CostOfGoods = () => {
 	});
 	const [showDatePresets, setShowDatePresets] = useState(false);
 
+	// Sort state
+	const [sortConfig, setSortConfig] = useState({
+		key: 'date',
+		direction: 'desc'
+	});
+
+	// Search state
+	const [searchTerm, setSearchTerm] = useState('');
+
 	// Pagination state
 	const [pageSize, setPageSize] = useState(10);
 	const [pagination, setPagination] = useState({
@@ -111,13 +162,18 @@ const CostOfGoods = () => {
 		fetchProducts();
 	}, []);
 
-	const fetchSummaryStats = () => {
+	const fetchSummaryStats = (search = searchTerm) => {
+		if (isFetchingSummaryStats) return;
+		isFetchingSummaryStats = true;
 		try {
 			const params = new URLSearchParams({
 				startDate: dateRange.startDate,
 				endDate: dateRange.endDate,
 				store_id: selectedStore || 'buycosari',
 			});
+			if (search) {
+				params.append('search', search);
+			}
 			api.get('/api/ads/cost-summary?' + params)
 			.then((response) => {
 				setSummaryStats(response.data.data || {});
@@ -127,6 +183,8 @@ const CostOfGoods = () => {
 			});
 		} catch (error) {
 			console.error('Error fetching products:', error);
+		} finally {
+			isFetchingSummaryStats = false;
 		}
 	}
 	// Listen for sync completion from GlobalStoreSelector and refresh data
@@ -166,7 +224,9 @@ const CostOfGoods = () => {
 		}
 	};
 
-	const fetchCostOfGoods = async (page = 1, resetPagination = false, showTableLoader = false) => {
+	const fetchCostOfGoods = async (page = 1, resetPagination = false, showTableLoader = false, sort = sortConfig, search = searchTerm) => {
+		if (isFetchingCostOfGoods) return;
+		isFetchingCostOfGoods = true;
 		try {
 			if (resetPagination) {
 				setPagination(prev => ({ ...prev, currentPage: page }));
@@ -186,8 +246,9 @@ const CostOfGoods = () => {
 				store_id: selectedStore || 'buycosari',
 				page: page.toString(),
 				pageSize: pageSize.toString(),
-				sortBy: 'date',
-				sortOrder: 'desc'
+				sortBy: sort.key,
+				sortOrder: sort.direction,
+				search: search || ''
 			});
 
 			const response = await api.get(`/api/ads/cog?${params}`);
@@ -209,6 +270,7 @@ const CostOfGoods = () => {
 				window.showPrimeToast('Failed to load cost of goods data', 'error');
 			}
 		} finally {
+			isFetchingCostOfGoods = false;
 			if (showTableLoader) {
 				setTableLoading(false);
 			} else {
@@ -436,23 +498,24 @@ const CostOfGoods = () => {
 		const tariffRate = Number(country.tariff_rate || 0);
 
 		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
-		const subtotal = (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+		const subtotal = (countryCostNum + shippingNum + discountsNum) * G.currencyRates[country.currency];
 
 		const vatAmount = subtotal * (vatRate / 100);
 
 		const tariffAmount = subtotal * (tariffRate / 100);
 
-		return subtotal + vatAmount + tariffAmount;
+		const processingFeeAmount = subtotal * (processingFeeNum / 100);
+
+		return subtotal + vatAmount + tariffAmount + processingFeeAmount;
 	};
 
 	const calculateSubtotalPerUnit = (country) => {
 		const countryCostNum = Number(country.cost_of_goods || 0);
 		const shippingNum = Number(country.shipping_cost || 0);
 		const discountsNum = Number(country.discounts_and_refunds || 0);
-		const processingFeeNum = Number(country.payment_processing_fee || 0);
 
 		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
-		const subtotal = (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+		const subtotal = (countryCostNum + shippingNum + discountsNum) * G.currencyRates[country.currency];
 
 		return G.roundPrice(subtotal);
 	}
@@ -461,11 +524,10 @@ const CostOfGoods = () => {
 		const countryCostNum = Number(country.cost_of_goods || 0);
 		const shippingNum = Number(country.shipping_cost || 0);
 		const discountsNum = Number(country.discounts_and_refunds || 0);
-		const processingFeeNum = Number(country.payment_processing_fee || 0);
 		const vatRate = Number(country.vat_rate || 0);
 
 		// Calculate subtotal (base + country cost + shipping + discounts + processing fees)
-		const subtotal = (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+		const subtotal = (countryCostNum + shippingNum + discountsNum) * G.currencyRates[country.currency];
 
 		const vatAmount = G.roundPrice(subtotal * (vatRate / 100));
 
@@ -476,14 +538,26 @@ const CostOfGoods = () => {
 		const countryCostNum = Number(country.cost_of_goods || 0);
 		const shippingNum = Number(country.shipping_cost || 0);
 		const discountsNum = Number(country.discounts_and_refunds || 0);
-		const processingFeeNum = Number(country.payment_processing_fee || 0);
 		const tariffRate = Number(country.tariff_rate || 0);
 
-		const subtotal = (countryCostNum + shippingNum + discountsNum + processingFeeNum) * G.currencyRates[country.currency];
+		const subtotal = (countryCostNum + shippingNum + discountsNum) * G.currencyRates[country.currency];
 
 		const tariffAmount = G.roundPrice(subtotal * (tariffRate / 100));
 
 		return tariffAmount;
+	}
+
+	const calculateProcessingFeePerUnit = (country) => {	
+		const countryCostNum = Number(country.cost_of_goods || 0);
+		const shippingNum = Number(country.shipping_cost || 0);
+		const discountsNum = Number(country.discounts_and_refunds || 0);
+		const processingFeeNum = Number(country.payment_processing_fee || 0);
+
+		const subtotal = (countryCostNum + shippingNum + discountsNum) * G.currencyRates[country.currency];
+
+		const processingFeeAmount = G.roundPrice(subtotal * (processingFeeNum / 100));
+
+		return processingFeeAmount;
 	}
 
 	// Reset to page 1 when page size changes
@@ -973,6 +1047,46 @@ const CostOfGoods = () => {
 				</div>
 			</div>
 
+			{/* Search Bar */}
+			<div className="card mb-6">
+				<div className="flex items-center gap-4">
+					<div className="flex-1">
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Search Cost of Goods
+						</label>
+						<div className="relative">
+							<input
+								type="text"
+								value={searchTerm}
+								onChange={handleSearchChange}
+								onKeyPress={handleSearchKeyPress}
+								placeholder="Search by product name, SKU, or cost... (Press Enter to search)"
+								className="w-full px-4 py-2 pl-10 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+								disabled={searchLoading || tableLoading}
+							/>
+							<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+								<Package className="h-4 w-4 text-gray-400" />
+							</div>
+							{searchTerm && (
+								<button
+									onClick={clearSearch}
+									className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+									disabled={searchLoading || tableLoading}
+								>
+									<X className="h-4 w-4" />
+								</button>
+							)}
+						</div>
+					</div>
+					{searchLoading && (
+						<div className="flex items-center text-sm text-gray-500">
+							<RefreshCw className="w-4 h-4 animate-spin mr-2" />
+							Searching...
+						</div>
+					)}
+				</div>
+			</div>
+
 			{/* Summary Cards */}
 			<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
 				<div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -1069,12 +1183,59 @@ const CostOfGoods = () => {
 						<table className="min-w-full divide-y divide-gray-200">
 							<thead className="bg-gray-50">
 								<tr>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{selectedStore == "meonutrition" ? "Product SKU" : "Product Name"}</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AVG Cost/Unit</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<button
+											onClick={() => handleSort('product_title')}
+											disabled={tableLoading}
+											className={`flex items-center space-x-1 transition-colors ${!tableLoading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+										>
+											<span>{selectedStore == "meonutrition" ? "Product SKU" : "Product Name"}</span>
+											{getSortIcon('product_title')}
+										</button>
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<button
+											onClick={() => handleSort('cost_per_unit')}
+											disabled={tableLoading}
+											className={`flex items-center space-x-1 transition-colors ${!tableLoading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+										>
+											<span>AVG Cost/Unit</span>
+											{getSortIcon('cost_per_unit')}
+										</button>
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<button
+											onClick={() => handleSort('quantity')}
+											disabled={tableLoading}
+											className={`flex items-center space-x-1 transition-colors ${!tableLoading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+										>
+											<span>Quantity</span>
+											{getSortIcon('quantity')}
+										</button>
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<button
+											onClick={() => handleSort('total_cost')}
+											disabled={tableLoading}
+											className={`flex items-center space-x-1 transition-colors ${!tableLoading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+										>
+											<span>Total Cost</span>
+											{getSortIcon('total_cost')}
+										</button>
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<button
+											onClick={() => handleSort('date')}
+											disabled={tableLoading}
+											className={`flex items-center space-x-1 transition-colors ${!tableLoading ? 'hover:text-gray-700 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+										>
+											<span>Date</span>
+											{getSortIcon('date')}
+										</button>
+									</th>
+									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Actions
+									</th>
 								</tr>
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
@@ -1167,10 +1328,10 @@ const CostOfGoods = () => {
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cost of Goods</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shipping</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Discounts</th>
-																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment Processing</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">VAT Rate</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tariff Rate</th>
+																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Processing Fee</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Cost</th>
 																						<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Currency</th>
 																					</tr>
@@ -1191,9 +1352,6 @@ const CostOfGoods = () => {
 																								{displayCurrency(Number(countryCost.discounts_and_refunds || 0).toFixed(2), countryCost.currency)}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
-																								{displayCurrency(Number(countryCost.payment_processing_fee || 0).toFixed(2), countryCost.currency)}
-																							</td>
-																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{countryCost.quantity.toLocaleString()}
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
@@ -1201,6 +1359,9 @@ const CostOfGoods = () => {
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{Number(countryCost.tariff_rate || 0).toFixed(1)}%
+																							</td>
+																							<td className="px-4 py-2 text-sm text-gray-900">
+																								{Number(countryCost.payment_processing_fee || 0).toFixed(1)}%
 																							</td>
 																							<td className="px-4 py-2 text-sm text-gray-900">
 																								{displayCurrency(Number(countryCost.total_cost || 0).toFixed(2), countryCost.currency)}
@@ -1251,7 +1412,7 @@ const CostOfGoods = () => {
 						<form onSubmit={handleSubmit} className="space-y-4">
 
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Product Title *</label>
+								<label className="block text-sm font-medium text-gray-700 mb-1">{selectedStore == "meonutrition" ? "Product SKU Title *" : "Product Title *"}</label>
 								<Autocomplete
 									id="free-solo-demo"
 									freeSolo
@@ -1424,10 +1585,10 @@ const CostOfGoods = () => {
 																			<span className="font-medium">Tariff:</span> {country.tariff_rate}%
 																		</div>
 																		<div>
-																			<span className="font-medium">Discounts:</span> {displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}
+																			<span className="font-medium">Processing:</span> {country.payment_processing_fee}%
 																		</div>
 																		<div>
-																			<span className="font-medium">Processing:</span> {displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}
+																			<span className="font-medium">Discounts:</span> {displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}
 																		</div>
 																		<div>
 																			<span className="font-medium">Quantity:</span> {country.quantity}
@@ -1453,10 +1614,6 @@ const CostOfGoods = () => {
 																				<span className="text-gray-700">{displayCurrency(Number(country.discounts_and_refunds || 0).toFixed(2), country.currency)}</span>
 																			</div>
 																			<div className="flex items-center justify-between text-xs">
-																				<span className="text-gray-600">Processing:</span>
-																				<span className="text-gray-700">{displayCurrency(Number(country.payment_processing_fee || 0).toFixed(2), country.currency)}</span>
-																			</div>
-																			<div className="flex items-center justify-between text-xs">
 																				<span className="text-gray-600">Subtotal:</span>
 																				<span className="text-gray-700 font-medium">
 																					${calculateSubtotalPerUnit(country)}
@@ -1465,7 +1622,7 @@ const CostOfGoods = () => {
 																		</div>
 
 																		{/* VAT and Tariff Calculation */}
-																		{(Number(country.vat_rate || 0) > 0 || Number(country.tariff_rate || 0) > 0) && (
+																		{(Number(country.vat_rate || 0) > 0 || Number(country.tariff_rate || 0) > 0 || Number(country.payment_processing_fee || 0) > 0) && (
 																			<div className="space-y-2 mb-3 p-2 bg-gray-50 rounded">
 																				{Number(country.vat_rate || 0) > 0 && (
 																					<div className="flex items-center justify-between text-xs">
@@ -1477,6 +1634,12 @@ const CostOfGoods = () => {
 																					<div className="flex items-center justify-between text-xs">
 																						<span className="text-gray-600">Tariff ({country.tariff_rate}%):</span>
 																						<span className="text-red-600">+${calculateTariffPerUnit(country)}</span>
+																					</div>
+																				)}
+																				{Number(country.payment_processing_fee || 0) > 0 && (
+																					<div className="flex items-center justify-between text-xs">
+																						<span className="text-gray-600">Processing ({country.payment_processing_fee}%):</span>
+																						<span className="text-red-600">+${calculateProcessingFeePerUnit(country)}</span>
 																					</div>
 																				)}
 																			</div>
@@ -1627,6 +1790,18 @@ const CostOfGoods = () => {
 							</div>
 
 							<div className="w-full mt-2">
+								<label className="block text-sm font-medium text-gray-700 mb-1">Shipping Cost (USD)</label>
+								<input
+									type="number"
+									step="0.01"
+									value={newCountryCost.shipping_cost || ''}
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, shipping_cost: parseFloat(e.target.value) || '' })}
+									placeholder="0.00"
+									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+								/>
+							</div>
+
+							<div className="w-full mt-2">
 								<label className="block text-sm font-medium text-gray-700 mb-1">VAT Rate (%)</label>
 								<input
 									type="number"
@@ -1635,17 +1810,6 @@ const CostOfGoods = () => {
 									max="100"
 									value={newCountryCost.vat_rate || ''}
 									onChange={(e) => setNewCountryCost({ ...newCountryCost, vat_rate: parseFloat(e.target.value) || '' })}
-									placeholder="0.00"
-									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-								/>
-							</div>
-							<div className="w-full mt-2">
-								<label className="block text-sm font-medium text-gray-700 mb-1">Shipping Cost (USD)</label>
-								<input
-									type="number"
-									step="0.01"
-									value={newCountryCost.shipping_cost || ''}
-									onChange={(e) => setNewCountryCost({ ...newCountryCost, shipping_cost: parseFloat(e.target.value) || '' })}
 									placeholder="0.00"
 									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 								/>
@@ -1666,24 +1830,24 @@ const CostOfGoods = () => {
 							</div>
 
 							<div className="w-full mt-2">
-								<label className="block text-sm font-medium text-gray-700 mb-1">Discounts and Refunds (USD)</label>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Payment Processing Fee (%)</label>
 								<input
 									type="number"
 									step="0.01"
-									value={newCountryCost.discounts_and_refunds || ''}
-									onChange={(e) => setNewCountryCost({ ...newCountryCost, discounts_and_refunds: parseFloat(e.target.value) || '' })}
+									value={newCountryCost.payment_processing_fee || ''}
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, payment_processing_fee: parseFloat(e.target.value) || '' })}
 									placeholder="0.00"
 									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 								/>
 							</div>
 
 							<div className="w-full mt-2">
-								<label className="block text-sm font-medium text-gray-700 mb-1">Payment Processing Fee (USD)</label>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Discounts and Refunds (USD)</label>
 								<input
 									type="number"
 									step="0.01"
-									value={newCountryCost.payment_processing_fee || ''}
-									onChange={(e) => setNewCountryCost({ ...newCountryCost, payment_processing_fee: parseFloat(e.target.value) || '' })}
+									value={newCountryCost.discounts_and_refunds || ''}
+									onChange={(e) => setNewCountryCost({ ...newCountryCost, discounts_and_refunds: parseFloat(e.target.value) || '' })}
 									placeholder="0.00"
 									className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
 								/>
