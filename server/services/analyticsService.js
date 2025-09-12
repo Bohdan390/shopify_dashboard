@@ -680,7 +680,7 @@ class AnalyticsService {
 				.eq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('saved_at', `${syncDate}T00:00:00`)
-				.order('saved_at', { ascending: true })
+				.order('created_at', { ascending: true })
 				.limit(1);
 
 			if (minDateError) throw minDateError;
@@ -691,7 +691,7 @@ class AnalyticsService {
 				.eq('financial_status', 'paid')
 				.eq('store_id', storeId)
 				.gte('saved_at', `${syncDate}T00:00:00`)
-				.order('saved_at', { ascending: false })
+				.order('created_at', { ascending: false })
 				.limit(1);
 
 			if (maxDateError) throw maxDateError;
