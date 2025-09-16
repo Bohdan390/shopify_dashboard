@@ -576,7 +576,7 @@ const AdSpend = () => {
 	};
 
 	const getPlatformData = () => {
-		if (selectedStore === "cosara") {
+		if (G.taboolaStores.includes(selectedStore)) {
 			return [
 				{ name: 'Facebook', value: summaryStats.facebookSpend, color: '#1877F2' },
 				{ name: 'Google', value: summaryStats.googleSpend, color: '#f59e0b' },
@@ -1257,8 +1257,7 @@ const AdSpend = () => {
 							</div>
 						</div>
 
-						{/* Taboola Card - Only show for cosara store */}
-						{selectedStore === "cosara" && (
+						{G.taboolaStores.includes(selectedStore) && (
 							<div className="bg-white p-6 rounded-lg shadow-sm border">
 								<div className="flex items-center">
 									<div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
@@ -1382,8 +1381,7 @@ const AdSpend = () => {
 											animationDuration={1000}
 											activeDot={{ r: 6  }}
 										/>
-										{/* Taboola Line - Only show for cosara store */}
-										{selectedStore === "cosara" && (
+										{G.taboolaStores.includes(selectedStore) && (
 											<Line 
 												type="monotone" 
 												dataKey="taboola" 
