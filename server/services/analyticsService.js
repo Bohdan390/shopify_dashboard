@@ -79,7 +79,7 @@ class AnalyticsService {
 			const { count: adSpendCount, error: adSpendError } = await supabase.from("ad_spend_detailed")
 				.select("*", { count: "exact" }).eq("store_id", storeId).eq("date", date);
 			if (adSpendError) throw adSpendError;
-			var chunk = 1000, googleAdsSpend = 0, facebookAdsSpend = 0, taboolaAdsSpend = 0;
+			var chunk = 1000, googleAdsSpend = 0, facebookAdsSpend = 0, taboolaAdsSpend = 0, amazonAdsSpend = 0;
 			for (var i = 0; i < adSpendCount; i += chunk) {
 				const { data: adSpendChunk, error: adSpendError } = await supabase.from("ad_spend_detailed")
 					.select("*").eq("store_id", storeId).eq("date", date).range(i, i + chunk - 1);
@@ -90,9 +90,15 @@ class AnalyticsService {
 						facebookAdsSpend += parseFloat(ad.spend_amount);
 					} else if (ad.platform === "taboola") {
 						taboolaAdsSpend += parseFloat(ad.spend_amount);
+					} else if (ad.platform === "amazon") {
+						amazonAdsSpend += parseFloat(ad.spend_amount);
 					}
 				});
 			}
+
+			// Get Amazon revenue
+			let amazonRevenue = 0;
+			
 			// Get cost of goods
 			const { data: cogData, error: cogError } = await supabase
 				.from('cost_of_goods')
@@ -103,10 +109,11 @@ class AnalyticsService {
 			if (cogError) throw cogError;
 			const costOfGoods = cogData.reduce((sum, cog) => sum + parseFloat(cog.total_cost), 0);
 
-			// Calculate profit
-			const totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend;
-			const profit = revenue - totalAdSpend - costOfGoods;
-			const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+			// Calculate profit (include Amazon revenue and ads)
+			const totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend + amazonAdsSpend;
+			const totalRevenue = revenue + amazonRevenue;
+			const profit = totalRevenue - totalAdSpend - costOfGoods;
+			const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
 			if (date == '2025-09-03') {
 				console.log(revenue, googleAdsSpend, facebookAdsSpend, taboolaAdsSpend, costOfGoods, profit)
@@ -118,8 +125,10 @@ class AnalyticsService {
 				orders_count: ordersCount,
 				customers_count: customerCount.customer_count,
 				revenue: common.roundPrice(revenue),
+				amazon_revenue: common.roundPrice(amazonRevenue),
 				google_ads_spend: common.roundPrice(googleAdsSpend),
 				facebook_ads_spend: common.roundPrice(facebookAdsSpend),
+				amazon_ads_spend: common.roundPrice(amazonAdsSpend),
 				taboola_ads_spend: common.roundPrice(taboolaAdsSpend),
 				cost_of_goods: common.roundPrice(costOfGoods),
 				profit: common.roundPrice(profit),

@@ -10,6 +10,8 @@
 ALTER TABLE IF EXISTS orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS ad_campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS ad_spend_detailed ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS amazon_revenue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS amazon_ads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS cost_of_goods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS analytics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS stores ENABLE ROW LEVEL SECURITY;
@@ -135,15 +137,22 @@ ON CONFLICT (country_code) DO NOTHING;
 -- Analytics Table
 CREATE TABLE IF NOT EXISTS analytics (
   id BIGSERIAL PRIMARY KEY,
-  date DATE UNIQUE NOT NULL,
+  date DATE NOT NULL,
+  store_id VARCHAR(255) NOT NULL,
   revenue DECIMAL(10,2) DEFAULT 0,
+  amazon_revenue DECIMAL(10,2) DEFAULT 0,
   google_ads_spend DECIMAL(10,2) DEFAULT 0,
   facebook_ads_spend DECIMAL(10,2) DEFAULT 0,
+  amazon_ads_spend DECIMAL(10,2) DEFAULT 0,
+  taboola_ads_spend DECIMAL(10,2) DEFAULT 0,
   cost_of_goods DECIMAL(10,2) DEFAULT 0,
   profit DECIMAL(10,2) DEFAULT 0,
   profit_margin DECIMAL(5,2) DEFAULT 0,
+  orders_count INTEGER DEFAULT 0,
+  customers_count INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(date, store_id)
 );
 
 -- Ad Campaigns Table
@@ -217,7 +226,42 @@ CREATE TABLE IF NOT EXISTS ad_spend_detailed (
     store_id VARCHAR(255),
     product_id VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Amazon Revenue Table
+CREATE TABLE IF NOT EXISTS amazon_revenue (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    store_id VARCHAR(255) NOT NULL,
+    total_revenue DECIMAL(10,2) DEFAULT 0,
+    orders_count INTEGER DEFAULT 0,
+    average_order_value DECIMAL(10,2) DEFAULT 0,
+    currency VARCHAR(10) DEFAULT 'USD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(date, store_id)
+);
+
+-- Amazon Ads Table
+CREATE TABLE IF NOT EXISTS amazon_ads (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    store_id VARCHAR(255) NOT NULL,
+    campaign_id VARCHAR(255) NOT NULL,
+    campaign_name VARCHAR(500),
+    ad_group_id VARCHAR(255),
+    ad_group_name VARCHAR(500),
+    keyword VARCHAR(500),
+    match_type VARCHAR(50),
+    spend_amount DECIMAL(10,2) NOT NULL,
+    impressions INTEGER DEFAULT 0,
+    clicks INTEGER DEFAULT 0,
+    conversions INTEGER DEFAULT 0,
+    conversion_value DECIMAL(10,2) DEFAULT 0,
+    currency VARCHAR(10) DEFAULT 'USD',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Customers Table
@@ -255,6 +299,11 @@ CREATE INDEX IF NOT EXISTS idx_ad_campaigns_country ON ad_campaigns(country_code
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_date ON ad_spend_detailed(date);
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_campaign ON ad_spend_detailed(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_ad_spend_detailed_store_product ON ad_spend_detailed(store_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_amazon_revenue_date ON amazon_revenue(date);
+CREATE INDEX IF NOT EXISTS idx_amazon_revenue_store ON amazon_revenue(store_id);
+CREATE INDEX IF NOT EXISTS idx_amazon_ads_date ON amazon_ads(date);
+CREATE INDEX IF NOT EXISTS idx_amazon_ads_store ON amazon_ads(store_id);
+CREATE INDEX IF NOT EXISTS idx_amazon_ads_campaign ON amazon_ads(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_roi_campaign_id ON campaign_roi(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_roi_date ON campaign_roi(date);
 CREATE INDEX IF NOT EXISTS idx_customers_customer_id ON customers(customer_id);
@@ -270,6 +319,8 @@ CREATE POLICY "Allow all operations on cost_of_goods" ON cost_of_goods FOR ALL U
 CREATE POLICY "Allow all operations on analytics" ON analytics FOR ALL USING (true);
 CREATE POLICY "Allow all operations on ad_campaigns" ON ad_campaigns FOR ALL USING (true);
 CREATE POLICY "Allow all operations on ad_spend_detailed" ON ad_spend_detailed FOR ALL USING (true);
+CREATE POLICY "Allow all operations on amazon_revenue" ON amazon_revenue FOR ALL USING (true);
+CREATE POLICY "Allow all operations on amazon_ads" ON amazon_ads FOR ALL USING (true);
 CREATE POLICY "Allow all operations on campaign_roi" ON campaign_roi FOR ALL USING (true);
 CREATE POLICY "Allow all operations on stores" ON stores FOR ALL USING (true);
 CREATE POLICY "Allow all operations on products" ON products FOR ALL USING (true);
@@ -299,6 +350,12 @@ CREATE TRIGGER update_ad_campaigns_updated_at BEFORE UPDATE ON ad_campaigns
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_ad_spend_detailed_updated_at BEFORE UPDATE ON ad_spend_detailed
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_amazon_revenue_updated_at BEFORE UPDATE ON amazon_revenue
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_amazon_ads_updated_at BEFORE UPDATE ON amazon_ads
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_campaign_roi_updated_at BEFORE UPDATE ON campaign_roi

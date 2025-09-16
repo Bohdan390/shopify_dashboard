@@ -43,7 +43,7 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344" }
+        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344,amazon_ads__790647368173980,amazon_sp__A2CXUT36FTE35V-US" }
       }
       else if (storeId == "buycosari") {
         query = { select_accounts: "google_ads__102-337-4754" }
@@ -157,11 +157,12 @@ class WindsorService {
       }
       if (item.source == "facebook") {
         spend += item.spend
-        console.log(item.spend, currency_symbol, 0)
       }
-      if (i == data.length - 1) {
-        console.log(spend)
+
+      if (item.source != "google" && item.source != "facebook") {
+        console.log(item.source)
       }
+      
       return ({
         date: item.date,
         campaign_id: item.campaign || 'unknown',
@@ -293,7 +294,7 @@ class WindsorService {
           const { error: campaignError } = await this.supabase
             .from('ad_campaigns')
             .upsert(chunk, {
-              onConflict: 'campaign_id',
+              onConflict: 'campaign_id, store_id',
               ignoreDuplicates: false
             });
 
