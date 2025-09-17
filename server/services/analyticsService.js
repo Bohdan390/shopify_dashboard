@@ -213,6 +213,9 @@ class AnalyticsService {
 					revenue: 0,
 					google_ads_spend: 0,
 					facebook_ads_spend: 0,
+					amazon_ads_spend: 0,
+					taboola_ads_spend: 0,
+					amazon_revenue: 0,
 					cost_of_goods: 0,
 					profit: 0,
 					profit_margin: 0
@@ -308,12 +311,15 @@ class AnalyticsService {
 			adSpendData.forEach(spend => {
 				const date = spend.date;
 				if (!countryAdSpendByDate[date]) {
-					countryAdSpendByDate[date] = { google: 0, facebook: 0, taboola: 0 };
+					countryAdSpendByDate[date] = { google: 0, facebook: 0, taboola: 0, amazon: 0 };
 				}
 				if (spend.platform === 'google') {
 					countryAdSpendByDate[date].google += parseFloat(spend.spend_amount);
 				} else if (spend.platform === 'facebook') {
 					countryAdSpendByDate[date].facebook += parseFloat(spend.spend_amount);
+				}
+				else if (spend.platform === 'amazon') {
+					countryAdSpendByDate[date].amazon += parseFloat(spend.spend_amount);
 				}
 				else if (spend.platform === 'taboola') {
 					countryAdSpendByDate[date].taboola += parseFloat(spend.spend_amount);
@@ -338,17 +344,18 @@ class AnalyticsService {
 
 			// Update analytics data with country-specific values
 			var analytics = analyticsData.map(day => {
-				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0 };
+				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0, amazon: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
 				const countryCostOfGoods = costOfGoodsByDate[day.date] || 0;
 				return {
 					...day,
+					amazon_ads_spend: countryAdSpend.amazon,
 					taboola_ads_spend: countryAdSpend.taboola,
 					customers_count: customerCount,
 					google_ads_spend: countryAdSpend.google,
 					facebook_ads_spend: countryAdSpend.facebook,
 					revenue: countryRevenue,
-					profit: countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola,
+					profit: countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola - countryAdSpend.amazon,
 					profit_margin: countryRevenue > 0 ? (countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola) / countryRevenue * 100 : 0,
 					cost_of_goods: countryCostOfGoods
 				};
@@ -441,6 +448,9 @@ class AnalyticsService {
 					acc.totalFacebookAds += parseFloat(row.facebook_ads_spend || 0);
 					acc.totalTaboolaAds += parseFloat(row.taboola_ads_spend || 0);
 					acc.totalCostOfGoods += parseFloat(row.cost_of_goods || 0);
+					acc.totalAmazonAds += parseFloat(row.amazon_ads_spend || 0);
+					acc.totalAmazonRevenue += parseFloat(row.amazon_revenue || 0);
+					acc.totalRevenue += parseFloat(row.revenue || 0);
 					acc.totalProfit += parseFloat(row.profit || 0);
 					return acc;
 				}, {
@@ -449,6 +459,8 @@ class AnalyticsService {
 					totalFacebookAds: 0,
 					totalTaboolaAds: 0,
 					totalCostOfGoods: 0,
+					totalAmazonAds: 0,
+					totalAmazonRevenue: 0,
 					totalProfit: 0,
 					totalOrders: data.totalOrders || 0,
 					paidOrders: data.paidOrders || 0
@@ -787,15 +799,19 @@ class AnalyticsService {
 					// Preserve existing ads and COGS data, only update revenue
 					let existingGoogleAds = 0;
 					let existingFacebookAds = 0;
+					let existingTaboolaAds = 0;
+					let existingAmazonAds = 0;
 					let existingCOGS = 0;
 
 					if (existingAnalytics) {
 						existingGoogleAds = parseFloat(existingAnalytics.google_ads_spend) || 0;
 						existingFacebookAds = parseFloat(existingAnalytics.facebook_ads_spend) || 0;
+						existingAmazonAds = parseFloat(existingAnalytics.amazon_ads_spend) || 0;
+						existingTaboolaAds = parseFloat(existingAnalytics.taboola_ads_spend) || 0;
 						existingCOGS = parseFloat(existingAnalytics.cost_of_goods) || 0;
 					}
 
-					const totalAdSpend = existingGoogleAds + existingFacebookAds;
+					const totalAdSpend = existingGoogleAds + existingFacebookAds + existingTaboolaAds + existingAmazonAds;
 					const profit = revenue - totalAdSpend - existingCOGS;
 					const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -1078,11 +1094,11 @@ class AnalyticsService {
 				.from('ad_spend_detailed')
 				.select('spend_amount, platform, currency')
 				.eq('date', date)
-				.in('platform', ['google', 'facebook', 'taboola'])
+				.in('platform', ['google', 'facebook', 'taboola', 'amazon'])
 				.eq('store_id', storeId);
 
 			if (adsError) throw adsError;
-			var googleAdsData = [], faceBookAdsData = [], taboolaAdsData = [];
+			var googleAdsData = [], faceBookAdsData = [], taboolaAdsData = [], amazonAdsData = [];
 			adsData.forEach(ad => {
 				if (ad.platform == 'google') {
 					googleAdsData.push(ad);
@@ -1093,21 +1109,27 @@ class AnalyticsService {
 				else if (ad.platform == 'taboola') {
 					taboolaAdsData.push(ad);
 				}
+				else if (ad.platform == 'amazon') {
+					amazonAdsData.push(ad);
+				}
 			});
 			let googleAdsSpend = googleAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			let facebookAdsSpend = faceBookAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			let taboolaAdsSpend = taboolaAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
+			let amazonAdsSpend = amazonAdsData.reduce((sum, ad) => sum + parseFloat(ad.spend_amount), 0);
 			googleAdsSpend = common.roundPrice(googleAdsSpend);
 			facebookAdsSpend = common.roundPrice(facebookAdsSpend);
 			taboolaAdsSpend = common.roundPrice(taboolaAdsSpend);
+			amazonAdsSpend = common.roundPrice(amazonAdsSpend);
+
 			// Calculate total ad spend
-			let totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend;
+			let totalAdSpend = googleAdsSpend + facebookAdsSpend + taboolaAdsSpend + amazonAdsSpend;
 			totalAdSpend = common.roundPrice(totalAdSpend);
 
 			// Check if analytics record exists for this date and store
 			const { data: existingAnalytics, error: checkError } = await supabase
 				.from('analytics')
-				.select('revenue, cost_of_goods')
+				.select('revenue, cost_of_goods, amazon_revenue')
 				.eq('date', date)
 				.eq('store_id', storeId)
 				.single();
@@ -1119,17 +1141,19 @@ class AnalyticsService {
 
 			let revenue = 0;
 			let existingCostOfGoods = 0;
-
+			let existingAmazonRevenue = 0;
 			if (existingAnalytics) {
 				// Use existing revenue and cost of goods
 				revenue = parseFloat(existingAnalytics.revenue) || 0;
 				existingCostOfGoods = parseFloat(existingAnalytics.cost_of_goods) || 0;
+				existingAmazonRevenue = parseFloat(existingAnalytics.amazon_revenue) || 0;
 				revenue = common.roundPrice(revenue);
 				existingCostOfGoods = common.roundPrice(existingCostOfGoods);
+				existingAmazonRevenue = common.roundPrice(existingAmazonRevenue);
 			}
 
 			// Use the higher cost of goods value (existing or new)
-			let profit = revenue - totalAdSpend - existingCostOfGoods;
+			let profit = revenue + existingAmazonRevenue - totalAdSpend - existingCostOfGoods;
 			profit = common.roundPrice(profit);
 			let profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 			profitMargin = common.roundPrice(profitMargin);
@@ -1142,6 +1166,7 @@ class AnalyticsService {
 				google_ads_spend: googleAdsSpend,
 				facebook_ads_spend: facebookAdsSpend,
 				taboola_ads_spend: taboolaAdsSpend,
+				amazon_ads_spend: amazonAdsSpend,
 				profit: profit,
 				profit_margin: profitMargin
 			};
@@ -1171,6 +1196,7 @@ class AnalyticsService {
 				googleAdsSpend,
 				facebookAdsSpend,
 				taboolaAdsSpend,
+				amazonAdsSpend,
 				profit: profit,
 				profitMargin: profitMargin
 			};

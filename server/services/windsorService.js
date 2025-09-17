@@ -43,7 +43,7 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344,amazon_ads__790647368173980,amazon_sp__A2CXUT36FTE35V-US" }
+        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344" }
       }
       else if (storeId == "buycosari") {
         query = { select_accounts: "google_ads__102-337-4754" }
@@ -105,6 +105,52 @@ class WindsorService {
       else {
         startDate = new Date(new Date().getFullYear(), new Date().getMonth() - 35, 1).toISOString().split("T")[0]
       }
+      var totalAdsData = []
+      if (storeId == "meonutrition") {
+        var fields = [
+          "sponsored_brands_campaign_non_video__clicks,sponsored_brands_campaign_non_video__impressions,sponsored_brands_campaign_non_video__spend,sponsored_brands_campaign_non_video__campaign,sponsored_brands_campaign_non_video__campaignid,date",
+          "sponsored_brands_campaign_video__clicks,sponsored_brands_campaign_video__spend,sponsored_brands_campaign_video__impressions,sponsored_brands_campaign_video__campaign,sponsored_brands_campaign_video__campaignid,date",
+          "sponsored_display_campaign__clicks,sponsored_display_campaign__cost,sponsored_display_campaign__impressions,sponsored_display_campaign__campaign_name,sponsored_display_campaign__campaign_id,date",
+          "sponsored_products_campaign__clicks,sponsored_products_campaign__impressions,sponsored_products_campaign__spend,sponsored_products_campaign__campaign,sponsored_products_campaign__campaignid,date",
+        ]
+        for (var field of fields) {
+          const amazonRes = await axios.get(`${this.baseURL}/amazon_ads`, {
+            params: {
+              api_key: this.apiKey,
+              date_preset: "last_7d",
+              fields: field,
+              _renderer: 'json'
+            }
+          });
+          var data = []
+          if (amazonRes.data.data.length > 0) {
+            amazonRes.data.data.forEach(item => {
+              var d = {source: "amazon", datasource: "amazon", date: item.date, account_name: "windsor_ai"}
+              for (var key in item) {
+                if (key.includes("clicks")) {
+                  d.clicks = item[key]
+                }
+                else if (key.includes("impressions")) {
+                  d.impressions = item[key]
+                }
+                else if (key.includes("spend")) {
+                  d.spend = item[key]
+                }
+                else if (key.includes("campaignid") || key.includes("campaign_id")) {
+                  d.campaign_id = item[key]
+                }
+                else if (key.includes("campaign") || key.includes("campaign_name")) {
+                  d.campaign = item[key]
+                }
+              }
+              d.campaign = d.campaign + "_____" + d.campaign_id
+              delete d.campaign_id
+              data.push(d)
+            })
+          }
+          totalAdsData.push(...data)
+        }
+      }
       const response = await axios.get(`${this.baseURL}/all`, {
         params: {
           api_key: this.apiKey,
@@ -119,7 +165,8 @@ class WindsorService {
         if (storeId == "gamoseries") {
           data = data.filter(item => item.campaign && item.campaign.toLowerCase().includes("gamoseries"));
         }
-        var campaignNames = data.map(item => item.campaign);
+        totalAdsData.push(...data)
+        var campaignNames = totalAdsData.map(item => item.campaign);
 
         const { data: campaignLinks } = await this.supabase.from("product_campaign_links").select("campaign_name, product_sku").in("campaign_name", campaignNames);
         if (campaignLinks.length > 0) {
@@ -129,7 +176,7 @@ class WindsorService {
           }
         }
 
-        return this.processWindsorData(data, dataSource, storeId);
+        return this.processWindsorData(totalAdsData, dataSource, storeId);
       } else {
         return [];
       }
@@ -157,10 +204,6 @@ class WindsorService {
       }
       if (item.source == "facebook") {
         spend += item.spend
-      }
-
-      if (item.source != "google" && item.source != "facebook") {
-        console.log(item.source)
       }
       
       return ({
