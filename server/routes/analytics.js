@@ -57,7 +57,11 @@ router.get('/summary', async (req, res) => {
 			return res.status(400).json({ error: 'startDate and endDate are required' });
 		}
 
-		var {data: products} = await supabase.from("products").select("product_sku_id, product_id, product_title").eq("store_id", storeId);
+		var {data: products, error: productsError} = await supabase.from("products").select("product_sku_id, product_id, product_title").eq("store_id", storeId);
+		if (productsError) {
+			console.error('❌ Error fetching products:', productsError);
+			throw productsError;
+		}
 		var productSkus = new Map()
 		products.forEach(product => {
 			if (product.product_sku_id && product.product_sku_id.includes("-")) {

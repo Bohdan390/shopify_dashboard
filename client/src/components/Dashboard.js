@@ -753,7 +753,8 @@ const Dashboard = () => {
 	};
 
 	const getTotalAdSpend = () => {
-		return (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0) + (G.taboolaStores.includes(selectedStore) ? (summary?.totalTaboolaAds || 0) : 0);
+		return (summary?.totalGoogleAds || 0) + (summary?.totalFacebookAds || 0) 
+			+ (G.taboolaStores.includes(selectedStore) ? (summary?.totalTaboolaAds || 0) : 0) + (summary?.totalAmazonAds || 0);
 	};
 
 	const syncProducts = async () => {
@@ -775,6 +776,28 @@ const Dashboard = () => {
 		totalFacebookAds += item.facebook_ads_spend || 0;
 		totalAmazonAds += item.amazon_ads_spend || 0;
 	});
+
+	var adTooltipData = [
+		{ 
+			name: "Facebook Ads", 
+			value: summary?.totalFacebookAds || 0, 
+			color: '#3b82f6' },
+		{ name: "Google Ads", value: summary?.totalGoogleAds || 0, color: '#f59e0b' },
+	]
+	if (selectedStore === "meonutrition") {
+		adTooltipData.push({
+			name: "Amazon Ads",
+			value: summary?.totalAmazonAds || 0,
+			color: '#8B5CF6'
+		})
+	}
+	if (G.taboolaStores.includes(selectedStore) && totalTaboolaAds > 0) {
+		adTooltipData.push({
+			name: "Taboola Ads",
+			value: summary?.totalTaboolaAds || 0,
+			color: '#f97316'
+		})
+	}
 	return (
 		<div className="p-8 relative">
 			{/* Sync Loading Overlay */}
@@ -1094,13 +1117,12 @@ const Dashboard = () => {
 									animationDuration={1000}
 									yAxisId="left"
 								/>
-								
-								{/* Amazon Revenue Line - Only for MEO Nutrition */}
+
 								{selectedStore === "meonutrition" && (
 									<Line
 										type="monotone"
 										dataKey="amazon_revenue"
-										stroke="#FF6B35"
+										stroke="#0891B2"
 										strokeWidth={2}
 										name="Amazon Revenue"
 										dot={metricsChartData.length <= 50}
@@ -1139,7 +1161,7 @@ const Dashboard = () => {
 									<Line
 										type="monotone"
 										dataKey="amazon_ads_spend"
-										stroke="#E67E22"
+										stroke="#8B5CF6"
 										strokeWidth={2}
 										name="Amazon Ads"
 										dot={metricsChartData.length <= 50}
@@ -1148,11 +1170,11 @@ const Dashboard = () => {
 										yAxisId="left"
 									/>
 								)}
-								{totalTaboolaAds > 0 && 
+								{G.taboolaStores.includes(selectedStore) && 
 									<Line
 										type="monotone"
 										dataKey="taboola_ads_spend"
-										stroke="#FF6B35"
+										stroke="#f97316"
 										strokeWidth={2}
 										name="Taboola"
 										dot={metricsChartData.length <= 50}
@@ -1196,8 +1218,19 @@ const Dashboard = () => {
 							</div>
 							<div className="text-sm text-gray-600">Total Revenue</div>
 						</div>
+						{selectedStore === "meonutrition" && (
+							<div className="card text-center p-4">
+								<div className="text-2xl font-bold" style={{color: "#0891B2"}}>
+									{displayCurrency(
+										metricsChartData.reduce((sum, item) => sum + (item.amazon_revenue || 0), 0),
+										'USD'
+									)}
+								</div>
+								<div className="text-sm text-gray-600">Amazon Revenue</div>
+							</div>
+						)}
 						<div className="card text-center p-4">
-							<div className="text-2xl font-bold text-orange-600">
+							<div className="text-2xl font-bold" style={{color: "#f59e0b"}}>
 								{displayCurrency(
 									metricsChartData.reduce((sum, item) => sum + (item.google_ads_spend || 0), 0),
 									'USD'
@@ -1216,23 +1249,10 @@ const Dashboard = () => {
 							<div className="text-sm text-gray-600">Facebook Ads</div>
 						</div>
 						
-						{/* Amazon Revenue Card - Only for MEO Nutrition */}
-						{selectedStore === "meonutrition" && (
-							<div className="card text-center p-4">
-								<div className="text-2xl font-bold text-red-600">
-									{displayCurrency(
-										metricsChartData.reduce((sum, item) => sum + (item.amazon_revenue || 0), 0),
-										'USD'
-									)}
-								</div>
-								<div className="text-sm text-gray-600">Amazon Revenue</div>
-							</div>
-						)}
-						
 						{/* Amazon Ads Card - Only for MEO Nutrition */}
 						{selectedStore === "meonutrition" && (
 							<div className="card text-center p-4">
-								<div className="text-2xl font-bold text-amber-600">
+								<div className="text-2xl font-bold" style={{color: "#8B5CF6"}}>
 									{displayCurrency(
 										metricsChartData.reduce((sum, item) => sum + (item.amazon_ads_spend || 0), 0),
 										'USD'
@@ -1340,18 +1360,7 @@ const Dashboard = () => {
 							<ResponsiveContainer width="100%" height={300}>
 								<PieChart>
 									<Pie
-										data={[
-											{
-												name: G.taboolaStores.includes(selectedStore) ? "Taboola" : "Facebook Ads",
-												value: G.taboolaStores.includes(selectedStore) ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0,
-												color: '#3b82f6'
-											},
-											{
-												name: "Google Ads",
-												value: summary?.totalGoogleAds || 0,
-												color: '#f59e0b'
-											}
-										]}
+										data={adTooltipData}
 										cx="50%"
 										cy="50%"
 										outerRadius={80}
@@ -1363,13 +1372,7 @@ const Dashboard = () => {
 											// Enhanced hover effect
 										}}
 									>
-										{[
-											{ 
-												name: G.taboolaStores.includes(selectedStore) ? "Taboola" : "Facebook Ads", 
-												value: G.taboolaStores.includes(selectedStore) ? summary?.totalTaboolaAds || 0 : summary?.totalFacebookAds || 0, 
-												color: '#3b82f6' },
-											{ name: "Google Ads", value: summary?.totalGoogleAds || 0, color: '#f59e0b' }
-										].map((entry, index) => (
+										{adTooltipData.map((entry, index) => (
 											<Cell
 												key={`cell-${index}`}
 												fill={entry.color}
@@ -1396,102 +1399,6 @@ const Dashboard = () => {
 
 					</div>
 				</>
-			)}
-
-			{/* Facebook → Amazon Correlation Analysis - Only for MEO Nutrition */}
-			{selectedStore === "meonutrition" && (
-				<div className="mt-8">
-					<div className="card col-span-1 lg:col-span-2">
-						<div className="flex justify-between items-center mb-4">
-							<h3 className="text-lg font-semibold text-gray-900">Facebook Ads Impact on Amazon Sales</h3>
-							<div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-								📈 Correlation Analysis
-							</div>
-						</div>
-						<ResponsiveContainer width="100%" height={400}>
-							<ComposedChart data={metricsChartData}>
-								<CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-								<XAxis
-									dataKey="date"
-									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-									angle={metricsChartData.length > 20 ? -45 : 0}
-									textAnchor={metricsChartData.length > 20 ? "end" : "middle"}
-									height={metricsChartData.length > 20 ? 80 : 60}
-									tick={{ fontSize: 12 }}
-								/>
-								<YAxis
-									yAxisId="left"
-									tick={{ fontSize: 12 }}
-									tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-									label={{ value: 'Revenue ($)', angle: -90, position: 'insideLeft', fontSize: 12, y: 200 }}
-								/>
-								<YAxis
-									yAxisId="right"
-									orientation="right"
-									tick={{ fontSize: 12 }}
-									tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-									label={{ value: 'Ad Spend ($)', angle: 90, position: 'insideRight', fontSize: 12, y: 200 }}
-								/>
-								<Tooltip
-									formatter={(value, name) => [displayCurrency(value, 'USD'), name]}
-									labelFormatter={(label, payload) => {
-										if (payload && payload[0] && payload[0].payload.dateRange) {
-											return payload[0].payload.dateRange;
-										}
-										return new Date(label).toLocaleDateString('en-US', {
-											weekday: 'long',
-											year: 'numeric',
-											month: 'long',
-											day: 'numeric'
-										});
-									}}
-									contentStyle={{
-										backgroundColor: 'rgba(255, 255, 255, 0.95)',
-										border: '1px solid #e5e7eb',
-										borderRadius: '8px',
-										boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-									}}
-								/>
-								<Legend />
-								<ReferenceLine y={0} stroke="#666" yAxisId="left" />
-
-								{/* Amazon Revenue - Primary metric */}
-								<Line
-									type="monotone"
-									dataKey="amazon_revenue"
-									stroke="#FF6B35"
-									strokeWidth={3}
-									name="Amazon Revenue"
-									dot={{ fill: '#fff', strokeWidth: 2, r: 5 }}
-									activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#FF6B35' }}
-									animationDuration={1000}
-									yAxisId="left"
-								/>
-
-								{/* Facebook Ads Spend - Secondary metric */}
-								<Line
-									type="monotone"
-									dataKey="facebook_ads_spend"
-									stroke="#1877F2"
-									strokeWidth={2}
-									name="Facebook Ads Spend"
-									dot={metricsChartData.length <= 50}
-									activeDot={{ r: 6 }}
-									animationDuration={1000}
-									yAxisId="right"
-								/>
-
-								{/* Brush for data selection */}
-								<Brush
-									dataKey="date"
-									height={30}
-									stroke="#8884d8"
-									tickFormatter={(value) => formatChartDate(value, metricsChartData.length)}
-								/>
-							</ComposedChart>
-						</ResponsiveContainer>
-					</div>
-				</div>
 			)}
 
 			{/* New Metrics Graphs */}
@@ -1848,6 +1755,14 @@ const Dashboard = () => {
 									<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalFacebookAds || 0, 'USD')}</span>
 								</div>
 								{
+									selectedStore === "meonutrition" && (
+										<div className="flex justify-between">
+											<span className="text-orange-700">Amazon Ads</span>
+											<span className="font-semibold text-orange-900">{displayCurrency(summary?.totalAmazonAds || 0, 'USD')}</span>
+										</div>
+									)
+								}
+								{
 									G.taboolaStores.includes(selectedStore) && (
 										<div className="flex justify-between">
 											<span className="text-orange-700">Taboola</span>
@@ -2037,6 +1952,17 @@ const Dashboard = () => {
 											{getSortIcon('revenue')}
 										</div>
 									</th>
+									{selectedStore === "meonutrition" && (
+										<th
+											className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
+											onClick={() => handleSort('amazon_revenue')}
+										>
+											<div className="flex items-center gap-2">
+												Amazon Revenue
+												{getSortIcon('amazon_revenue')}
+											</div>
+										</th>
+									)}
 									<th
 										className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
 										onClick={() => handleSort('google_ads_spend')}
@@ -2055,18 +1981,6 @@ const Dashboard = () => {
 											{getSortIcon('facebook_ads_spend')}
 										</div>
 									</th>
-									{/* Amazon Revenue Column - Only for MEO Nutrition */}
-									{selectedStore === "meonutrition" && (
-										<th
-											className="text-left py-3 px-4 font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors select-none"
-											onClick={() => handleSort('amazon_revenue')}
-										>
-											<div className="flex items-center gap-2">
-												Amazon Revenue
-												{getSortIcon('amazon_revenue')}
-											</div>
-										</th>
-									)}
 									{/* Amazon Ads Column - Only for MEO Nutrition */}
 									{selectedStore === "meonutrition" && (
 										<th
@@ -2124,12 +2038,11 @@ const Dashboard = () => {
 											{new Date(day.date).toLocaleDateString()}
 										</td>
 										<td className="py-3 px-4 font-medium">{formatCurrency(day.revenue, 'USD')}</td>
-										<td className="py-3 px-4">{displayCurrency(day.google_ads_spend, 'USD')}</td>
-										<td className="py-3 px-4">{displayCurrency(day.facebook_ads_spend, 'USD')}</td>
-										{/* Amazon Revenue Column - Only for MEO Nutrition */}
 										{selectedStore === "meonutrition" && (
 											<td className="py-3 px-4 font-medium">{formatCurrency(day.amazon_revenue, 'USD')}</td>
 										)}
+										<td className="py-3 px-4">{displayCurrency(day.google_ads_spend, 'USD')}</td>
+										<td className="py-3 px-4">{displayCurrency(day.facebook_ads_spend, 'USD')}</td>
 										{/* Amazon Ads Column - Only for MEO Nutrition */}
 										{selectedStore === "meonutrition" && (
 											<td className="py-3 px-4">{displayCurrency(day.amazon_ads_spend, 'USD')}</td>
