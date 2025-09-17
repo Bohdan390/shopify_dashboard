@@ -2,6 +2,7 @@ const axios = require('axios');
 const { supabase, insert, update, select } = require('../config/database-supabase');
 const analyticsService = require('./analyticsService');
 const common = require('../config/common');
+const G = require("../config/global")
 
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -14,22 +15,22 @@ class ShopifyService {
 	}
 
 
-// 	Traffic Junky API key:
+	// 	Traffic Junky API key:
 
-// 80e2ee9daf3f5e3a2a55aac5f323c082603d49e5e421178565fbbffd791b17e7192f3669837ddc74323946399cb0110dc1ad175cbc93819a9950937e081a3bbd
-
-
-// ExoClick
-
-// d9282a5d35877e0dbe360360fa392ceb19f4b0cf
+	// 80e2ee9daf3f5e3a2a55aac5f323c082603d49e5e421178565fbbffd791b17e7192f3669837ddc74323946399cb0110dc1ad175cbc93819a9950937e081a3bbd
 
 
+	// ExoClick
+
+	// d9282a5d35877e0dbe360360fa392ceb19f4b0cf
 
 
-// These are two other platforms we are launching now in addition to facebook, taboola and google ads.
 
 
-// I have also integrated taboola ads into the windsor so you can pull the data there.
+	// These are two other platforms we are launching now in addition to facebook, taboola and google ads.
+
+
+	// I have also integrated taboola ads into the windsor so you can pull the data there.
 	// Helper function to send WebSocket messages
 	sendWebSocketMessage(socket, eventType, data) {
 		if (socket && socket.readyState === 1) { // WebSocket.OPEN
@@ -215,7 +216,7 @@ class ShopifyService {
 				});
 			}
 
-			console.log(allOrders[0].created_at)
+			await this.fetchAmazonSalesData("last_7d", this.storeId);
 			return allOrders;
 		} catch (error) {
 			console.error('❌ Error fetching orders:', error.message);
@@ -228,6 +229,130 @@ class ShopifyService {
 		}
 	}
 
+	async fetchAmazonSalesData(datePreset = 'last_7d', storeId = null) {
+		try {
+
+			var apiKey = process.env.WINDSOR_API_KEY;
+			console.log(storeId, apiKey)
+			if (storeId !== "meonutrition") {
+				return []; // Only fetch for MEO Nutrition
+			}
+
+			const fields = [
+				"account_name",
+				"date",
+				"marketplace_country",
+				"sales_and_traffic_report_by_date__salesbydate_orderedproductsales_amount",
+				"sales_and_traffic_report_by_date__salesbydate_refundrate",
+				"sales_and_traffic_report_by_date__salesbydate_shippedproductsales_amount",
+				"sales_and_traffic_report_by_date__salesbydate_totalorderitems",
+				"sales_and_traffic_report_by_date__salesbydate_unitsordered",
+				"sales_and_traffic_report_by_date__salesbydate_unitsshipped"
+			].join(',');
+
+			const query = {
+				api_key: apiKey,
+				date_preset: datePreset,
+				fields: fields,
+				_renderer: 'json'
+			};
+
+			const response = await axios.get(`${G.windsorURL}/amazon_sp`, {
+				params: query
+			});
+			var amazonSalesData = [];
+			if (response.data && response.data.data) {
+				amazonSalesData = response.data.data.map(item => ({
+					account_name: item.account_name,
+					date: item.date,
+					marketplace_country: item.marketplace_country,
+					ordered_products_sales_amount: parseFloat(item.sales_and_traffic_report_by_date__salesbydate_orderedproductsales_amount) || 0,
+					refund_rate: parseFloat(item.sales_and_traffic_report_by_date__salesbydate_refundrate) || 0,
+					shipped_products_sales_amount: parseFloat(item.sales_and_traffic_report_by_date__salesbydate_shippedproductsales_amount) || 0,
+					total_order_items: parseInt(item.sales_and_traffic_report_by_date__salesbydate_totalorderitems) || 0,
+					units_ordered: parseInt(item.sales_and_traffic_report_by_date__salesbydate_unitsordered) || 0,
+					units_shipped: parseInt(item.sales_and_traffic_report_by_date__salesbydate_unitsshipped) || 0,
+					store_id: storeId
+				}));
+			}
+			await this.saveAmazonSalesDataToDatabase(amazonSalesData, null, null);
+			return [];
+		} catch (error) {
+			console.error('❌ Error fetching Amazon sales data from Windsor.ai:', error.message);
+			throw error;
+		}
+	}
+
+	async saveAmazonSalesDataToDatabase(amazonSalesData, socket = null, socketStatus = null) {
+		try {
+			if (!amazonSalesData || amazonSalesData.length === 0) {
+				return;
+			}
+
+			if (socket) {
+				this.sendWebSocketMessage(socket, socketStatus, {
+					stage: 'saving_amazon_sales',
+					message: `📊 Saving ${amazonSalesData.length} Amazon sales records to database...`,
+					progress: 60,
+					total: 'unlimited'
+				});
+			}
+
+			var salesData = new Map()
+			amazonSalesData.forEach(record => {
+				if (!salesData.has(record.date)) {
+					salesData.set(record.date, {
+						...record
+					})
+				}
+				else {
+					salesData.get(record.date).ordered_products_sales_amount += record.ordered_products_sales_amount;
+					salesData.get(record.date).total_order_items += record.total_order_items;
+					salesData.get(record.date).units_ordered += record.units_ordered;
+					salesData.get(record.date).units_shipped += record.units_shipped;
+				}
+			})
+
+			// Save to amazon_revenue table
+			const amazonRevenueRecords = Array.from(salesData.values()).map(record => ({
+				date: record.date,
+				store_id: record.store_id,
+				total_revenue: record.ordered_products_sales_amount,
+				orders_count: record.total_order_items,
+				average_order_value: record.total_order_items > 0 ? record.ordered_products_sales_amount / record.total_order_items : 0,
+				currency: 'USD',
+				created_at: new Date().toISOString(),
+				updated_at: new Date().toISOString()
+			}));
+
+			// Save in chunks
+			const chunkSize = 1000;
+			const chunks = [];
+			for (let i = 0; i < amazonRevenueRecords.length; i += chunkSize) {
+				chunks.push(amazonRevenueRecords.slice(i, i + chunkSize));
+			}
+
+			for (let i = 0; i < chunks.length; i++) {
+				const chunk = chunks[i];
+				const { error: amazonRevenueError } = await supabase
+					.from('amazon_revenue')
+					.upsert(chunk, {
+						onConflict: 'date, store_id',
+						ignoreDuplicates: false
+					});
+
+				if (amazonRevenueError) {
+					console.error(`❌ Error saving Amazon revenue chunk ${i + 1}:`, amazonRevenueError);
+					throw amazonRevenueError;
+				}
+			}
+			console.log(`✅ Successfully saved ${amazonSalesData.length} Amazon sales records`);
+
+		} catch (error) {
+			console.error('❌ Error saving Amazon sales data to database:', error);
+			throw error;
+		}
+	}
 	async syncProducts(limit = 50, since_id = null, syncDate = null, socket = null, socketStatus = null) {
 		var products = [];
 		try {
@@ -347,16 +472,16 @@ class ShopifyService {
 				});
 			}
 
-			const {count: productCount} = await supabase
+			const { count: productCount } = await supabase
 				.from('products')
 				.select('*', { count: 'exact', head: true })
 				.eq('store_id', this.storeId)
-			
+
 			let allProducts = [];
 			let chunkSize = 1000;
 			for (var i = 0; i < productCount; i += chunkSize) {
 				const { data: products, error: productsError } = await supabase.from('products')
-				.select('product_id, sale_price, sale_quantity, product_sku_id').eq('store_id', this.storeId).range(i, i + chunkSize - 1);
+					.select('product_id, sale_price, sale_quantity, product_sku_id').eq('store_id', this.storeId).range(i, i + chunkSize - 1);
 				if (productsError) throw productsError;
 				allProducts.push(...products)
 			}
@@ -385,9 +510,9 @@ class ShopifyService {
 
 						const { error: productsError } = await supabase
 							.from('products')
-							.upsert(chunk, { 
+							.upsert(chunk, {
 								onConflict: 'product_id',
-								ignoreDuplicates: false 
+								ignoreDuplicates: false
 							});
 
 						if (productsError) {
@@ -399,9 +524,9 @@ class ShopifyService {
 				} else {
 					const { error: productsError } = await supabase
 						.from('products')
-						.upsert(products, { 
+						.upsert(products, {
 							onConflict: 'product_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 				}
 
@@ -432,19 +557,19 @@ class ShopifyService {
 			}
 
 			var productSkusData = [], productsData = [];
-			const {count: productSkuCount} = await supabase.from("product_skus")
-				.select("*", {count: 'exact', head: true})
+			const { count: productSkuCount } = await supabase.from("product_skus")
+				.select("*", { count: 'exact', head: true })
 				.eq("store_id", this.storeId)
-			for (var i = 0; i < productSkuCount; i+= 1000) {
-				const {data: skuDatas, error: skuError} = await supabase.from("product_skus")
-				.select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
+			for (var i = 0; i < productSkuCount; i += 1000) {
+				const { data: skuDatas, error: skuError } = await supabase.from("product_skus")
+					.select("sku_id, product_ids").eq("store_id", this.storeId).range(i, i + 999);
 				if (skuError) throw skuError;
 				productSkusData.push(...skuDatas);
 			}
 
-			const {count: productsCount} = await supabase.from("products").select("*", {count: 'exact', head: true}).eq("store_id", this.storeId);
-			for (var i = 0; i < productsCount; i+= 1000) {
-				const {data: productsDatas, error: productsError} = await supabase.from("products").select("product_id").eq("store_id", this.storeId).range(i, i + 999);
+			const { count: productsCount } = await supabase.from("products").select("*", { count: 'exact', head: true }).eq("store_id", this.storeId);
+			for (var i = 0; i < productsCount; i += 1000) {
+				const { data: productsDatas, error: productsError } = await supabase.from("products").select("product_id").eq("store_id", this.storeId).range(i, i + 999);
 				if (productsError) throw productsError;
 				productsData.push(...productsDatas);
 			}
@@ -452,22 +577,22 @@ class ShopifyService {
 			// Transform all orders to database format
 			const orderDataArray = [];
 			const uniqueCustomers = new Map();
-			
+
 			var cIds = []
 			orders.forEach((order) => {
 				if (order.customer && !cIds.includes(order.customer.id.toString())) cIds.push(order.customer.id.toString())
 			})
 
-			var {count: customerCount} = await supabase
+			var { count: customerCount } = await supabase
 				.from('customers')
-				.select('*', {count: 'exact', head: true})
+				.select('*', { count: 'exact', head: true })
 				.eq('store_id', this.storeId)
 				.in('customer_id', cIds);
-			
+
 			var chunk = 1000;
 			var allCustomers = [];
 
-			for (var i = 0; i < customerCount; i+= chunk) {
+			for (var i = 0; i < customerCount; i += chunk) {
 				const currentChunk = Math.floor(i / chunk) + 1;
 
 				const { data: customers, error: customersError } = await supabase
@@ -534,7 +659,7 @@ class ShopifyService {
 								updated_at: common.createLocalDateWithTime(new Date()).toISOString()
 							});
 						}
-						
+
 						var sku = lineItem.sku.includes("-") ? lineItem.sku.split("-")[0] + "-" + lineItem.sku.split("-")[1] : lineItem.sku;
 						if (!updateProductSkus.includes(sku)) {
 							updateProductSkus.push(sku);
@@ -551,7 +676,7 @@ class ShopifyService {
 						if (order.financial_status == "refunded") {
 							refundPrice += totalPrice;
 						}
-						else if(order.financial_status == "partially_refunded") {
+						else if (order.financial_status == "partially_refunded") {
 							order.refunds.forEach(refund => {
 								refund.amount = refund.amount * currency;
 								if (refund.line_item_id == lineItem.id) {
@@ -560,7 +685,7 @@ class ShopifyService {
 								}
 							});
 						}
-						
+
 						if (order.product_ids) {
 							if (!order.product_ids.includes(productId)) {
 								order.product_ids += "," + productId;
@@ -697,14 +822,14 @@ class ShopifyService {
 					saved_at: common.createLocalDateWithTime(new Date())
 				})
 			})
-			
+
 			// Extract unique products from line items and prepare for products table
-			
+
 			await common.initialSiteData(common, this.storeId, updateProductSkus);
-			
+
 			if (this.storeId != "meonutrition") {
-			console.log(uniqueProductSkus.values())
-				const {error: productSkusError} = await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
+				console.log(uniqueProductSkus.values())
+				const { error: productSkusError } = await supabase.from("product_skus").upsert(Array.from(uniqueProductSkus.values()), {
 					onConflict: 'sku_id',
 					ignoreDuplicates: false
 				});
@@ -737,7 +862,7 @@ class ShopifyService {
 						const chunk = lineItemsData.slice(i, i + LINE_ITEMS_BATCH_SIZE);
 						const currentChunk = Math.floor(i / LINE_ITEMS_BATCH_SIZE) + 1;
 						const progress = Math.round(((i + chunk.length) / lineItemsData.length) * 100);
-						
+
 						// Emit progress to frontend for each chunk
 						if (socket) {
 							this.sendWebSocketMessage(socket, socketStatus, {
@@ -751,9 +876,9 @@ class ShopifyService {
 
 						const { error: lineItemsError } = await supabase
 							.from('order_line_items')
-							.upsert(chunk, { 
+							.upsert(chunk, {
 								onConflict: 'line_item_id',
-								ignoreDuplicates: false 
+								ignoreDuplicates: false
 							});
 
 						if (lineItemsError) {
@@ -766,9 +891,9 @@ class ShopifyService {
 				} else {
 					const { error: lineItemsError } = await supabase
 						.from('order_line_items')
-						.upsert(lineItemsData, { 
+						.upsert(lineItemsData, {
 							onConflict: 'line_item_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 
 					if (lineItemsError) {
@@ -794,7 +919,7 @@ class ShopifyService {
 				.rpc('get_product_revenue_by_id', {
 					store_id_filter: this.storeId
 				});
-			
+
 			productRevenue.forEach(product => {
 				if (uniqueProducts.get(product.product_id)) {
 					uniqueProducts.get(product.product_id).sale_price = parseFloat(product.total_revenue);
@@ -808,9 +933,9 @@ class ShopifyService {
 			}
 			// Save unique products to products table
 			if (uniqueProducts.size > 0) {
-				
+
 				const productsArray = Array.from(uniqueProducts.values());
-				
+
 				// Upsert products in chunks
 				const BATCH_SIZE = 1000;
 				let totalProductsSaved = 0;
@@ -824,9 +949,9 @@ class ShopifyService {
 
 						const { error: productsError } = await supabase
 							.from('products')
-							.upsert(chunk, { 
+							.upsert(chunk, {
 								onConflict: 'product_id',
-								ignoreDuplicates: false 
+								ignoreDuplicates: false
 							});
 
 						if (productsError) {
@@ -849,9 +974,9 @@ class ShopifyService {
 				} else {
 					const { error: productsError } = await supabase
 						.from('products')
-						.upsert(productsArray, { 
+						.upsert(productsArray, {
 							onConflict: 'product_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 
 					if (productsError) {
@@ -876,9 +1001,9 @@ class ShopifyService {
 			// Save unique customers to customers table
 			const BATCH_SIZE = 1000;
 			if (uniqueCustomers.size > 0) {
-				
+
 				const customersArray = Array.from(uniqueCustomers.values());
-				
+
 				// Upsert customers in chunks
 				let totalCustomersSaved = 0;
 
@@ -903,9 +1028,9 @@ class ShopifyService {
 
 						const { error: customersError } = await supabase
 							.from('customers')
-							.upsert(chunk, { 
+							.upsert(chunk, {
 								onConflict: 'customer_id',
-								ignoreDuplicates: false 
+								ignoreDuplicates: false
 							});
 
 						if (customersError) {
@@ -918,9 +1043,9 @@ class ShopifyService {
 				} else {
 					const { error: customersError } = await supabase
 						.from('customers')
-						.upsert(customersArray, { 
+						.upsert(customersArray, {
 							onConflict: 'customer_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 
 					if (customersError) {
@@ -966,9 +1091,9 @@ class ShopifyService {
 
 					const { error } = await supabase
 						.from('orders')
-						.upsert(chunk, { 
+						.upsert(chunk, {
 							onConflict: 'shopify_order_id',
-							ignoreDuplicates: false 
+							ignoreDuplicates: false
 						});
 
 					if (error) {
@@ -982,9 +1107,9 @@ class ShopifyService {
 				// Single batch operation for smaller datasets
 				const { data, error } = await supabase
 					.from('orders')
-					.upsert(orderDataArray, { 
+					.upsert(orderDataArray, {
 						onConflict: 'shopify_order_id',
-						ignoreDuplicates: false 
+						ignoreDuplicates: false
 					});
 
 				if (error) {
@@ -1007,8 +1132,8 @@ class ShopifyService {
 			const endTime = Date.now();
 			const duration = endTime - startTime;
 
-			return { 
-				count: totalSaved, 
+			return {
+				count: totalSaved,
 				lineItemsCount: lineItemsData.length,
 				customersCount: uniqueCustomers.size
 			};
@@ -1107,7 +1232,7 @@ class ShopifyService {
 
 			// Update sync tracking table
 			await common.updateSyncTracking('last_sync_date', date, this.storeId);
-			
+
 			return orders.length;
 		} catch (error) {
 			console.error('❌ Error syncing orders:', error);
@@ -1183,7 +1308,7 @@ class ShopifyService {
 					if (existingCustomer.first_order_date) {
 						const existingDate = new Date(existingCustomer.first_order_date);
 						const newDate = new Date(customer.first_order_date);
-						
+
 						// Only update if the new order date is earlier
 						if (newDate < existingDate) {
 							customer.first_order_date = newDate.toISOString();
@@ -1200,9 +1325,9 @@ class ShopifyService {
 			// Now upsert all customers with the correct first_order_date values
 			const { error: upsertError } = await supabase
 				.from('customers')
-				.upsert(customers, { 
+				.upsert(customers, {
 					onConflict: 'customer_id',
-					ignoreDuplicates: false 
+					ignoreDuplicates: false
 				});
 
 			if (upsertError) {
@@ -1216,7 +1341,7 @@ class ShopifyService {
 		}
 	}
 
-	
+
 }
 
 module.exports = ShopifyService; 

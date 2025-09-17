@@ -126,9 +126,6 @@ function broadcastToStore(sockets, event, data) {
 // Enhanced socket management functions
 function addSocket(id, ws) {
     activeSockets.set(id, ws);
-    console.log(`✅ Socket ${id} added. Total active: ${activeSockets.size}`);
-    console.log(`🔌 Active socket IDs:`, Array.from(activeSockets.keys()));
-    
     // Store additional metadata
     ws.connectedAt = Date.now();
     ws.lastActivity = Date.now();

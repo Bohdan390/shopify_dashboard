@@ -1216,7 +1216,7 @@ const Dashboard = () => {
 									'USD'
 								)}
 							</div>
-							<div className="text-sm text-gray-600">Total Revenue</div>
+							<div className="text-sm text-gray-600">Shopify Revenue</div>
 						</div>
 						{selectedStore === "meonutrition" && (
 							<div className="card text-center p-4">
@@ -1700,7 +1700,7 @@ const Dashboard = () => {
 							<h4 className="font-semibold text-blue-900 mb-2">Performance Overview</h4>
 							<div className="space-y-2 text-sm">
 								<div className="flex justify-between">
-									<span className="text-blue-700">Total Revenue</span>
+									<span className="text-blue-700">Shopify Revenue</span>
 									{refreshing ? (
 										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
 									) : (
@@ -1721,6 +1721,14 @@ const Dashboard = () => {
 										<div className="h-4 bg-blue-200 rounded w-16 animate-pulse"></div>
 									) : (
 										<span className="font-semibold text-blue-900">{summary?.paidOrders || 0}</span>
+									)}
+								</div>
+								<div className="flex justify-between">
+									<span className="text-blue-700">Amazon Revenue</span>
+									{refreshing ? (
+										<div className="h-4 bg-blue-200 rounded w-20 animate-pulse"></div>
+									) : (
+										<span className="font-semibold text-blue-900">{formatCurrency(summary?.totalAmazonRevenue || 0, 'USD')}</span>
 									)}
 								</div>
 								<div className="flex justify-between">
