@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS analytics (
 -- Ad Campaigns Table
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id SERIAL PRIMARY KEY,
-    campaign_id VARCHAR(255) UNIQUE NOT NULL,
+    campaign_id VARCHAR(255) NOT NULL,
     campaign_name VARCHAR(500) NOT NULL,
     platform VARCHAR(50) NOT NULL,
     account_id VARCHAR(255) NOT NULL,
@@ -167,7 +167,8 @@ CREATE TABLE IF NOT EXISTS ad_campaigns (
     country_code VARCHAR(10) REFERENCES countries(country_code),
     status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(campaign_id, store_id)
 );
 
 -- Product Campaign Links Table
@@ -735,7 +736,7 @@ INSERT INTO ad_campaigns (campaign_id, campaign_name, platform, account_id, stor
 ('camp_003', 'Australia Holiday Special', 'google', 'acc_001', 'store_001', 'AU', 'active'),
 ('camp_004', 'Canada Spring Collection', 'facebook', 'acc_001', 'store_001', 'CA', 'active'),
 ('camp_005', 'Germany Fashion Week', 'google', 'acc_001', 'store_001', 'DE', 'active')
-ON CONFLICT (campaign_id) DO NOTHING;
+ON CONFLICT (campaign_id, store_id) DO NOTHING;
 
 -- =====================================================
 -- 17. CREATE CAMPAIGN ANALYTICS RPC FUNCTION

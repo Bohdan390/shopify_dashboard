@@ -9,16 +9,6 @@ router.post('/sync-orders', async (req, res) => {
   try {
     const { limit = 50, syncDate, storeId = 'buycosari', from } = req.body;
     
-    // Enhanced socket debugging
-    console.log('🔍 SYNC ORDERS REQUEST DEBUG:');
-    console.log('📋 Request body:', req.body);
-    console.log('🔌 Socket ID from request:', req.body.socketId);
-    
-    // Get socket info
-    const socketInfo = common.getActiveSocketsInfo();
-    console.log('🔌 Active sockets info:', socketInfo);
-    
-    // Get the socket instance from the request
     const socket = req.body.socketId ? common.getSocket(req.body.socketId) : null;
     
     if (socket) {

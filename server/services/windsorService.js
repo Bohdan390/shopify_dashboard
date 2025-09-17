@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const common = require("../config/common")
+const G = require("../config/global")
 const analyticsService = require('../services/analyticsService');
 require('dotenv').config();
 
@@ -9,7 +10,6 @@ class WindsorService {
     this.apiKey = process.env.WINDSOR_API_KEY;
     this.trafficJunkyApiKey = process.env.TRAFFIC_JUNKY_API_KEY;
     this.exoClickApiKey = process.env.EXOCLICK_API_KEY;
-    this.baseURL = 'https://connectors.windsor.ai';
     this.trafficJunkyBaseURL = 'https://api.trafficjunky.com';
 
     // Initialize Supabase client
@@ -114,7 +114,7 @@ class WindsorService {
           "sponsored_products_campaign__clicks,sponsored_products_campaign__impressions,sponsored_products_campaign__spend,sponsored_products_campaign__campaign,sponsored_products_campaign__campaignid,date",
         ]
         for (var field of fields) {
-          const amazonRes = await axios.get(`${this.baseURL}/amazon_ads`, {
+          const amazonRes = await axios.get(`${G.windsorURL}/amazon_ads`, {
             params: {
               api_key: this.apiKey,
               date_preset: "last_7d",
@@ -151,11 +151,11 @@ class WindsorService {
           totalAdsData.push(...data)
         }
       }
-      const response = await axios.get(`${this.baseURL}/all`, {
+      const response = await axios.get(`${G.windsorURL}/all`, {
         params: {
           api_key: this.apiKey,
           ...query,
-          fields: 'account_name,campaign,clicks,datasource,date,source,spend',
+          fields: 'account_name,campaign,clicks,datasource,date,source,spend,currency',
           _renderer: 'json'
         }
       });

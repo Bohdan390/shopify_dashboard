@@ -341,12 +341,29 @@ class AnalyticsService {
 				costOfGoodsByDate[date] = (costOfGoodsByDate[date] || 0) + parseFloat(cost.total_cost);
 			});
 
+			const {data: amazonRevenue, error: amazonRevenueError} = await supabase.from("amazon_revenue")
+				.select("*")
+				.eq("store_id", storeId)
+				.gte("date", startDate)
+				.lte("date", endDate)
+
+			if (amazonRevenueError) {
+				console.error('❌ Error fetching country amazon revenue:', amazonRevenueError);
+				return analyticsData; // Return original data if error
+			}
+
+			var amazonRevenueByDate = {};
+			amazonRevenue.forEach(revenue => {
+				const date = revenue.date;
+				amazonRevenueByDate[date] = (amazonRevenueByDate[date] || 0) + parseFloat(revenue.total_revenue);
+			});
 
 			// Update analytics data with country-specific values
 			var analytics = analyticsData.map(day => {
 				const countryAdSpend = countryAdSpendByDate[day.date] || { google: 0, facebook: 0, taboola: 0, amazon: 0 };
 				const countryRevenue = countryRevenueByDate[day.date] || 0;
 				const countryCostOfGoods = costOfGoodsByDate[day.date] || 0;
+				const countryAmazonRevenue = amazonRevenueByDate[day.date] || 0;
 				return {
 					...day,
 					amazon_ads_spend: countryAdSpend.amazon,
@@ -354,9 +371,10 @@ class AnalyticsService {
 					customers_count: customerCount,
 					google_ads_spend: countryAdSpend.google,
 					facebook_ads_spend: countryAdSpend.facebook,
+					amazon_revenue: countryAmazonRevenue,
 					revenue: countryRevenue,
-					profit: countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola - countryAdSpend.amazon,
-					profit_margin: countryRevenue > 0 ? (countryRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola) / countryRevenue * 100 : 0,
+					profit: (countryRevenue + countryAmazonRevenue) - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola - countryAdSpend.amazon,
+					profit_margin: (countryRevenue + countryAmazonRevenue) > 0 ? (countryRevenue + countryAmazonRevenue - countryCostOfGoods - countryAdSpend.google - countryAdSpend.facebook - countryAdSpend.taboola - countryAdSpend.amazon) / (countryRevenue + countryAmazonRevenue) * 100 : 0,
 					cost_of_goods: countryCostOfGoods
 				};
 			});
@@ -467,8 +485,8 @@ class AnalyticsService {
 				});
 
 				summary.totalRevenue = data.totalRevenue;
-				summary.averageProfitMargin = summary.totalRevenue > 0
-					? (summary.totalProfit / summary.totalRevenue) * 100
+				summary.averageProfitMargin = (summary.totalRevenue + summary.totalAmazonRevenue) > 0
+					? (summary.totalProfit / (summary.totalRevenue + summary.totalAmazonRevenue)) * 100
 					: 0;
 
 				return { summary, analytics: completeData };
@@ -753,6 +771,7 @@ class AnalyticsService {
 						.eq('store_id', storeId)
 						.gte('created_at', `${date}T00:00:00`)
 						.lt('created_at', `${date}T23:59:59.999`);
+					
 
 					if (ordersCountError) throw ordersCountError;
 
@@ -784,6 +803,17 @@ class AnalyticsService {
 						});
 					}
 
+					const { data: amazonRevenueData, error: amazonRevenueError } = await supabase
+						.from('amazon_revenue')
+						.select('total_revenue')
+						.eq('date', date)
+						.eq('store_id', storeId);
+
+					if (amazonRevenueError) throw amazonRevenueError;
+					let amazonRevenue = 0;
+					if (amazonRevenueData && amazonRevenueData.length > 0) {
+						amazonRevenue = parseFloat(amazonRevenueData[0].total_revenue) || 0;
+					}
 					let revenue = revenueData.reduce((sum, order) => sum + parseFloat(order.total_price), 0);
 
 					// Get existing analytics to preserve ads and COGS data
@@ -812,7 +842,7 @@ class AnalyticsService {
 					}
 
 					const totalAdSpend = existingGoogleAds + existingFacebookAds + existingTaboolaAds + existingAmazonAds;
-					const profit = revenue - totalAdSpend - existingCOGS;
+					const profit = revenue + amazonRevenue - totalAdSpend - existingCOGS;
 					const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
 					// Upsert analytics record - preserve ads/COGS, update revenue
@@ -822,8 +852,7 @@ class AnalyticsService {
 						orders_count: ordersCount,
 						customers_count: customerCount.customer_count,
 						revenue: common.roundPrice(revenue), // Updated revenue
-						google_ads_spend: common.roundPrice(existingGoogleAds), // Preserve existing ads
-						facebook_ads_spend: common.roundPrice(existingFacebookAds), // Preserve existing ads
+						amazon_revenue: common.roundPrice(amazonRevenue),
 						cost_of_goods: common.roundPrice(existingCOGS), // Preserve existing COGS
 						profit: common.roundPrice(profit), // Recalculated profit
 						profit_margin: common.roundPrice(profitMargin) // Recalculated margin
