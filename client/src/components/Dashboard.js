@@ -1104,7 +1104,18 @@ const Dashboard = () => {
 								/>
 								<Legend />
 								<ReferenceLine y={0} stroke="#666" yAxisId="left" />
-
+								{/* Total Revenue Line - Combined Shopify + Amazon */}
+								<Line
+									type="monotone"
+									dataKey="total_revenue"
+									stroke="#DC2626"
+									strokeWidth={3}
+									name="Total Revenue"
+									dot={{ fill: '#fff', strokeWidth: 2, r: 5 }}
+									activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2, fill: '#DC2626' }}
+									animationDuration={1000}
+									yAxisId="left"
+								/>
 								{/* Revenue Line - Primary Metric */}
 								<Line
 									type="monotone"
@@ -1208,27 +1219,29 @@ const Dashboard = () => {
 					</div>
 
 					{/* Summary Cards for Quick Insights */}
-					<div className={`grid grid-cols-1 gap-4 mt-6 ${selectedStore && G.taboolaStores.includes(selectedStore) ? 'lg:grid-cols-5' : selectedStore && selectedStore === 'meonutrition' ? 'lg:grid-cols-6' : 'lg:grid-cols-4'}`}>
-						<div className="card text-center p-4">
-							<div className="text-2xl font-bold text-blue-600">
-								{displayCurrency(
-									metricsChartData.reduce((sum, item) => sum + (item.revenue || 0), 0),
-									'USD'
-								)}
-							</div>
-							<div className="text-sm text-gray-600">Shopify Revenue</div>
-						</div>
-						{selectedStore === "meonutrition" && (
-							<div className="card text-center p-4">
-								<div className="text-2xl font-bold" style={{color: "#0891B2"}}>
+					<div className={`grid grid-cols-1 gap-4 mt-6 ${selectedStore && G.taboolaStores.includes(selectedStore) ? 'lg:grid-cols-6' : selectedStore && selectedStore === 'meonutrition' ? 'lg:grid-cols-7' : 'lg:grid-cols-5'}`}>
+						{/* Big Total Revenue Card */}
+						<div className="card p-4 lg:col-span-2">
+							<div className="text-center">
+								<div className="text-2xl font-bold text-red-600">
 									{displayCurrency(
-										metricsChartData.reduce((sum, item) => sum + (item.amazon_revenue || 0), 0),
+										metricsChartData.reduce((sum, item) => sum + (item.total_revenue || 0), 0),
 										'USD'
 									)}
 								</div>
-								<div className="text-sm text-gray-600">Amazon Revenue</div>
+								<div className="text-sm font-semibold text-gray-700">
+									<span className="text-blue-600">{displayCurrency(
+										metricsChartData.reduce((sum, item) => sum + (item.revenue || 0), 0),
+										'USD'
+									)} (Shopify)</span>
+									<span className='ml-6' style={{color: '#0891B2'}}>{displayCurrency(
+										metricsChartData.reduce((sum, item) => sum + (item.amazon_revenue || 0), 0),
+										'USD'
+									)} (Amazon)</span>
+
+								</div>
 							</div>
-						)}
+						</div>
 						<div className="card text-center p-4">
 							<div className="text-2xl font-bold" style={{color: "#f59e0b"}}>
 								{displayCurrency(
@@ -1956,7 +1969,7 @@ const Dashboard = () => {
 										onClick={() => handleSort('revenue')}
 									>
 										<div className="flex items-center gap-2">
-											Revenue
+											{selectedStore == 'meonutrition' ? 'Shopify Revenue' : 'Revenue'}
 											{getSortIcon('revenue')}
 										</div>
 									</th>

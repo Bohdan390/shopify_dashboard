@@ -216,7 +216,7 @@ class ShopifyService {
 				});
 			}
 
-			await this.fetchAmazonSalesData("last_7d", this.storeId);
+			await this.fetchAmazonSalesData("last_1d", this.storeId);
 			return allOrders;
 		} catch (error) {
 			console.error('❌ Error fetching orders:', error.message);
