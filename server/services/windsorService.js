@@ -43,7 +43,7 @@ class WindsorService {
 
       var query = {}
       if (storeId == "meonutrition") {
-        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344" }
+        query = { select_accounts: "google_ads__912-676-2735,facebook__2024454474573344,taboola__interactiveecommercellc-network" }
       }
       else if (storeId == "buycosari") {
         query = { select_accounts: "google_ads__102-337-4754" }
@@ -117,7 +117,7 @@ class WindsorService {
           const amazonRes = await axios.get(`${G.windsorURL}/amazon_ads`, {
             params: {
               api_key: this.apiKey,
-              date_preset: "last_7d",
+              date_preset: "last_2d",
               fields: field,
               _renderer: 'json'
             }
@@ -165,6 +165,15 @@ class WindsorService {
         if (storeId == "gamoseries") {
           data = data.filter(item => item.campaign && item.campaign.toLowerCase().includes("gamoseries"));
         }
+        else if (storeId == 'buycosari') {
+          data = data.filter(item => item.campaign && !item.campaign.toLowerCase().includes("gamoseries"));
+        }
+        if (storeId == 'meonutrition') {
+          data = data.filter(item => (item.source == "taboola" && item.campaign.includes("Meo Nutrition Berberine")) || item.source != 'taboola');
+        }
+        else if (storeId == "cosara") {
+          data = data.filter(item => (item.source == "taboola" && !item.campaign.includes("Meo Nutrition Berberine")) || item.source != 'taboola');
+        }
         totalAdsData.push(...data)
         var campaignNames = totalAdsData.map(item => item.campaign);
 
@@ -205,7 +214,9 @@ class WindsorService {
       if (item.source == "facebook") {
         spend += item.spend
       }
-      
+      if (item.source == "taboola") {
+        console.log(currency_symbol)
+      }
       return ({
         date: item.date,
         campaign_id: item.campaign || 'unknown',
