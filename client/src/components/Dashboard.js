@@ -777,13 +777,7 @@ const Dashboard = () => {
 		totalAmazonAds += item.amazon_ads_spend || 0;
 	});
 
-	var adTooltipData = [
-		{ 
-			name: "Facebook Ads", 
-			value: summary?.totalFacebookAds || 0, 
-			color: '#3b82f6' },
-		{ name: "Google Ads", value: summary?.totalGoogleAds || 0, color: '#f59e0b' },
-	]
+	var adTooltipData = []
 	if (selectedStore === "meonutrition") {
 		adTooltipData.push({
 			name: "Amazon Ads",
@@ -791,6 +785,14 @@ const Dashboard = () => {
 			color: '#8B5CF6'
 		})
 	}
+	adTooltipData.push(
+		{ 
+			name: "Facebook Ads", 
+			value: summary?.totalFacebookAds || 0, 
+			color: '#3b82f6' },
+		{ name: "Google Ads", value: summary?.totalGoogleAds || 0, color: '#f59e0b' },
+	)
+	
 	if (G.taboolaStores.includes(selectedStore) && totalTaboolaAds > 0) {
 		adTooltipData.push({
 			name: "Taboola Ads",

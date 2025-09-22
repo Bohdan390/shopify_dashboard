@@ -200,15 +200,14 @@ class WindsorService {
     var { data: adCampaigns } = await this.supabase.from("ad_campaigns").select("campaign_id, currency, currency_symbol").eq("store_id", storeId);
     var spend = 0;
     return data.map((item, i) => {
-     
       var campaign = adCampaigns.find(campaign => campaign.campaign_id == item.campaign);
 
       var currency_symbol = item.currency
       if (!currency_symbol) currency_symbol = "USD"
       var currency = 1.0;
-      // if (campaign) {
-      //   currency_symbol = campaign.currency_symbol;
-      // }
+      if (campaign) {
+        currency_symbol = campaign.currency_symbol;
+      }
 
       currency = common.currencyRates[currency_symbol];
       if (item.source == "facebook") {
