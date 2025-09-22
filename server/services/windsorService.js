@@ -200,22 +200,19 @@ class WindsorService {
     var { data: adCampaigns } = await this.supabase.from("ad_campaigns").select("campaign_id, currency, currency_symbol").eq("store_id", storeId);
     var spend = 0;
     return data.map((item, i) => {
+     
       var campaign = adCampaigns.find(campaign => campaign.campaign_id == item.campaign);
-      var currency_symbol = 'USD';
+
+      var currency_symbol = item.currency
+      if (!currency_symbol) currency_symbol = "USD"
       var currency = 1.0;
-      if (campaign) {
-        currency_symbol = campaign.currency_symbol;
-        currency = campaign.currency;
-      }
-      if (!campaign && item.source == "facebook") {
-        currency_symbol = "SEK";
-        currency = common.currencyRates[currency_symbol];
-      }
+      // if (campaign) {
+      //   currency_symbol = campaign.currency_symbol;
+      // }
+
+      currency = common.currencyRates[currency_symbol];
       if (item.source == "facebook") {
         spend += item.spend
-      }
-      if (item.source == "taboola") {
-        console.log(currency_symbol)
       }
       return ({
         date: item.date,
@@ -269,14 +266,6 @@ class WindsorService {
       const campaigns = new Map();
       const adSpendRecords = [], dates = [];
 
-      var originCampaigns = [];
-      const { count: campaignsCount } = await this.supabase.from('ad_campaigns').select('*', { count: 'exact' }).eq("store_id", storeId);
-      if (campaignsCount > 0) {
-        for (var i = 0; i < campaignsCount; i += 1000) {
-          const { data } = await this.supabase.from('ad_campaigns').select("campaign_id, currency, currency_symbol").eq("store_id", storeId).range(i, i + 999);
-          originCampaigns.push(...data);
-        }
-      }
       for (const record of adData) {
         // Create campaign record
         const campaignKey = `${record.campaign_id}_${record.platform}`;
@@ -287,19 +276,11 @@ class WindsorService {
             platform: record.platform,
             account_id: record.account_name || 'windsor_ai',
             store_id: storeId || record.account_name,
+            currency: record.currency,
+            currency_symbol: record.currency_symbol,
             product_id: null,
             status: 'active'
           });
-        }
-
-        var originCampaign = originCampaigns.find(item => item.campaign_id == record.campaign_id);
-        if (originCampaign) {
-          record.currency = originCampaign.currency;
-          record.currency_symbol = originCampaign.currency_symbol;
-        }
-        else {
-          record.currency_symbol = record.platform == "google" ? "USD" : "SEK";
-          record.currency = record.platform == "google" ? 1 : common.currencyRates[record.currency_symbol];
         }
 
         dates.push(record.date)
