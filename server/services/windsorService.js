@@ -114,15 +114,17 @@ class WindsorService {
           "sponsored_products_campaign__clicks,sponsored_products_campaign__impressions,sponsored_products_campaign__spend,sponsored_products_campaign__campaign,sponsored_products_campaign__campaignid,date",
         ]
         for (var field of fields) {
+          console.log(0)
           const amazonRes = await axios.get(`${G.windsorURL}/amazon_ads`, {
             params: {
               api_key: this.apiKey,
-              date_preset: "last_2d",
+              date_preset: "last_1d",
               fields: field,
               _renderer: 'json'
             }
           });
           var data = []
+          console.log(1)
           if (amazonRes.data.data.length > 0) {
             amazonRes.data.data.forEach(item => {
               var d = {source: "amazon", datasource: "amazon", date: item.date, account_name: "windsor_ai"}
