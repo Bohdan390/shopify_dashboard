@@ -171,10 +171,28 @@ class WindsorService {
           data = data.filter(item => item.campaign && !item.campaign.toLowerCase().includes("gamoseries"));
         }
         if (storeId == 'meonutrition') {
-          data = data.filter(item => (item.source == "taboola" && item.campaign.includes("Meo Nutrition Berberine")) || item.source != 'taboola');
+          var d = []
+          data.forEach((item) => {
+            if (item.source == "taboola" && item.campaign.includes("Meo Nutrition Berberine")) {
+              d.push(item)
+            }
+            if (item.source != 'taboola') {
+              d.push(item)
+            }
+          })
+          data = d
         }
         else if (storeId == "cosara") {
-          data = data.filter(item => (item.source == "taboola" && !item.campaign.includes("Meo Nutrition Berberine")) || item.source != 'taboola');
+          var d = []
+          data.forEach((item) => {
+            if (item.source == "taboola" && !item.campaign.includes("Meo Nutrition Berberine")) {
+              d.push(item)
+            }
+            if (item.source != 'taboola') {
+              d.push(item)
+            }
+          })
+          data = d
         }
         totalAdsData.push(...data)
         var campaignNames = totalAdsData.map(item => item.campaign);
