@@ -3,6 +3,7 @@ const { supabase, insert, update, select } = require('../config/database-supabas
 const analyticsService = require('./analyticsService');
 const common = require('../config/common');
 const G = require("../config/global")
+const fs = require('fs');
 
 function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
@@ -216,7 +217,7 @@ class ShopifyService {
 				});
 			}
 
-			await this.fetchAmazonSalesData("last_1d", this.storeId);
+			await this.fetchAmazonSalesData("last_2d", this.storeId);
 			return allOrders;
 		} catch (error) {
 			console.error('❌ Error fetching orders:', error.message);
@@ -275,6 +276,7 @@ class ShopifyService {
 					store_id: storeId
 				}));
 			}
+			fs.writeFileSync("amazonSalesData.json", JSON.stringify(amazonSalesData, null, 2));
 			await this.saveAmazonSalesDataToDatabase(amazonSalesData, null, null);
 			return [];
 		} catch (error) {
